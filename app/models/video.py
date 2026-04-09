@@ -1,0 +1,188 @@
+"""P3 Real Video — Pydantic models and template configuration."""
+
+from enum import Enum
+from typing import Literal, Optional
+from uuid import uuid4
+
+from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Template enum & config
+# ---------------------------------------------------------------------------
+
+class VideoTemplate(str, Enum):
+    MYTH_BUSTER = "myth-buster"
+    BULLET_SEQUENCE = "bullet-sequence"
+    VIRAL_REACTION = "viral-reaction"
+    TESTIMONIAL_STORY = "testimonial-story"
+    BIG_QUOTE = "big-quote"
+    DEEP_DIVE = "deep-dive"
+    VIRAL_INFORMATIVE = "viral-informative"
+
+
+TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
+    VideoTemplate.VIRAL_INFORMATIVE: {
+        "creatomate_id": "REPLACE_WITH_REAL_ID",
+        "required_videos": 1,
+        "required_text_count": 1,   # text_1 = Hook
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.MYTH_BUSTER: {
+        "creatomate_id": "483fad02-e841-4a2b-b426-13bdaa403c3c",
+        "required_videos": 1,
+        "required_text_count": 4,   # text_1..text_4
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": 9.5,
+        "snapshot_time": 3.18,
+    },
+    VideoTemplate.BULLET_SEQUENCE: {
+        "creatomate_id": "d74c192b-e963-4779-a07b-7d3ff9a579c9",
+        "required_videos": 3,
+        "required_text_count": 6,   # text_1..text_6
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": 12.388,
+    },
+    VideoTemplate.VIRAL_REACTION: {
+        "creatomate_id": "b3aa0d23-0976-4f20-9f93-2b33ca203adf",
+        "required_videos": 1,
+        "required_text_count": 0,
+        "needs_analysis": True,
+        "output_format": "mp4",
+    },
+    VideoTemplate.TESTIMONIAL_STORY: {
+        "creatomate_id": "99f744cc-2511-4034-8b03-2ec8ad9b5db9",
+        "required_videos": 1,
+        "required_text_count": 0,
+        "needs_analysis": True,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.BIG_QUOTE: {
+        "creatomate_id": "bdd71705-e4ec-4151-9468-50612c6d4de8",
+        "required_videos": 1,
+        "required_text_count": 1,   # text_1 = Quote
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.DEEP_DIVE: {
+        "creatomate_id": "8aa55efd-9983-462b-ad37-c3eafb90c8d2",
+        "required_videos": 7,
+        "required_text_count": 8,   # text_1=Title, text_2..text_8=Statements
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Request / Response schemas
+# ---------------------------------------------------------------------------
+
+class GenerateVideoRequest(BaseModel):
+    """Payload from the wizard / frontend for P3 Real Video generation."""
+
+    agent_type: Literal["reels-edited-by-ai"] = "reels-edited-by-ai"
+    message_id: str = Field(default_factory=lambda: str(uuid4()))
+    client_id: str = ""
+
+    # Template selection  (wizard key, e.g. "myth-buster")
+    template: str = Field(
+        ...,
+        description="Template key: myth-buster, bullet-sequence, viral-reaction, "
+                    "testimonial-story, big-quote, deep-dive",
+    )
+
+    # Video URLs (uploaded to Supabase Storage by wizard)
+    video_urls: list[str] = Field(
+        default_factory=list,
+        description="Public URLs of user-uploaded videos. Count varies by template.",
+    )
+
+    # Generic numbered text fields — wizard sends text_1..text_8
+    text_1: Optional[str] = Field(None, max_length=300)
+    text_2: Optional[str] = Field(None, max_length=300)
+    text_3: Optional[str] = Field(None, max_length=300)
+    text_4: Optional[str] = Field(None, max_length=300)
+    text_5: Optional[str] = Field(None, max_length=300)
+    text_6: Optional[str] = Field(None, max_length=300)
+    text_7: Optional[str] = Field(None, max_length=300)
+    text_8: Optional[str] = Field(None, max_length=300)
+
+    # Caption (all templates)
+    caption: Optional[str] = Field(None, max_length=2200)
+
+    # Background music track ID from the curated library (optional)
+    music_track: Optional[str] = Field(None, max_length=200)
+    logo_url: Optional[str] = Field(None, description="Public URL of the business logo")
+    brand_settings: Optional[dict] = Field(None, description="Dynamic brand settings (colors, fonts, etc.)")
+
+    # Brand fields (enriched by frontend generate.ts or loaded from profile)
+    brand_name: Optional[str] = None
+    brand_color_primary: Optional[str] = None
+    brand_color_secondary: Optional[str] = None
+    font_style: Optional[str] = None
+    logo_url: Optional[str] = None
+    brand_settings: Optional[dict] = Field(None, description="Dynamic brand settings (colors, fonts, etc.)")
+
+
+class GenerateVideoResponse(BaseModel):
+    """Matches existing frontend expectations."""
+
+    reply: str
+    caption: str
+    media_urls: list[str]
+    message_id: str
+    reel_category: Optional[str] = None
+    render_duration_ms: Optional[int] = None
+
+
+class VideoStatusResponse(BaseModel):
+    """Status check for recovery polling."""
+
+    status: Literal["pending", "rendering", "completed", "failed"]
+    message_id: str
+    media_urls: Optional[list[str]] = None
+    reply: Optional[str] = None
+    caption: Optional[str] = None
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Internal models
+# ---------------------------------------------------------------------------
+
+class VideoAnalysisResult(BaseModel):
+    """Parsed Gemini video analysis output (T3/T4)."""
+
+    # T3 Viral Reaction
+    start_time_seconds: Optional[float] = None
+    duration_seconds: Optional[float] = None
+    generated_hook: Optional[str] = None
+
+    # Shared
+    analysis_summary: Optional[str] = None
+
+
+class CreatomateRenderStatus(BaseModel):
+    """Status from Creatomate polling."""
+
+    id: str
+    status: Literal["planned", "rendering", "succeeded", "failed"]
+    url: Optional[str] = None
+    error_message: Optional[str] = None
+    render_time: Optional[float] = None
