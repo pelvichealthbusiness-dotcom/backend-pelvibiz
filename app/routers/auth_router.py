@@ -79,6 +79,9 @@ def _build_full_profile(user: UserContext, profile_data: dict) -> FullUserProfil
         cta=p.get("cta"),
         content_style_brief=p.get("content_style_brief"),
         brand_playbook=p.get("content_style_brief") or p.get("brand_playbook"),
+        visual_environment_setup=p.get("visual_environment_setup"),
+        visual_subject_outfit_face=p.get("visual_subject_outfit_face"),
+        visual_subject_outfit_generic=p.get("visual_subject_outfit_generic"),
     )
 
 

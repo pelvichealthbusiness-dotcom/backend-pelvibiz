@@ -69,6 +69,7 @@ class FullUserProfile(BaseModel):
     keywords: Optional[str] = None
     cta: Optional[str] = None
     content_style_brief: Optional[str] = None
+    brand_playbook: Optional[str] = None
     brand_stories: Optional[str] = None
     visual_environment_setup: Optional[str] = None
     visual_subject_outfit_face: Optional[str] = None
