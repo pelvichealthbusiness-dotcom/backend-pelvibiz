@@ -1,0 +1,47 @@
+name: Deploy backend to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync backend to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          DEPLOY_PATH: /root/pelvibiz-agent-api
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.venv/' \
+            --exclude='.pytest_cache/' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='.git/' \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${VPS_PORT}" \
+            ./ "${VPS_USER}@${VPS_HOST}:${DEPLOY_PATH}/"
+
+      - name: Restart backend service
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${VPS_PORT}" "${VPS_USER}@${VPS_HOST}" \
+            "systemctl restart pelvibiz-agent-api"
