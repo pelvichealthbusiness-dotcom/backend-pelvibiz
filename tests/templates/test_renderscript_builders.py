@@ -5,6 +5,7 @@ from app.templates.brand_theme import BrandTheme
 from app.templates.renderscript_builders import (
     build_big_quote, build_myth_buster, build_bullet_sequence,
     build_viral_reaction, build_testimonial_story, build_deep_dive,
+    build_brand_spotlight, build_social_proof_stack, build_offer_drop,
     RENDERSCRIPT_BUILDERS,
 )
 from app.models.video import VideoTemplate
@@ -183,6 +184,8 @@ class TestDispatchTable:
             VideoTemplate.MYTH_BUSTER, VideoTemplate.BULLET_SEQUENCE,
             VideoTemplate.VIRAL_REACTION, VideoTemplate.TESTIMONIAL_STORY,
             VideoTemplate.BIG_QUOTE, VideoTemplate.DEEP_DIVE,
+            VideoTemplate.BRAND_SPOTLIGHT, VideoTemplate.SOCIAL_PROOF_STACK,
+            VideoTemplate.OFFER_DROP,
         }
         assert set(RENDERSCRIPT_BUILDERS.keys()) == expected
 

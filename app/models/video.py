@@ -19,6 +19,9 @@ class VideoTemplate(str, Enum):
     BIG_QUOTE = "big-quote"
     DEEP_DIVE = "deep-dive"
     VIRAL_INFORMATIVE = "viral-informative"
+    BRAND_SPOTLIGHT = "brand-spotlight"
+    SOCIAL_PROOF_STACK = "social-proof-stack"
+    OFFER_DROP = "offer-drop"
 
 
 TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
@@ -86,6 +89,36 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "width": 1080,
         "height": 1920,
     },
+    VideoTemplate.BRAND_SPOTLIGHT: {
+        "creatomate_id": "REPLACE_WITH_REAL_ID",
+        "required_videos": 1,
+        "required_text_count": 4,
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": 9,
+    },
+    VideoTemplate.SOCIAL_PROOF_STACK: {
+        "creatomate_id": "REPLACE_WITH_REAL_ID",
+        "required_videos": 2,
+        "required_text_count": 5,
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": 14,
+    },
+    VideoTemplate.OFFER_DROP: {
+        "creatomate_id": "REPLACE_WITH_REAL_ID",
+        "required_videos": 1,
+        "required_text_count": 4,
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": 10,
+    },
 }
 
 
@@ -104,7 +137,7 @@ class GenerateVideoRequest(BaseModel):
     template: str = Field(
         ...,
         description="Template key: myth-buster, bullet-sequence, viral-reaction, "
-                    "testimonial-story, big-quote, deep-dive",
+                    "testimonial-story, big-quote, deep-dive, brand-spotlight, social-proof-stack, offer-drop",
     )
 
     # Video URLs (uploaded to Supabase Storage by wizard)

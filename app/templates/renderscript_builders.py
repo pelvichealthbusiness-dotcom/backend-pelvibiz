@@ -313,6 +313,53 @@ def build_deep_dive(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
     return source
 
 
+def build_brand_spotlight(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    dur = 9.0
+    source = _base_source(dur)
+    els = source["elements"]
+
+    els.append(_video_elem("Video", 1, request.video_urls[0], 0, dur, volume="0%"))
+    els.append(_rect_elem("Overlay", 2, 0, dur, theme.background_color, opacity="60%"))
+    els.append(_text_elem("Hook", 3, request.text_1 or "", 0.2, 2.5, theme, y="18%", fill_color=theme.secondary_color, font_size="4.8 vmin"))
+    els.append(_text_elem("Promise", 4, request.text_2 or "", 2.2, 3.0, theme, y="38%", fill_color="#FFFFFF", font_size="4.1 vmin"))
+    els.append(_text_elem("Proof", 5, request.text_3 or "", 4.5, 2.8, theme, y="58%", fill_color=theme.primary_color, font_size="4.1 vmin"))
+    els.append(_text_elem("CTA", 6, request.text_4 or "", 6.9, 1.6, theme, y="80%", fill_color="#FFFFFF", font_size="3.2 vmin"))
+    els.extend(_add_optional(_logo_elem(theme, dur, track=50), _audio_elem(theme, dur, track=51)))
+    return source
+
+
+def build_social_proof_stack(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    dur = 14.0
+    source = _base_source(dur)
+    els = source["elements"]
+
+    els.append(_video_elem("Video-1", 1, request.video_urls[0], 0, dur / 2, volume="0%"))
+    els.append(_video_elem("Video-2", 2, request.video_urls[1], dur / 2, dur / 2, volume="0%"))
+    els.append(_rect_elem("Overlay", 3, 0, dur, theme.background_color, opacity="58%"))
+    els.append(_text_elem("Problem", 4, request.text_1 or "", 0.1, 3.0, theme, y="18%", fill_color=theme.secondary_color, font_size="4.1 vmin"))
+    els.append(_text_elem("Result", 5, request.text_2 or "", 2.8, 3.0, theme, y="34%", fill_color="#FFFFFF", font_size="4.1 vmin"))
+    els.append(_text_elem("Testimonial", 6, request.text_3 or "", 5.7, 3.0, theme, y="52%", fill_color=theme.primary_color, font_size="3.8 vmin"))
+    els.append(_text_elem("Stats", 7, request.text_4 or "", 8.5, 2.5, theme, y="67%", fill_color="#FFFFFF", font_size="3.6 vmin"))
+    els.append(_text_elem("CTA", 8, request.text_5 or "", 11.4, 1.8, theme, y="82%", fill_color=theme.primary_color, font_size="3.2 vmin"))
+    els.extend(_add_optional(_logo_elem(theme, dur, track=50), _audio_elem(theme, dur, track=51)))
+    return source
+
+
+def build_offer_drop(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    dur = 10.0
+    source = _base_source(dur)
+    els = source["elements"]
+
+    els.append(_video_elem("Video", 1, request.video_urls[0], 0, dur, volume="0%"))
+    els.append(_rect_elem("Overlay", 2, 0, dur, theme.background_color, opacity="52%"))
+    els.append(_text_elem("Hook", 3, request.text_1 or "", 0.1, 2.2, theme, y="18%", fill_color="#FFFFFF", font_size="4.6 vmin"))
+    els.append(_text_elem("Offer", 4, request.text_2 or "", 2.1, 3.0, theme, y="39%", fill_color=theme.primary_color, font_size="4.3 vmin"))
+    els.append(_text_elem("Urgency", 5, request.text_3 or "", 4.8, 2.7, theme, y="58%", fill_color=theme.secondary_color, font_size="4.0 vmin"))
+    els.append(_text_elem("CTA", 6, request.text_4 or "", 7.1, 2.3, theme, y="80%", fill_color="#FFFFFF", font_size="3.4 vmin"))
+    els.extend(_add_optional(_logo_elem(theme, dur, track=50), _audio_elem(theme, dur, track=51)))
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -322,4 +369,7 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.TESTIMONIAL_STORY: build_testimonial_story,
     VideoTemplate.BIG_QUOTE: build_big_quote,
     VideoTemplate.DEEP_DIVE: build_deep_dive,
+    VideoTemplate.BRAND_SPOTLIGHT: build_brand_spotlight,
+    VideoTemplate.SOCIAL_PROOF_STACK: build_social_proof_stack,
+    VideoTemplate.OFFER_DROP: build_offer_drop,
 }

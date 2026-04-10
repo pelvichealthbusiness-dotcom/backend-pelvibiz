@@ -42,6 +42,14 @@ def _should_use_renderscript(template_key: str) -> bool:
     return template_key in {k.strip() for k in flag.split(",")}
 
 
+def _should_force_renderscript(template_enum: VideoTemplate) -> bool:
+    return template_enum in {
+        VideoTemplate.BRAND_SPOTLIGHT,
+        VideoTemplate.SOCIAL_PROOF_STACK,
+        VideoTemplate.OFFER_DROP,
+    }
+
+
 async def _maybe_trim_video_urls(video_urls: list[str], user_id: str, request: GenerateVideoRequest) -> list[str]:
     if request.trim_start_seconds is None or request.trim_end_seconds is None:
         return video_urls
@@ -289,7 +297,7 @@ async def generate_video_stream(
                 "logo_url": profile.get("logo_url"),
                 "music_url": getattr(request, "music_track", None),
             }
-            if _should_use_renderscript(request.template):
+            if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
                 builder = RENDERSCRIPT_BUILDERS.get(template_enum)
                 if builder:
                     source_dict = builder(request, theme, analysis_result)
