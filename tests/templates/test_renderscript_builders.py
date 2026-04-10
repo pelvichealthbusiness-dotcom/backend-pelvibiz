@@ -178,6 +178,37 @@ class TestDeepDive:
         assert audio["track"] == 51
 
 
+class TestBrandSpotlight:
+    def test_has_1_video_and_4_text_elements(self):
+        source = build_brand_spotlight(make_request(), make_theme())
+        videos = [e for e in source["elements"] if e["type"] == "video"]
+        texts = [e for e in source["elements"] if e["type"] == "text"]
+        assert source["duration"] == 9.0
+        assert len(videos) == 1
+        assert len(texts) == 4
+
+
+class TestSocialProofStack:
+    def test_has_2_videos_and_5_text_elements(self):
+        req = make_request(video_urls=["v1.mp4", "v2.mp4"])
+        source = build_social_proof_stack(req, make_theme())
+        videos = [e for e in source["elements"] if e["type"] == "video"]
+        texts = [e for e in source["elements"] if e["type"] == "text"]
+        assert source["duration"] == 14.0
+        assert len(videos) == 2
+        assert len(texts) == 5
+
+
+class TestOfferDrop:
+    def test_has_1_video_and_4_text_elements(self):
+        source = build_offer_drop(make_request(), make_theme())
+        videos = [e for e in source["elements"] if e["type"] == "video"]
+        texts = [e for e in source["elements"] if e["type"] == "text"]
+        assert source["duration"] == 10.0
+        assert len(videos) == 1
+        assert len(texts) == 4
+
+
 class TestDispatchTable:
     def test_all_templates_have_builders(self):
         expected = {
