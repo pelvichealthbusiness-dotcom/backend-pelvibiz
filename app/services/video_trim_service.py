@@ -53,10 +53,12 @@ def build_ffmpeg_reencode_command(input_path: str, output_path: str, start_secon
     return [
         'ffmpeg',
         '-y',
+        '-i', input_path,
         '-ss', f'{start_seconds}',
         '-t', f'{end_seconds - start_seconds}',
-        '-i', input_path,
         '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
         '-movflags', '+faststart',
         output_path,
@@ -85,12 +87,11 @@ class VideoTrimService:
             duration = await self._probe_duration(input_path)
             window = validate_trim_window(mode='manual', start_seconds=start_seconds, end_seconds=end_seconds, duration_seconds=duration)
 
-            fast_cmd = build_ffmpeg_trim_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
-            try:
-                await asyncio.to_thread(self._run_command, fast_cmd)
-            except StorageUploadError:
-                slow_cmd = build_ffmpeg_reencode_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
-                await asyncio.to_thread(self._run_command, slow_cmd)
+            export_cmd = build_ffmpeg_reencode_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
+            await asyncio.to_thread(self._run_command, export_cmd)
+
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                raise AgentAPIError(message='Video export produced an empty file', code='TRIM_EMPTY_OUTPUT', status_code=500)
             video_bytes = output_path.read_bytes()
             return await self.storage.upload_video_bytes(video_bytes, user_id)
 

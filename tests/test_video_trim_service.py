@@ -24,3 +24,17 @@ def test_build_ffmpeg_command_uses_requested_range():
     assert '-t' in cmd and '6.0' in cmd
     assert '-c' in cmd and 'copy' in cmd
     assert cmd[-1] == '/tmp/out.mp4'
+
+
+def test_build_ffmpeg_reencode_command_uses_requested_range():
+    from app.services.video_trim_service import build_ffmpeg_reencode_command
+
+    cmd = build_ffmpeg_reencode_command('/tmp/in.mp4', '/tmp/out.mp4', 4.0, 10.0)
+
+    assert cmd[0] == 'ffmpeg'
+    assert '-i' in cmd and '/tmp/in.mp4' in cmd
+    assert '-ss' in cmd and '4.0' in cmd
+    assert '-t' in cmd and '6.0' in cmd
+    assert '-preset' in cmd and 'veryfast' in cmd
+    assert '-pix_fmt' in cmd and 'yuv420p' in cmd
+    assert cmd[-1] == '/tmp/out.mp4'
