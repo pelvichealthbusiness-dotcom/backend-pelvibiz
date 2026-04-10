@@ -512,7 +512,7 @@ class WizardGenerateAgent:
                         keywords=profile.get("keywords", "") or "",
                         content_style=profile.get("content_style_brief", "") or "",
                         brand_playbook=profile.get("brand_playbook") or profile.get("content_style_brief") or "",
-                font_prompt_secondary=profile.get("font_prompt_secondary") or "",
+                        font_prompt_secondary=profile.get("font_prompt_secondary") or "",
                         visual_subject_outfit_face=profile.get("visual_subject_outfit_face") or "",
                         visual_subject_outfit_generic=profile.get("visual_subject_outfit_generic") or "",
                         story_context=story_context,

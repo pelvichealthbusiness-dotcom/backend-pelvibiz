@@ -145,6 +145,7 @@ def build_per_slide_context(
     keywords: str = "",
     content_style: str = "",
     brand_playbook: str = "",
+    font_prompt_secondary: str = "",
     visual_subject_outfit_face: str = "",
     visual_subject_outfit_generic: str = "",
     story_context: str = "",
@@ -208,6 +209,9 @@ def build_per_slide_context(
     # 7. Content style
     if content_style:
         parts.append(f"Visual style should feel: {content_style}")
+
+    if font_prompt_secondary:
+        parts.append(f"Secondary/body emphasis font: {font_prompt_secondary}")
 
     if brand_playbook:
         parts.append(f"Brand playbook / CTA rules: {brand_playbook}")
