@@ -21,5 +21,6 @@ def test_build_ffmpeg_command_uses_requested_range():
 
     assert cmd[0] == 'ffmpeg'
     assert '-ss' in cmd and '4.0' in cmd
-    assert '-to' in cmd and '10.0' in cmd
+    assert '-t' in cmd and '6.0' in cmd
+    assert '-c' in cmd and 'copy' in cmd
     assert cmd[-1] == '/tmp/out.mp4'

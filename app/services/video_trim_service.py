@@ -41,7 +41,20 @@ def build_ffmpeg_trim_command(input_path: str, output_path: str, start_seconds: 
         'ffmpeg',
         '-y',
         '-ss', f'{start_seconds}',
-        '-to', f'{end_seconds}',
+        '-i', input_path,
+        '-t', f'{end_seconds - start_seconds}',
+        '-c', 'copy',
+        '-movflags', '+faststart',
+        output_path,
+    ]
+
+
+def build_ffmpeg_reencode_command(input_path: str, output_path: str, start_seconds: float, end_seconds: float) -> list[str]:
+    return [
+        'ffmpeg',
+        '-y',
+        '-ss', f'{start_seconds}',
+        '-t', f'{end_seconds - start_seconds}',
         '-i', input_path,
         '-c:v', 'libx264',
         '-c:a', 'aac',
@@ -55,9 +68,6 @@ class VideoTrimService:
         self.storage = StorageService()
 
     async def trim_and_store(self, *, source_url: str, user_id: str, start_seconds: float, end_seconds: float) -> str:
-        duration = await self._probe_duration(source_url)
-        window = validate_trim_window(mode='manual', start_seconds=start_seconds, end_seconds=end_seconds, duration_seconds=duration)
-
         if shutil.which('ffmpeg') is None:
             raise AgentAPIError(
                 message='Video trimming is unavailable on this server',
@@ -72,8 +82,15 @@ class VideoTrimService:
             output_path = tmp_path / 'output.mp4'
 
             await self._download_to_file(source_url, input_path)
-            cmd = build_ffmpeg_trim_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
-            await asyncio.to_thread(self._run_command, cmd)
+            duration = await self._probe_duration(input_path)
+            window = validate_trim_window(mode='manual', start_seconds=start_seconds, end_seconds=end_seconds, duration_seconds=duration)
+
+            fast_cmd = build_ffmpeg_trim_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
+            try:
+                await asyncio.to_thread(self._run_command, fast_cmd)
+            except StorageUploadError:
+                slow_cmd = build_ffmpeg_reencode_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
+                await asyncio.to_thread(self._run_command, slow_cmd)
             video_bytes = output_path.read_bytes()
             return await self.storage.upload_video_bytes(video_bytes, user_id)
 
@@ -83,24 +100,20 @@ class VideoTrimService:
             response.raise_for_status()
             destination.write_bytes(response.content)
 
-    async def _probe_duration(self, url: str) -> float:
+    async def _probe_duration(self, input_path: Path) -> float:
         if shutil.which('ffprobe') is None:
             return 60.0
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
-            input_path = tmp_path / 'probe.mp4'
-            await self._download_to_file(url, input_path)
-            cmd = [
-                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                '-of', 'json', str(input_path),
-            ]
-            output = await asyncio.to_thread(subprocess.check_output, cmd, text=True)
-            data = json.loads(output)
-            duration = float(data.get('format', {}).get('duration', 0))
-            if duration <= 0:
-                raise AgentAPIError(message='Could not determine video duration', code='TRIM_PROBE_FAILED', status_code=422)
-            return duration
+        cmd = [
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'json', str(input_path),
+        ]
+        output = await asyncio.to_thread(subprocess.check_output, cmd, text=True)
+        data = json.loads(output)
+        duration = float(data.get('format', {}).get('duration', 0))
+        if duration <= 0:
+            raise AgentAPIError(message='Could not determine video duration', code='TRIM_PROBE_FAILED', status_code=422)
+        return duration
 
     def _run_command(self, cmd: list[str]) -> None:
         try:

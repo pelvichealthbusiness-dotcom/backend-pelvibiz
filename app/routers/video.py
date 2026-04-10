@@ -41,11 +41,7 @@ def _should_use_renderscript(template_key: str) -> bool:
 
 
 def _should_force_renderscript(template_enum: VideoTemplate) -> bool:
-    return template_enum in {
-        VideoTemplate.BRAND_SPOTLIGHT,
-        VideoTemplate.SOCIAL_PROOF_STACK,
-        VideoTemplate.OFFER_DROP,
-    }
+    return template_enum in set(VideoTemplate)
 
 router = APIRouter(prefix="/video", tags=["video"])
 
