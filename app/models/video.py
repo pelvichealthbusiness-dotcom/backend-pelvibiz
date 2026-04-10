@@ -126,6 +126,10 @@ class GenerateVideoRequest(BaseModel):
     # Caption (all templates)
     caption: Optional[str] = Field(None, max_length=2200)
 
+    # Optional trim range applied before the existing video pipeline runs
+    trim_start_seconds: Optional[float] = Field(None, ge=0)
+    trim_end_seconds: Optional[float] = Field(None, gt=0)
+
     # Background music track ID from the curated library (optional)
     music_track: Optional[str] = Field(None, max_length=200)
     logo_url: Optional[str] = Field(None, description="Public URL of the business logo")

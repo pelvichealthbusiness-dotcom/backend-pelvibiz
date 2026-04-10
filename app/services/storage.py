@@ -49,3 +49,25 @@ class StorageService:
                 raise
         
         raise RuntimeError("Storage upload failed after retries")  # unreachable but satisfies type checker
+
+    async def upload_video_bytes(self, video_bytes: bytes, user_id: str) -> str:
+        timestamp = int(time.time() * 1000)
+        unique_id = uuid.uuid4().hex[:8]
+        storage_path = f"generated/{user_id}/{timestamp}-{unique_id}.mp4"
+
+        upload_url = f"{self.supabase_url}/storage/v1/object/{self.bucket}/{storage_path}"
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                upload_url,
+                content=video_bytes,
+                headers={
+                    "Authorization": f"Bearer {self.service_key}",
+                    "apikey": self.service_key,
+                    "Content-Type": "video/mp4",
+                    "x-upsert": "true",
+                },
+            )
+            response.raise_for_status()
+
+        return f"{self.supabase_url}/storage/v1/object/public/{self.bucket}/{storage_path}"

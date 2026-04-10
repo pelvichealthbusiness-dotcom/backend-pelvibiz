@@ -3,6 +3,7 @@
 import logging
 import time
 import uuid
+import asyncio
 
 import httpx
 
@@ -21,6 +22,7 @@ from app.services.creatomate import CreatomateService
 from app.services.credits import CreditsService
 from app.services.exceptions import AgentAPIError
 from app.services.storage import StorageService
+from app.services.video_trim_service import VideoTrimService
 from app.services.video_analysis import VideoAnalysisService
 from app.templates.creatomate_mappings import TEMPLATE_MAPPERS, ANALYSIS_MAPPERS
 import os
@@ -38,6 +40,25 @@ def _should_use_renderscript(template_key: str) -> bool:
     if flag == "all":
         return True
     return template_key in {k.strip() for k in flag.split(",")}
+
+
+async def _maybe_trim_video_urls(video_urls: list[str], user_id: str, request: GenerateVideoRequest) -> list[str]:
+    if request.trim_start_seconds is None or request.trim_end_seconds is None:
+        return video_urls
+
+    trim_service = VideoTrimService()
+    trimmed = await asyncio.gather(
+        *[
+            trim_service.trim_and_store(
+                source_url=url,
+                user_id=user_id,
+                start_seconds=request.trim_start_seconds,
+                end_seconds=request.trim_end_seconds,
+            )
+            for url in video_urls
+        ]
+    )
+    return list(trimmed)
 
 router = APIRouter(prefix="/video", tags=["video"])
 
@@ -72,17 +93,21 @@ async def generate_video(
     brand_service = BrandService()
     profile = await brand_service.load_profile(user_id)
 
+    # ---- Optional trim step ----------------------------------------------
+    effective_video_urls = await _maybe_trim_video_urls(request.video_urls, user_id, request)
+    request.video_urls = effective_video_urls
+
     # ---- Video analysis for T3/T4 -----------------------------------------
     analysis_result = None
-    if template_enum in ANALYSIS_MAPPERS and request.video_urls:
+    if template_enum in ANALYSIS_MAPPERS and effective_video_urls:
         analysis_service = VideoAnalysisService()
         if template_enum == VideoTemplate.VIRAL_REACTION:
             analysis_result = await analysis_service.analyze_for_viral_reaction(
-                request.video_urls[0],
+                effective_video_urls[0],
             )
         elif template_enum == VideoTemplate.TESTIMONIAL_STORY:
             analysis_result = await analysis_service.analyze_for_testimonial(
-                request.video_urls[0],
+                effective_video_urls[0],
             )
 
     # ---- Build modifications via template mappers -------------------------
@@ -235,18 +260,22 @@ async def generate_video_stream(
             brand_service = BrandService()
             profile = await brand_service.load_profile(user_id)
 
+            # ---- Optional trim step --------------------------------------
+            effective_video_urls = await _maybe_trim_video_urls(request.video_urls, user_id, request)
+            request.video_urls = effective_video_urls
+
             # ---- Video analysis for T3/T4 ----------------------------------
             analysis_result = None
-            if template_enum in ANALYSIS_MAPPERS and request.video_urls:
+            if template_enum in ANALYSIS_MAPPERS and effective_video_urls:
                 yield f'data: {json.dumps({"type": "progress", "phase": "analyzing", "message": "Analyzing your video with AI..."})}\n\n'
                 analysis_service = VideoAnalysisService()
                 if template_enum == VideoTemplate.VIRAL_REACTION:
                     analysis_result = await analysis_service.analyze_for_viral_reaction(
-                        request.video_urls[0],
+                        effective_video_urls[0],
                     )
                 elif template_enum == VideoTemplate.TESTIMONIAL_STORY:
                     analysis_result = await analysis_service.analyze_for_testimonial(
-                        request.video_urls[0],
+                        effective_video_urls[0],
                     )
 
             # ---- RenderScript path (feature-flagged) --------------------------
@@ -281,10 +310,10 @@ async def generate_video_stream(
             # ---- Render via Creatomate -------------------------------------
             if render_id is None:
                 creatomate = CreatomateService()
-                if "source" in modifications:
-                    render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
-                else:
-                    render_id = await creatomate.render(template_id, modifications, **extra_params)
+            if "source" in modifications:
+                render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
+            else:
+                render_id = await creatomate.render(template_id, modifications, **extra_params)
 
             # ---- Emit: rendering (initial) ---------------------------------
             yield f'data: {json.dumps({"type": "progress", "phase": "rendering", "elapsed_seconds": 0, "message": "Sending to render pipeline..."})}\n\n'
