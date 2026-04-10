@@ -3,6 +3,7 @@ import logging
 from openai import AsyncOpenAI
 from app.config import get_settings
 from app.services.brand import BrandService
+from app.services.brand_harmony import review_plan
 from app.services.learning import LearningService
 from app.prompts.draft_generate import build_draft_system_prompt, build_video_draft_system_prompt
 from app.prompts.ideas_generate import build_learning_section
@@ -82,7 +83,7 @@ class DraftEngine:
         user_message = f"Create a {slide_count}-slide carousel about: \"{topic}\""
 
         try:
-            return await self._call_llm(system_prompt, user_message, slide_count)
+            return await self._call_llm(system_prompt, user_message, slide_count, profile)
         except Exception as e:
             logger.warning(f"Draft LLM failed, using fallback: {e}")
             return self._fallback_draft(topic, slide_count, profile)
@@ -145,13 +146,13 @@ class DraftEngine:
         user_message = f"Create content for a \"{template_label}\" video about: \"{topic}\""
 
         try:
-            return await self._call_llm_video(system_prompt, user_message, text_fields)
+            return await self._call_llm_video(system_prompt, user_message, text_fields, profile)
         except Exception as e:
             logger.warning(f"Video draft LLM failed: {e}")
             return self._fallback_video_draft(topic, text_fields)
 
     async def _call_llm(
-        self, system_prompt: str, user_message: str, slide_count: int
+        self, system_prompt: str, user_message: str, slide_count: int, profile: dict
     ) -> dict:
         """Call LLM with retry at lower temperature on parse failure."""
         print(f"DEBUG _call_llm called with slide_count={slide_count}", flush=True)
@@ -187,9 +188,19 @@ class DraftEngine:
                     n = len(normalized_slides) + 1
                     normalized_slides.append({"number": n, "text": f"Slide {n}"})
 
-                return {
+                reviewed = review_plan(profile, {
                     "slides": normalized_slides,
                     "caption": data.get("caption", ""),
+                })
+
+                reviewed_slides = [
+                    {"number": s.get("number", i + 1), "text": s.get("text", f"Slide {i + 1}")}
+                    for i, s in enumerate(reviewed.get("slides", []))
+                ]
+
+                return {
+                    "slides": reviewed_slides,
+                    "caption": reviewed["caption"],
                 }
             except json.JSONDecodeError:
                 if attempt == 1:
@@ -200,7 +211,7 @@ class DraftEngine:
         raise ValueError("All attempts failed")
 
     async def _call_llm_video(
-        self, system_prompt: str, user_message: str, text_fields: list[dict]
+        self, system_prompt: str, user_message: str, text_fields: list[dict], profile: dict
     ) -> dict:
         """Call LLM for video draft with retry."""
         for attempt, temp in enumerate([0.7, 0.5]):
@@ -226,7 +237,7 @@ class DraftEngine:
                 if start == -1:
                     raise json.JSONDecodeError('No JSON object found', sanitized, 0)
                 obj, _ = json.JSONDecoder().raw_decode(sanitized, start)
-                return obj
+                return review_plan(profile, obj)
             except json.JSONDecodeError:
                 if attempt == 1:
                     raise

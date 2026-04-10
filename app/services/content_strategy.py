@@ -3,6 +3,7 @@ import logging
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 from app.config import get_settings
+from app.services.brand_harmony import review_plan
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +77,28 @@ class ContentStrategyService:
                 gemini_prompt_context="",
             ))
 
+        reviewed = review_plan(brand_profile, {
+            "slides": [s.model_dump() for s in slides],
+            "reply": data.get("reply", "Your carousel is ready!"),
+            "caption": data.get("caption", ""),
+            "reasoning": data.get("reasoning", ""),
+        })
+
+        reviewed_slides = [
+            SlideContent(
+                number=s.get("number", i + 1),
+                text=s.get("text", f"Slide {i + 1}"),
+                text_position=s.get("text_position", "Bottom Center"),
+                gemini_prompt_context=s.get("gemini_prompt_context", ""),
+            )
+            for i, s in enumerate(reviewed.get("slides", []))
+        ]
+
         return ContentPlan(
-            slides=slides,
-            reply=data.get("reply", "Your carousel is ready!"),
-            caption=data.get("caption", ""),
-            reasoning=data.get("reasoning", ""),
+            slides=reviewed_slides,
+            reply=reviewed.get("reply", data.get("reply", "Your carousel is ready!")),
+            caption=reviewed.get("caption", data.get("caption", "")),
+            reasoning=reviewed.get("reasoning", data.get("reasoning", "")),
         )
 
     def _build_system_prompt(self, profile: dict, slides_count: int) -> str:
@@ -93,6 +111,7 @@ class ContentStrategyService:
         content_style = profile.get("content_style_brief") or ""
         color_primary = profile.get("brand_color_primary") or "#000000"
         color_secondary = profile.get("brand_color_secondary") or "#FFFFFF"
+        cta_tone = cta or "warm, specific, low-friction, and on-brand"
 
         return f"""You are an expert social media content strategist for {brand_name}.
 
@@ -101,7 +120,7 @@ BRAND CONTEXT:
 - Target Audience: {target_audience}
 - Services: {services}
 - Keywords: {keywords}
-- CTA: {cta}
+- CTA tone/rules: {cta_tone}
 - Content Style: {content_style}
 - Primary Color: {color_primary}
 - Secondary Color: {color_secondary}
@@ -232,11 +251,40 @@ Return JSON with this EXACT structure:
                 visual_prompt="",
             ))
 
+        reviewed = review_plan(brand_profile, {
+            "slides": [
+                {
+                    "number": s.number,
+                    "slide_type": s.slide_type.value,
+                    "text": s.text,
+                    "text_position": s.text_position,
+                    "visual_prompt": s.visual_prompt,
+                }
+                for s in slides
+            ],
+            "reply": data.get("reply", "Your AI carousel is ready!"),
+            "caption": data.get("caption", ""),
+            "reasoning": data.get("reasoning", ""),
+        })
+
+        reviewed_slides = []
+        for i, s in enumerate(reviewed.get("slides", [])):
+            raw_type = s.get("slide_type", "generic").lower()
+            from app.models.ai_carousel import SlideType, AiSlideContent
+            slide_type = SlideType.FACE if raw_type == "face" else SlideType.CARD if raw_type == "card" else SlideType.GENERIC
+            reviewed_slides.append(AiSlideContent(
+                number=s.get("number", i + 1),
+                slide_type=slide_type,
+                text=s.get("text", f"Slide {i + 1}"),
+                text_position=s.get("text_position", "Bottom Center"),
+                visual_prompt=s.get("visual_prompt", "") if slide_type in (SlideType.GENERIC, SlideType.FACE) else "",
+            ))
+
         return AiContentPlan(
-            slides=slides,
-            reply=data.get("reply", "Your AI carousel is ready!"),
-            caption=data.get("caption", ""),
-            reasoning=data.get("reasoning", ""),
+            slides=reviewed_slides,
+            reply=reviewed.get("reply", data.get("reply", "Your AI carousel is ready!")),
+            caption=reviewed.get("caption", data.get("caption", "")),
+            reasoning=reviewed.get("reasoning", data.get("reasoning", "")),
         )
 
     def _fallback_plan_ai(self, message: str, brand_profile: dict, slide_count: int):

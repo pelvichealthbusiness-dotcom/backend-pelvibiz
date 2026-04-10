@@ -4,7 +4,8 @@ Ported and enhanced from pelvi-ai-hub/api/_lib/agent-prompts.ts
 """
 
 from typing import Optional
-from app.prompts.ideas_generate import _val, _opt, build_brand_brief
+from app.prompts.ideas_generate import _val, _opt
+from app.services.brand_context import build_brand_context_pack
 
 
 def build_draft_system_prompt(brand_profile: dict, slide_count: int) -> str:
@@ -17,9 +18,10 @@ def build_draft_system_prompt(brand_profile: dict, slide_count: int) -> str:
     brand_name = _val(brand_profile.get("brand_name"), "the brand")
     audience = _val(brand_profile.get("target_audience"), "professionals")
     voice = _val(brand_profile.get("brand_voice"), "professional and approachable")
-    cta = _val(brand_profile.get("cta"), "")
+    brand_context = build_brand_context_pack(brand_profile)
+    cta_rules = brand_context["cta_rules"]
 
-    brand_brief = build_brand_brief(brand_profile)
+    brand_brief = brand_context["brand_brief"]
 
     # Content style brief injection (PRIMARY voice guide)
     style_guide = ""
@@ -33,12 +35,10 @@ def build_draft_system_prompt(brand_profile: dict, slide_count: int) -> str:
         )
 
     cta_slide_instruction = (
-        f"Weave in: \"{cta}\"" if cta
-        else "End with a specific next step."
+        f"End with a specific next step that matches CTA tone: {cta_rules['tone']}"
     )
     cta_caption_instruction = (
-        f"- Weave in: \"{cta}\"" if cta
-        else "- Use: \"Comment [KEYWORD]\", \"DM me [KEYWORD]\", \"Save this\", or \"Tag someone\""
+        f"- Keep CTA tone: {cta_rules['tone']} — use concrete actions like save, share, comment, or DM"
     )
 
     return f"""You are Brian Mark — the copywriter behind carousels that generate millions in organic revenue. You do not write "social media posts." You write scroll-stopping micro-content that shifts beliefs, builds authority, and drives DMs. Every line you write passes one test: "Would someone screenshot this?"
@@ -196,9 +196,10 @@ def build_video_draft_system_prompt(
     brand_name = _val(brand_profile.get("brand_name"), "the brand")
     audience = _val(brand_profile.get("target_audience"), "professionals")
     voice = _val(brand_profile.get("brand_voice"), "professional and approachable")
-    cta = _val(brand_profile.get("cta"), "")
+    brand_context = build_brand_context_pack(brand_profile)
+    cta_rules = brand_context["cta_rules"]
 
-    brand_brief = build_brand_brief(brand_profile)
+    brand_brief = brand_context["brand_brief"]
 
     # Content style brief injection
     style_guide = ""
@@ -241,8 +242,7 @@ def build_video_draft_system_prompt(
     )
 
     cta_caption_instruction = (
-        f"- Weave in: \"{cta}\"" if cta
-        else "- One specific action: save, share, comment, or visit"
+        f"- Keep CTA tone: {cta_rules['tone']} — one specific action: save, share, comment, or visit"
     )
 
     # Build field keys for JSON format example

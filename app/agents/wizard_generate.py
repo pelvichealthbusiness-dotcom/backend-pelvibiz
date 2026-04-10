@@ -31,6 +31,7 @@ from app.prompts.ai_carousel_generate import (
     build_per_slide_context,
 )
 from app.services.brand import BrandService
+from app.services.brand_context import build_brand_context_pack
 from app.services.credits import CreditsService
 from app.services.image_generator import ImageGeneratorService
 from app.services.slide_renderer import SlideRenderer
@@ -123,6 +124,12 @@ class WizardGenerateAgent:
         # The wizard may send font/color overrides that take precedence
         profile_overrides = self._extract_profile_overrides(wizard_data)
         effective_profile = {**profile, **profile_overrides}
+        brand_context = build_brand_context_pack(effective_profile)
+        effective_profile = {
+            **effective_profile,
+            "brand_playbook": brand_context["brand_brief"],
+            "cta": brand_context["cta_rules"]["tone"],
+        }
         logger.info("Effective profile: font_style=%s, font_prompt=%s, color_primary=%s", effective_profile.get("font_style"), effective_profile.get("font_prompt"), effective_profile.get("brand_color_primary"))
 
         # ── 5b. Load brand stories for narrative context ─────────────

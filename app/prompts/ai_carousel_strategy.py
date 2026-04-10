@@ -14,6 +14,7 @@ def build_ai_strategy_prompt(brand_profile: dict, slide_count: int, brand_storie
     keywords = brand_profile.get("keywords") or ""
     cta = brand_profile.get("cta") or ""
     content_style = brand_profile.get("content_style_brief") or ""
+    cta_tone = cta or "warm, specific, low-friction, and on-brand"
     color_primary = brand_profile.get("brand_color_primary") or "#000000"
     color_secondary = brand_profile.get("brand_color_secondary") or "#FFFFFF"
 
@@ -35,7 +36,7 @@ BRAND CONTEXT:
 - Voice: {brand_voice}
 - Audience: {target_audience}
 - Keywords: {keywords}
-- CTA: {cta}
+- CTA tone/rules: {cta_tone}
 - Content Style: {content_style}
 - Primary Color: {color_primary}
 - Secondary Color: {color_secondary}

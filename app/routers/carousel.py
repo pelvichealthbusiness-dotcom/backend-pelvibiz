@@ -10,6 +10,7 @@ from app.prompts.carousel_fix import build_fix_slide_prompt
 from app.prompts.carousel_generate import build_generate_slide_prompt
 from app.services.auth import get_current_user
 from app.services.brand import BrandService
+from app.services.brand_context import build_brand_context_pack
 from app.services.content_strategy import ContentStrategyService
 from app.services.credits import CreditsService
 from app.services.exceptions import AgentAPIError, GeminiError
@@ -36,12 +37,18 @@ async def generate_carousel(
     # 2. Load brand profile
     brand_service = BrandService()
     profile = await brand_service.load_profile(user_id)
+    brand_context = build_brand_context_pack(profile)
+    effective_profile = {
+        **profile,
+        "brand_playbook": brand_context["brand_brief"],
+        "cta": brand_context["cta_rules"]["tone"],
+    }
 
     # 3. Content strategy — LLM decides text, position, style
     strategy_service = ContentStrategyService()
     content_plan = await strategy_service.plan(
         message=request.message,
-        brand_profile=profile,
+        brand_profile=effective_profile,
         slides_count=len(request.slides),
     )
 
@@ -61,17 +68,17 @@ async def generate_carousel(
             prompt = build_generate_slide_prompt(
                 position=slide_position,
                 text=slide_text,
-                font_prompt=profile.get("font_prompt", "Clean, bold, geometric sans-serif"),
-                font_style=profile.get("font_style", "bold"),
-                font_size=profile.get("font_size", "38px"),
-                color_primary=profile.get("brand_color_primary", "#000000"),
-                color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
-                color_background=profile.get("brand_color_background"),
-                brand_playbook=profile.get("brand_playbook") or profile.get("content_style_brief") or "",
-                font_prompt_secondary=profile.get("font_prompt_secondary") or "",
-                visual_environment_setup=profile.get("visual_environment_setup") or "",
-                visual_subject_outfit_face=profile.get("visual_subject_outfit_face") or "",
-                visual_subject_outfit_generic=profile.get("visual_subject_outfit_generic") or "",
+                font_prompt=effective_profile.get("font_prompt", "Clean, bold, geometric sans-serif"),
+                font_style=effective_profile.get("font_style", "bold"),
+                font_size=effective_profile.get("font_size", "38px"),
+                color_primary=effective_profile.get("brand_color_primary", "#000000"),
+                color_secondary=effective_profile.get("brand_color_secondary", "#FFFFFF"),
+                color_background=effective_profile.get("brand_color_background"),
+                brand_playbook=effective_profile.get("brand_playbook") or effective_profile.get("content_style_brief") or "",
+                font_prompt_secondary=effective_profile.get("font_prompt_secondary") or "",
+                visual_environment_setup=effective_profile.get("visual_environment_setup") or "",
+                visual_subject_outfit_face=effective_profile.get("visual_subject_outfit_face") or "",
+                visual_subject_outfit_generic=effective_profile.get("visual_subject_outfit_generic") or "",
             )
 
             # Download source image
@@ -185,13 +192,20 @@ async def fix_slide(
 
     # 3. Build fix prompt
     topic = result.data.get("title", "") or ""
+    brand_context = build_brand_context_pack(profile)
+    effective_profile = {
+        **profile,
+        "brand_playbook": brand_context["brand_brief"],
+        "cta": brand_context["cta_rules"]["tone"],
+    }
+
     prompt = build_fix_slide_prompt(
         new_text_content=request.New_Text_Content,
-        font_prompt=profile.get("font_prompt", "Clean bold sans-serif"),
-        font_style=profile.get("font_style", "bold"),
-        color_primary=profile.get("brand_color_primary", "#000000"),
-        color_secondary=profile.get("brand_color_secondary"),
-        color_background=profile.get("brand_color_background"),
+        font_prompt=effective_profile.get("font_prompt", "Clean bold sans-serif"),
+        font_style=effective_profile.get("font_style", "bold"),
+        color_primary=effective_profile.get("brand_color_primary", "#000000"),
+        color_secondary=effective_profile.get("brand_color_secondary"),
+        color_background=effective_profile.get("brand_color_background"),
         topic=topic,
     )
 

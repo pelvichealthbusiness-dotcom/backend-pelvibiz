@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.prompts.profile_generate import build_profile_generation_prompt, build_field_regeneration_prompt, resolve_category
 from app.models.brand import REGENERABLE_FIELDS
 from app.services.exceptions import ProfileGenerationError, InvalidFieldError
+from app.services.brand_context import build_brand_context_pack
 
 logger = logging.getLogger(__name__)
 
@@ -114,46 +115,8 @@ class ProfileEngine:
         return fallback
 
     def _build_brand_playbook(self, data: dict, input_data: dict) -> str:
-        brand_name = input_data.get("brand_name", "the brand") or "the brand"
-        brand_voice = self._value(data, "brand_voice", "professional and approachable")
-        target_audience = self._value(data, "target_audience", input_data.get("niche", "general audience") or "general audience")
-        services = self._value(data, "services_offered", input_data.get("services_description", "professional services") or "professional services")
-        visual_identity = self._value(data, "visual_identity", "clean and modern")
-        keywords = self._value(data, "keywords", "")
-        visual_env = self._value(data, "visual_environment_setup", "")
-        outfit_face = self._value(data, "visual_subject_outfit_face", "")
-        outfit_generic = self._value(data, "visual_subject_outfit_generic", "")
-        style_brief = self._value(data, "content_style_brief", "")
-        cta_guidance = self._value(data, "cta", "")
-
-        sections = [
-            f"## Brand Playbook — {brand_name}",
-            "",
-            "### Identity",
-            f"- Voice: {brand_voice}",
-            f"- Audience: {target_audience}",
-            f"- Services: {services}",
-            f"- Visual identity: {visual_identity}",
-        ]
-
-        if keywords:
-            sections.append(f"- Keywords: {keywords}")
-
-        sections.extend([
-            "",
-            "### Visual Rules",
-            f"- Environment: {visual_env or 'professional and platform-appropriate'}",
-            f"- Outfit (client face): {outfit_face or 'consistent with brand personality'}",
-            f"- Outfit (generic): {outfit_generic or 'consistent with brand personality'}",
-            "",
-            "### Content Rules",
-            f"- Writing DNA: {style_brief or 'short, clear, social-first, and easy to scan'}",
-            "- Hooks should be scroll-stopping, specific, and non-generic.",
-            "- CTAs must be generated dynamically from the topic and draft.",
-            f"- CTA tone/rules: {cta_guidance or 'warm, specific, low-friction, and on-brand'}",
-        ])
-
-        return "\n".join(sections)
+        merged = {**input_data, **data}
+        return build_brand_context_pack(merged)["brand_brief"]
 
     def _build_user_message(self, input_data: dict) -> str:
         parts = [f"Brand Name: {input_data.get('brand_name', 'Unknown')}"]

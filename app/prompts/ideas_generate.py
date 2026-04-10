@@ -4,6 +4,7 @@ Ported and enhanced from pelvi-ai-hub/api/_lib/agent-prompts.ts
 """
 
 from typing import Optional
+from app.services.brand_context import build_brand_context_pack
 
 
 def _val(value: Optional[str], fallback: str) -> str:
@@ -21,70 +22,8 @@ def _opt(label: str, value: Optional[str]) -> str:
 
 
 def build_brand_brief(profile: dict) -> str:
-    """Assemble brand context from profile fields.
-
-    Includes brand identity, visual language, content_style_brief (writing DNA),
-    keywords, and CTA guidance. Only includes non-empty fields.
-    """
-    lines: list[str] = [
-        f"## Brand DNA — {_val(profile.get('brand_name'), 'the brand')}",
-        "",
-        "### Identity",
-        f"- Brand name: {_val(profile.get('brand_name'), 'the brand')}",
-        f"- Services: {_val(profile.get('services_offered'), 'professional services')}",
-        f"- Audience: {_val(profile.get('target_audience'), 'general audience')}",
-        f"- Voice & tone: {_val(profile.get('brand_voice'), 'professional and approachable')}",
-    ]
-
-    # Optional identity fields
-    for label, key in [
-        ("CTA guidance", "cta"),
-        ("Industry keywords", "keywords"),
-    ]:
-        line = _opt(label, profile.get(key))
-        if line:
-            lines.append(line)
-
-    # Visual language section
-    lines.extend([
-        "",
-        "### Visual Language",
-        f"- Visual identity: {_val(profile.get('visual_identity'), 'clean and modern')}",
-    ])
-
-    for label, key in [
-        ("Primary brand color", "brand_color_primary"),
-        ("Secondary brand color", "brand_color_secondary"),
-        ("Environment & setting", "visual_environment_setup"),
-        ("Subject outfit (client face)", "visual_subject_outfit_face"),
-        ("Subject outfit (generic)", "visual_subject_outfit_generic"),
-        ("Typography style", "font_style"),
-    ]:
-        line = _opt(label, profile.get(key))
-        if line:
-            lines.append(line)
-
-    # Learning brief (from behavior)
-    if profile.get("learning_brief"):
-        lines.extend([
-            "",
-            "### User Preferences (learned from behavior)",
-            profile["learning_brief"],
-        ])
-
-    # Content style brief — THE KEY IMPROVEMENT: writing DNA
-    if profile.get("content_style_brief"):
-        lines.extend([
-            "",
-            "### Writing Style DNA (captured from real Instagram posts via Style Analyzer)",
-            "IMPORTANT: This defines HOW to write — tone, hooks, CTA rules, emoji usage, caption structure, viral patterns.",
-            "Use this as the PRIMARY voice guide when writing captions, slide text, and video scripts.",
-            "",
-            profile["content_style_brief"],
-        ])
-
-
-    return "\\n".join(line for line in lines if line is not None)
+    """Assemble brand context from profile fields."""
+    return build_brand_context_pack(profile)["brand_brief"]
 
 
 def build_learning_section(patterns: Optional[dict]) -> str:
@@ -187,6 +126,8 @@ CTA RULE: Brand CTA settings are guidance only. Generate the actual CTA from the
 ## Your Task
 
 Generate exactly {count} Instagram {content_type_label} concepts. These are not generic ideas — they are strategic scroll-stopping plays designed to build authority and drive action.
+
+If the user message contains a seed idea or provided topic, treat it as a constraint and expand it into {count} distinct angles. Do NOT repeat the same idea with minor wording changes.
 
 ## Creative Frameworks — Use AT LEAST 3 across the {count} ideas:
 

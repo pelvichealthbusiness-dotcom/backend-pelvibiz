@@ -6,6 +6,7 @@ from uuid import uuid4
 from openai import AsyncOpenAI
 from app.config import get_settings
 from app.services.brand import BrandService
+from app.services.brand_harmony import review_ideas
 from app.services.learning import LearningService
 from app.services.exceptions import IdeasGenerationError
 from app.prompts.ideas_generate import (
@@ -145,7 +146,9 @@ class IdeasEngine:
         # Ensure we have at least some ideas
         if not ideas:
             ideas = [{"id": str(uuid4()), "title": "Fresh content idea", "hook": "Something new", "angle": "creative", "content_type": "educational", "engagement_score": 0.5, "slides_suggestion": 5}]
-        
+
+        ideas = review_ideas(profile, ideas, count=count, seed_idea=message)
+
         return {
             "ideas": ideas[:count],
             "reasoning": f"Generated {len(ideas)} ideas using brand context for {profile.get('brand_name', 'your brand')}",
