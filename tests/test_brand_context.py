@@ -35,6 +35,7 @@ def test_ideas_prompt_requires_five_and_seed_expansion():
         wizard_mode="ideas",
     )
 
-    assert "Generate exactly 5 Instagram carousel concepts" in prompt
+    assert "Generate a rich batch of Instagram carousel concepts" in prompt
     assert "seed idea" in prompt.lower()
     assert "distinct angles" in prompt.lower()
+    assert "never number the ideas" in prompt.lower()

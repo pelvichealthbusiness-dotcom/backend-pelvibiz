@@ -13,6 +13,7 @@ def test_review_ideas_pads_to_five_and_removes_duplicates():
     assert len(reviewed) == 5
     assert len({idea["title"] for idea in reviewed}) == 5
     assert any("Leak confidence" in idea["title"] for idea in reviewed)
+    assert all(not idea["title"].startswith(tuple(str(i) for i in range(10))) for idea in reviewed)
 
 
 def test_review_plan_appends_dynamic_cta():
@@ -27,5 +28,6 @@ def test_review_plan_appends_dynamic_cta():
 
     reviewed = review_plan(profile, plan)
 
-    assert "save" in reviewed["caption"].lower()
+    assert reviewed["caption"] != plan["caption"]
+    assert any(token in reviewed["caption"].lower() for token in ["save", "share", "comment", "pick", "vote", "tag", "reply"])
     assert reviewed["brand_harmony_score"] >= 0.7

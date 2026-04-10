@@ -47,9 +47,10 @@ class WizardIdeasAgent(BaseStreamingAgent):
         if self._cached_prompt:
             return self._cached_prompt
         return (
-            "You are a creative content strategist. Generate 5-10 numbered "
+            "You are a creative content strategist. Generate a rich batch of "
             "content ideas based on the user request. Each idea should have "
-            "a catchy title and a one-line hook. Be specific, not generic."
+            "a catchy title and a one-line hook. Be specific, not generic, "
+            "and do not number the ideas."
         )
 
     @property
@@ -90,20 +91,20 @@ class WizardIdeasAgent(BaseStreamingAgent):
 
 ## Your Task
 
-Generate 5-10 content ideas based on what the user asks. For each idea, provide:
-1. A numbered title (punchy, specific, under 60 characters)
-2. A one-line hook (the scroll-stopping opening line)
-3. The content type (educational, myth-busting, client-story, uncomfortable-truth, viral-shareable, direct-cta)
-4. A brief angle description
+Generate a rich batch of content ideas based on what the user asks. For each idea, provide:
+- A punchy title (specific, under 60 characters, never starting with a number)
+- A one-line hook (the scroll-stopping opening line)
+- The content type (educational, myth-busting, client-story, uncomfortable-truth, viral-shareable, direct-cta)
+- A brief angle description
 
 ## Quality Rules
 - Every idea MUST be specific to {brand_name} and their audience
-- No generic "5 Tips for Success" ideas — be creative and edgy
+- No generic listicle-style ideas — be creative and edgy
 - Mix at least 3 different content types across the ideas
 - Each title must pass the specificity test: would this work for ANY brand? If yes, rewrite it.
 
 ## Format
-Present ideas as a clean numbered list. Be conversational but professional.
+Present ideas as a clean bullet list with no numbering. Be conversational but professional.
 Write in the same language as the user message."""
 
         if stories_block:

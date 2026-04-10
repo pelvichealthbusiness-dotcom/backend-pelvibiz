@@ -125,9 +125,11 @@ CTA RULE: Brand CTA settings are guidance only. Generate the actual CTA from the
 
 ## Your Task
 
-Generate exactly {count} Instagram {content_type_label} concepts. These are not generic ideas — they are strategic scroll-stopping plays designed to build authority and drive action.
+Generate a rich batch of Instagram {content_type_label} concepts. Aim for {count} ideas, but prioritize quality and distinction over rigid counting.
 
-If the user message contains a seed idea or provided topic, treat it as a constraint and expand it into {count} distinct angles. Do NOT repeat the same idea with minor wording changes.
+If the user message contains a seed idea or provided topic, treat it as a constraint and expand it into distinct angles. Do NOT repeat the same idea with minor wording changes.
+
+Never number the ideas in the output and never start a title with a numeral.
 
 ## Creative Frameworks — Use AT LEAST 3 across the {count} ideas:
 
@@ -169,7 +171,7 @@ If the user message contains a seed idea or provided topic, treat it as a constr
 
 {{"ideas": [{{"title": "...", "hook": "...", "angle": "...", "content_type": "...", "engagement_score": 0.85, "slides_suggestion": 5}}, ...]}}
 
-- Array must contain exactly {count} items
+- Array should contain about {count} items; if the topic is broad, a small variation is acceptable.
 - "title": punchy, specific, under 60 characters. Must pass the specificity test.
 - "hook": the scroll-stopping first line (under 100 characters)
 - "angle": which creative framework is used
@@ -247,7 +249,9 @@ def build_video_ideas_prompt(
 
 ## Your Task
 
-Generate exactly {count} video content ideas for the "{template_label}" template. These are strategic content plays designed to resonate with the target audience.
+Generate a rich batch of video content ideas for the "{template_label}" template. Aim for {count} ideas, but prioritize originality and distinction.
+
+Never number the ideas in the output and never start a title with a numeral.
 
 ## Template-Specific Guidance
 
@@ -274,7 +278,7 @@ Generate exactly {count} video content ideas for the "{template_label}" template
 
 {{"ideas": [{{"title": "...", "hook": "...", "angle": "...", "content_type": "...", "engagement_score": 0.85, "slides_suggestion": 5}}, ...]}}
 
-- Array must contain exactly {count} items
+- Array should contain about {count} items; a small variation is acceptable when the topic is broad.
 - "title": punchy, specific, under 60 characters. Must pass the specificity test.
 - "hook": the scroll-stopping opening line (under 100 characters)
 - "angle": which template angle is used
