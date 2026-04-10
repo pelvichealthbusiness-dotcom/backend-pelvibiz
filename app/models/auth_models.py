@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Any, Optional
 
 
 class LoginRequest(BaseModel):
@@ -38,6 +38,7 @@ class UserProfile(BaseModel):
     credits_limit: int = 40
     timezone: Optional[str] = None
     logo_url: Optional[str] = None
+    blotato_connections: Optional[dict[str, Any]] = None
 
 
 class FullUserProfile(BaseModel):
@@ -54,6 +55,7 @@ class FullUserProfile(BaseModel):
     credits_limit: int = 40
     timezone: Optional[str] = None
     logo_url: Optional[str] = None
+    blotato_connections: Optional[dict[str, Any]] = None
     # Brand settings
     brand_voice: Optional[str] = None
     brand_color_primary: Optional[str] = None
@@ -106,6 +108,10 @@ class ProfileUpdateRequest(BaseModel):
     font_style_secondary: Optional[str] = None
     font_prompt_secondary: Optional[str] = None
     logo_url: Optional[str] = None
+    blotato_connections: Optional[dict[str, Any]] = None
+    blotato_ig_id: Optional[str] = None
+    blotato_fb_id: Optional[str] = None
+    blotato_fb_account_id: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

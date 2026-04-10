@@ -16,6 +16,8 @@ from app.core.auth import UserContext, get_current_user
 from app.core.pagination import PaginationParams, pagination_params
 from app.core.responses import success, paginated
 from app.core.exceptions import ValidationError
+from app.core.supabase_client import get_service_client
+from app.services.blotato import build_blotato_connections
 from app.services.content_crud import ContentCRUD
 import asyncio
 import os
@@ -182,6 +184,17 @@ async def schedule_content(
     # Verify ownership
     content = crud.get_content(content_id, user.user_id)
 
+    admin = get_service_client()
+    profile_result = (
+        admin.table("profiles")
+        .select("blotato_connections, blotato_ig_id, blotato_fb_id, blotato_fb_account_id")
+        .eq("id", user.user_id)
+        .maybe_single()
+        .execute()
+    )
+    profile = profile_result.data or {}
+    blotato_connections = build_blotato_connections(profile)
+
     # Build n8n payload (same format as Vercel Edge Function)
     n8n_payload = {
         "client_id": user.user_id,
@@ -190,6 +203,7 @@ async def schedule_content(
         "timezone": body.timezone,
         "caption": body.caption or content.get("reply", ""),
         "action": "schedule_post",
+        "blotato_connections": blotato_connections,
     }
 
     # Call n8n webhook with retry

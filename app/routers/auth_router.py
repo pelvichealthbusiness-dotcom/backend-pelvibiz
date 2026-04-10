@@ -10,6 +10,7 @@ from app.core.supabase_client import get_service_client
 from app.core.responses import success
 from app.core.exceptions import AuthError, NotFoundError, AppError
 from app.services.brand import BrandService
+from app.services.blotato import build_blotato_connections
 from app.services.exceptions import AgentAPIError
 from app.models.auth_models import (
     LoginRequest, RegisterRequest, RefreshRequest,
@@ -29,8 +30,6 @@ def _get_anon_client():
     """Create a Supabase client with anon key for user-level auth operations."""
     settings = get_settings()
     return create_client(settings.supabase_url, settings.supabase_anon_key)
-
-
 def _build_user_profile(user_data: dict, profile_data: dict | None = None) -> UserProfile:
     """Build UserProfile from auth user + optional profile data."""
     p = profile_data or {}
@@ -45,6 +44,7 @@ def _build_user_profile(user_data: dict, profile_data: dict | None = None) -> Us
         credits_limit=p.get("credits_limit", 40),
         timezone=p.get("timezone"),
         logo_url=p.get("logo_url"),
+        blotato_connections=build_blotato_connections(p),
     )
 
 
@@ -82,6 +82,7 @@ def _build_full_profile(user: UserContext, profile_data: dict) -> FullUserProfil
         visual_environment_setup=p.get("visual_environment_setup"),
         visual_subject_outfit_face=p.get("visual_subject_outfit_face"),
         visual_subject_outfit_generic=p.get("visual_subject_outfit_generic"),
+        blotato_connections=build_blotato_connections(p),
     )
 
 
@@ -116,6 +117,7 @@ async def get_session(user: UserContext = Depends(get_current_user)):
         credits_limit=profile.get("credits_limit", 40),
         timezone=profile.get("timezone"),
         logo_url=profile.get("logo_url"),
+        blotato_connections=build_blotato_connections(profile),
     )
     return success(user_data.model_dump())
 
@@ -205,6 +207,7 @@ async def update_profile(
         "brand_color_accent": "brand_color_secondary",
         "brand_color_secondary": "brand_color_secondary",
         "display_name": "full_name",
+        "blotato_connections": "blotato_connections",
     }
     db_data = {}
     for key, value in update_data.items():

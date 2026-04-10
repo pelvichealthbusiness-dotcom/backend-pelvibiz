@@ -12,6 +12,7 @@ PROFILE_FIELDS = [
     "visual_environment_setup", "visual_subject_outfit_face", "visual_subject_outfit_generic",
     "cta", "font_style", "font_size", "font_prompt", "font_style_secondary", "font_prompt_secondary", "content_style_brief", "brand_stories",
     "logo_url", "credits_used", "credits_limit", "role", "onboarding_completed",
+    "blotato_connections", "blotato_ig_id", "blotato_fb_id", "blotato_fb_account_id",
 ]
 
 class BrandService:
@@ -62,6 +63,7 @@ class BrandService:
             "visual_identity": None,
             "content_style_brief": None,
             "brand_stories": None,
+            "blotato_connections": None,
         }
 
     async def save_profile(self, user_id: str, profile_data: dict) -> dict:

@@ -41,3 +41,19 @@ def test_build_full_profile_includes_visual_fields_and_secondary_font():
     assert result.font_prompt_secondary == "Body font prompt"
     assert result.content_style_brief == "Use short clear captions"
     assert result.brand_playbook == "Use short clear captions"
+
+
+def test_build_full_profile_includes_blotato_connections():
+    user = type("User", (), {"user_id": "u1", "email": "test@example.com", "role": "client"})()
+    profile = {
+        "full_name": "Test User",
+        "blotato_connections": {
+            "instagram": {"accountId": "ig-123"},
+            "facebook": {"accountId": "fb-acc-1", "pageId": "fb-page-1"},
+        },
+    }
+
+    result = _build_full_profile(user, profile)
+
+    assert result.blotato_connections["instagram"]["accountId"] == "ig-123"
+    assert result.blotato_connections["facebook"]["pageId"] == "fb-page-1"
