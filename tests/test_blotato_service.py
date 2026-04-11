@@ -1,4 +1,4 @@
-from app.services.blotato import build_blotato_connections
+from app.services.blotato import build_blotato_connections, normalize_blotato_connections
 
 
 def test_build_blotato_connections_prefers_structured_data():
@@ -28,3 +28,18 @@ def test_build_blotato_connections_falls_back_to_legacy_ids():
     assert result["instagram"]["accountId"] == "legacy-ig"
     assert result["facebook"]["accountId"] == "legacy-fb-acc"
     assert result["facebook"]["pageId"] == "legacy-fb-page"
+
+
+def test_normalize_blotato_connections_maps_platforms():
+    accounts = [
+        {"id": "ig-1", "platform": "instagram"},
+        {"id": "fb-1", "platform": "facebook"},
+        {"id": "yt-1", "platform": "youtube"},
+        {"id": "yt-playlist-1", "platform": "youtube"},
+    ]
+
+    result = normalize_blotato_connections(accounts)
+
+    assert result["instagram"]["accountId"] == "ig-1"
+    assert result["facebook"]["accountId"] == "fb-1"
+    assert result["youtube"]["accountId"] == "yt-1"

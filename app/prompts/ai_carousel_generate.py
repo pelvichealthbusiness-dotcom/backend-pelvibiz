@@ -359,7 +359,7 @@ SINGLE-LINE TYPOGRAPHY RULES:
 
 {CANVAS_RULES}"""
 
-    return f"""⚠️ LOGO ZONE — MANDATORY: A logo watermark (~85px tall) will be placed at BOTTOM CENTER of this image after generation. Keep the bottom 200px COMPLETELY FREE of: text overlay boxes, watermarks, or decorative elements. The PHOTO itself must extend naturally to the bottom edge — do NOT blur, fade, darken or add any gradient/vignette to the bottom. The image must look clean and complete from top to bottom.
+    return f"""NO FOOTER WATERMARK: Do NOT reserve space for any logo footer or watermark. The image should use the full canvas naturally from top to bottom, with no blank footer band, no bottom-center logo area, and no decorative strip reserved for post-processing.
 
 Generate a professional Instagram carousel slide image.
 
@@ -390,7 +390,7 @@ Add a text overlay card ON TOP of the generated scene.
 Position: {text_position}
 - 'Top Center': Text box in upper 25% of image, centered
 - 'Center': Text box centered both ways (dead center)
-- 'Bottom Center': Text box CENTER anchored at 65% height (877px from top). Max text box height: 260px. This means the box spans from ~747px to ~1007px from top, leaving 343px clear at the bottom (ensuring 200px+ clear zone for the logo watermark). If text is long, REDUCE FONT SIZE to fit within 260px height — do NOT push the box lower. NEVER let the text box extend below 1040px from the top
+- 'Bottom Center': Text box CENTER anchored at 65% height (877px from top). Max text box height: 260px. If text is long, REDUCE FONT SIZE to fit within 260px height — do NOT push the box lower. NEVER let the text box extend below 1040px from the top
 
 Text box:
 - Clean rectangular box with rounded corners (~12px radius)
@@ -554,7 +554,7 @@ SINGLE-LINE TYPOGRAPHY RULES:
 
 {CANVAS_RULES}"""
 
-    return f"""⚠️ LOGO ZONE — MANDATORY: A logo watermark (~85px tall) will be placed at BOTTOM CENTER after generation. Keep the bottom 200px COMPLETELY FREE of text, decorative elements, or focal subjects.
+    return f"""NO FOOTER WATERMARK: Do NOT reserve space for a logo footer or watermark. The image should use the full canvas naturally from top to bottom.
 
 Generate a BOLD, high-impact Instagram carousel card slide.
 

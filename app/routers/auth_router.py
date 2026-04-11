@@ -10,7 +10,7 @@ from app.core.supabase_client import get_service_client
 from app.core.responses import success
 from app.core.exceptions import AuthError, NotFoundError, AppError
 from app.services.brand import BrandService
-from app.services.blotato import build_blotato_connections
+from app.services.blotato import build_blotato_connections, fetch_blotato_connections
 from app.services.exceptions import AgentAPIError
 from app.models.auth_models import (
     LoginRequest, RegisterRequest, RefreshRequest,
@@ -183,6 +183,50 @@ async def get_profile(user: UserContext = Depends(get_current_user)):
         raise NotFoundError("Profile")
 
     full_profile = _build_full_profile(user, profile_result.data)
+    return success(full_profile.model_dump())
+
+
+@router.post("/blotato/refresh-connections")
+async def refresh_blotato_connections(user: UserContext = Depends(get_current_user)):
+    """Import connected Blotato account IDs into the current user's profile."""
+    settings = get_settings()
+    if not settings.blotato_api_key:
+        raise AppError("CONFIG_ERROR", "Blotato API key is not configured", 500)
+
+    admin = get_service_client()
+    profile_result = (
+        admin.table("profiles")
+        .select("*")
+        .eq("id", user.user_id)
+        .maybe_single()
+        .execute()
+    )
+    if not profile_result.data:
+        raise NotFoundError("Profile")
+
+    imported = await fetch_blotato_connections(settings.blotato_api_key)
+    current = profile_result.data or {}
+    current_connections = build_blotato_connections(current) or {}
+    merged_connections = {**current_connections, **imported}
+
+    update_data: dict[str, object] = {"blotato_connections": merged_connections}
+    instagram = merged_connections.get("instagram") or {}
+    facebook = merged_connections.get("facebook") or {}
+    update_data["blotato_ig_id"] = instagram.get("accountId")
+    update_data["blotato_fb_account_id"] = facebook.get("accountId")
+    update_data["blotato_fb_id"] = facebook.get("pageId")
+
+    admin.table("profiles").update(update_data).eq("id", user.user_id).execute()
+
+    updated = (
+        admin.table("profiles")
+        .select("*")
+        .eq("id", user.user_id)
+        .single()
+        .execute()
+    )
+
+    full_profile = _build_full_profile(user, updated.data)
     return success(full_profile.model_dump())
 
 

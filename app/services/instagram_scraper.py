@@ -1,17 +1,15 @@
-"""Instagram scraper with provider chain: Cache → PrivateAPI → Apify → RapidAPI."""
+"""Instagram scraper with provider chain: PrivateAPI → Apify → RapidAPI."""
 
 from __future__ import annotations
 
 import asyncio
 import time
 import logging
-from uuid import uuid4
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import httpx
 
 from app.config import get_settings
-from app.dependencies import get_supabase_admin
 
 logger = logging.getLogger(__name__)
 
@@ -280,11 +278,10 @@ _rate_limiter = RateLimiter(max_requests=6, window_seconds=60)
 
 
 class InstagramScraper:
-    """Instagram scraper with provider chain: Cache → PrivateAPI → Apify → RapidAPI."""
+    """Instagram scraper with provider chain: PrivateAPI → Apify → RapidAPI."""
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.supabase = get_supabase_admin()
         self.private_api = PrivateApiProvider()
         self.apify = (
             ApifyProvider(self.settings.apify_api_key)
@@ -302,17 +299,10 @@ class InstagramScraper:
     ) -> tuple[dict, list[dict]]:
         username = username.strip().lstrip("@").lower()
 
-        # 1. Check cache
-        cached = self._check_cache(username)
-        if cached:
-            logger.info(f"Cache hit for @{username}")
-            return cached
-
-        # 2. Try Private API
+        # 1. Try Private API
         if await _rate_limiter.acquire():
             try:
                 result = await self.private_api.fetch(username)
-                self._save_cache(username, result, user_id)
                 logger.info(f"Private API success for @{username}")
                 return result
             except Exception as e:
@@ -320,31 +310,23 @@ class InstagramScraper:
         else:
             logger.info(f"Rate limited, skipping Private API for @{username}")
 
-        # 3. Try Apify
+        # 2. Try Apify
         if self.apify:
             try:
                 result = await self.apify.fetch(username, max_posts)
-                self._save_cache(username, result, user_id)
                 logger.info(f"Apify success for @{username}")
                 return result
             except Exception as e:
                 logger.warning(f"Apify failed for @{username}: {e}")
 
-        # 4. Try RapidAPI (legacy)
+        # 3. Try RapidAPI (legacy)
         if self.rapidapi:
             try:
                 result = await self.rapidapi.fetch(username, max_posts)
-                self._save_cache(username, result, user_id)
                 logger.info(f"RapidAPI success for @{username}")
                 return result
             except Exception as e:
                 logger.warning(f"RapidAPI failed for @{username}: {e}")
-
-        # 5. Return stale cache
-        stale = self._check_cache(username, allow_stale=True)
-        if stale:
-            logger.info(f"Returning stale cache for @{username}")
-            return stale
 
         from app.services.exceptions import AgentAPIError
         raise AgentAPIError(
@@ -362,74 +344,3 @@ class InstagramScraper:
     ) -> list[dict]:
         _, posts = await self.scrape(username, max_posts)
         return posts
-
-    def _check_cache(
-        self, username: str, allow_stale: bool = False
-    ) -> tuple[dict, list[dict]] | None:
-        try:
-            result = (
-                self.supabase.table("social_scrapes")
-                .select("raw_posts, created_at")
-                .eq("username", username)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-
-            if not result.data:
-                return None
-
-            row = result.data[0]
-            raw = row.get("raw_posts")
-
-            if not raw or not isinstance(raw, dict):
-                return None
-
-            if "profile" not in raw or "posts" not in raw:
-                return None
-
-            # Don't serve cache with empty posts
-            if not raw["posts"]:
-                return None
-
-            if not allow_stale:
-                created = row.get("created_at", "")
-                if created:
-                    try:
-                        created_dt = datetime.fromisoformat(
-                            str(created).replace("Z", "+00:00")
-                        )
-                        age = datetime.now(timezone.utc) - created_dt
-                        if age > timedelta(
-                            seconds=self.settings.ig_cache_posts_ttl
-                        ):
-                            return None
-                    except Exception:
-                        return None
-
-            return (raw["profile"], raw["posts"])
-        except Exception as e:
-            logger.debug(f"Cache check failed: {e}")
-            return None
-
-    def _save_cache(
-        self, username: str, data: tuple[dict, list[dict]], user_id: str | None = None,
-    ) -> None:
-        if not user_id:
-            logger.debug(f"No user_id provided, skipping cache save for @{username}")
-            return
-        profile, posts = data
-        try:
-            self.supabase.table("social_scrapes").insert(
-                {
-                    "id": str(uuid4()),
-                    "user_id": user_id,
-                    "username": username,
-                    "platform": "instagram",
-                    "raw_posts": {"profile": profile, "posts": posts},
-                    "style_metrics": {},
-                    "style_brief": "",
-                }
-            ).execute()
-        except Exception as e:
-            logger.warning(f"Cache save failed for @{username}: {e}")

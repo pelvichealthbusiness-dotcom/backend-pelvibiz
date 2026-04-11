@@ -14,7 +14,7 @@ class AnalyzeRequest(BaseModel):
 
 
 class ApplyStyleRequest(BaseModel):
-    scrape_id: str = Field(..., description="ID of the social_scrapes row to apply")
+    scrape_id: str = Field(..., description="ID of the content account or analysis source to apply")
 
 
 # ── Stats sub-models ─────────────────────────────────────────────

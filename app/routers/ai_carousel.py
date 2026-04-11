@@ -8,7 +8,6 @@ from app.services.credits import CreditsService
 from app.services.content_strategy import ContentStrategyService
 from app.services.image_generator import ImageGeneratorService
 from app.services.storage import StorageService
-from app.services.watermark import WatermarkService
 from app.services.exceptions import AgentAPIError, GeminiError
 from app.models.ai_carousel import (
     GenerateAiCarouselRequest, AiCarouselGenerateResponse,
@@ -29,7 +28,6 @@ async def _generate_single_slide(
     slide: AiSlideContent,
     profile: dict,
     image_gen: ImageGeneratorService,
-    watermark: WatermarkService,
     storage: StorageService,
     user_id: str,
     semaphore: asyncio.Semaphore,
@@ -67,10 +65,6 @@ async def _generate_single_slide(
             # Force resolution to 1080x1350
             image_bytes = base64.b64decode(generated_base64)
             image_bytes = force_resolution(image_bytes)
-            
-            # Apply watermark
-            logo_url = profile.get("logo_url")
-            image_bytes = await watermark.apply(image_bytes, logo_url, user_id)
             
             # Upload to storage
             upload_base64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -131,12 +125,11 @@ async def generate_ai_carousel(
     
     # 4. Generate slides in parallel with semaphore
     image_gen = ImageGeneratorService()
-    watermark_service = WatermarkService()
     storage = StorageService()
     semaphore = asyncio.Semaphore(settings.p2_gemini_concurrency)
     
     tasks = [
-        _generate_single_slide(slide, profile, image_gen, watermark_service, storage, user_id, semaphore)
+        _generate_single_slide(slide, profile, image_gen, storage, user_id, semaphore)
         for slide in content_plan.slides
     ]
     results = await asyncio.gather(*tasks)
@@ -281,9 +274,6 @@ async def fix_ai_slide(
     image_bytes = base64.b64decode(generated_base64)
     image_bytes = force_resolution(image_bytes)
     
-    watermark_service = WatermarkService()
-    image_bytes = await watermark_service.apply(image_bytes, profile.get("logo_url"), user_id)
-    
     storage = StorageService()
     upload_base64 = base64.b64encode(image_bytes).decode("utf-8")
     public_url = await storage.upload_image(upload_base64, user_id)
@@ -359,7 +349,6 @@ async def generate_ai_carousel_stream(
 
         # 2. Generate slides sequentially and stream each one
         image_gen = ImageGeneratorService()
-        watermark_service = WatermarkService()
         storage = StorageService()
         media_urls: list[str] = []
         slide_types: list[str] = []
@@ -393,9 +382,6 @@ async def generate_ai_carousel_stream(
                 generated_base64 = await image_gen.generate_from_prompt(prompt)
                 image_bytes = base64.b64decode(generated_base64)
                 image_bytes = force_resolution(image_bytes)
-
-                logo_url = profile.get("logo_url")
-                image_bytes = await watermark_service.apply(image_bytes, logo_url, user_id)
 
                 upload_base64 = base64.b64encode(image_bytes).decode("utf-8")
                 public_url = await storage.upload_image(upload_base64, user_id)
