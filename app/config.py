@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # n8n publisher webhook
     n8n_publisher_webhook_url: str = ""
 
+    # Blotato
+    blotato_api_key: str = ""
+
     @property
     def google_api_key(self) -> str:
         """Alias for google_gemini_api_key — used by Gemini client."""

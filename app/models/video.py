@@ -169,8 +169,6 @@ class GenerateVideoRequest(BaseModel):
     brand_color_primary: Optional[str] = None
     brand_color_secondary: Optional[str] = None
     font_style: Optional[str] = None
-    logo_url: Optional[str] = None
-    brand_settings: Optional[dict] = Field(None, description="Dynamic brand settings (colors, fonts, etc.)")
 
 
 class GenerateVideoResponse(BaseModel):

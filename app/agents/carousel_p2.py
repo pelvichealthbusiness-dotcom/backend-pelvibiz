@@ -25,7 +25,6 @@ from app.services.content_strategy import ContentStrategyService
 from app.services.credits import CreditsService
 from app.services.image_generator import ImageGeneratorService
 from app.services.storage import StorageService
-from app.services.watermark import WatermarkService
 from app.dependencies import get_supabase_admin
 from app.prompts.ai_carousel_generate import build_generic_slide_prompt, build_card_slide_prompt
 from app.utils.image import force_resolution
@@ -193,7 +192,6 @@ class CarouselP2Agent(BaseStreamingAgent):
 
             # Generate slides
             image_gen = ImageGeneratorService()
-            watermark_service = WatermarkService()
             storage = StorageService()
             semaphore = asyncio.Semaphore(settings.p2_gemini_concurrency)
 
@@ -231,9 +229,6 @@ class CarouselP2Agent(BaseStreamingAgent):
                         generated_base64 = await image_gen.generate_from_prompt(prompt)
                         image_bytes = base64.b64decode(generated_base64)
                         image_bytes = force_resolution(image_bytes)
-
-                        logo_url = profile.get("logo_url")
-                        image_bytes = await watermark_service.apply(image_bytes, logo_url, user_id)
 
                         upload_base64 = base64.b64encode(image_bytes).decode("utf-8")
                         public_url = await storage.upload_image(upload_base64, user_id)
@@ -388,11 +383,6 @@ class CarouselP2Agent(BaseStreamingAgent):
 
             image_bytes = base64.b64decode(generated_base64)
             image_bytes = force_resolution(image_bytes)
-
-            watermark_service = WatermarkService()
-            image_bytes = await watermark_service.apply(
-                image_bytes, profile.get("logo_url"), user_id
-            )
 
             storage = StorageService()
             upload_base64 = base64.b64encode(image_bytes).decode("utf-8")

@@ -43,6 +43,24 @@ def _should_use_renderscript(template_key: str) -> bool:
 def _should_force_renderscript(template_enum: VideoTemplate) -> bool:
     return template_enum in set(VideoTemplate)
 
+
+def _required_video_count(template_enum: VideoTemplate) -> int:
+    return int(TEMPLATE_CONFIG[template_enum].get("required_videos", 1))
+
+
+def _validate_video_urls(template_enum: VideoTemplate, video_urls: list[str]) -> None:
+    required_videos = _required_video_count(template_enum)
+    if len(video_urls) < required_videos:
+        raise AgentAPIError(
+            message=(
+                f"Template '{template_enum.value}' requires {required_videos} video(s), "
+                f"but only {len(video_urls)} provided."
+            ),
+            code="MISSING_VIDEO_URLS",
+            status_code=422,
+            details={"required_videos": required_videos, "provided_videos": len(video_urls)},
+        )
+
 router = APIRouter(prefix="/video", tags=["video"])
 
 
@@ -68,6 +86,8 @@ async def generate_video(
     config = TEMPLATE_CONFIG[template_enum]
     template_id = config["creatomate_id"]
 
+    _validate_video_urls(template_enum, request.video_urls)
+
     # ---- Check credits ----------------------------------------------------
     credits_service = CreditsService()
     await credits_service.check_credits(user_id)
@@ -76,17 +96,28 @@ async def generate_video(
     brand_service = BrandService()
     profile = await brand_service.load_profile(user_id)
 
+    effective_video_urls = request.video_urls
+
+    theme = resolve_theme(profile, getattr(request, "music_track", None))
+    request.logo_url = profile.get("logo_url")
+    request.brand_settings = {
+        "font_family": theme.font_family if theme else None,
+        "primary_color": theme.primary_color if theme else None,
+        "logo_url": profile.get("logo_url"),
+        "music_url": getattr(request, "music_track", None),
+    }
+
     # ---- Video analysis for T3/T4 -----------------------------------------
     analysis_result = None
-    if template_enum in ANALYSIS_MAPPERS and request.video_urls:
+    if template_enum in ANALYSIS_MAPPERS and effective_video_urls:
         analysis_service = VideoAnalysisService()
         if template_enum == VideoTemplate.VIRAL_REACTION:
             analysis_result = await analysis_service.analyze_for_viral_reaction(
-                request.video_urls[0],
+                effective_video_urls[0],
             )
         elif template_enum == VideoTemplate.TESTIMONIAL_STORY:
             analysis_result = await analysis_service.analyze_for_testimonial(
-                request.video_urls[0],
+                effective_video_urls[0],
             )
 
     # ---- Build modifications via template mappers -------------------------
@@ -105,10 +136,18 @@ async def generate_video(
 
     # ---- Render via Creatomate --------------------------------------------
     creatomate = CreatomateService()
-    if "source" in modifications:
-        render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
-    else:
-        render_id = await creatomate.render(template_id, modifications, **extra_params)
+    render_id = None
+    if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
+        builder = RENDERSCRIPT_BUILDERS.get(template_enum)
+        if builder:
+            source_dict = builder(request, theme, analysis_result)
+            render_id = await creatomate.render_with_source(source_dict)
+
+    if render_id is None:
+        if "source" in modifications:
+            render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
+        else:
+            render_id = await creatomate.render(template_id, modifications, **extra_params)
 
     # ---- Poll for completion ----------------------------------------------
     final_status = await creatomate.poll_status(render_id)
@@ -239,9 +278,10 @@ async def generate_video_stream(
             brand_service = BrandService()
             profile = await brand_service.load_profile(user_id)
 
-            # ---- Optional trim step --------------------------------------
-            effective_video_urls = await _maybe_trim_video_urls(request.video_urls, user_id, request)
-            request.video_urls = effective_video_urls
+            _validate_video_urls(template_enum, request.video_urls)
+
+            # ---- Video URLs already validated; no inline trim step ---------
+            effective_video_urls = request.video_urls
 
             # ---- Video analysis for T3/T4 ----------------------------------
             analysis_result = None
@@ -258,6 +298,7 @@ async def generate_video_stream(
                     )
 
             # ---- RenderScript path (feature-flagged) --------------------------
+            creatomate = CreatomateService()
             render_id = None
             theme = resolve_theme(profile, getattr(request, 'music_track', None))
             # Load brand info into request for mappers
@@ -272,7 +313,6 @@ async def generate_video_stream(
                 builder = RENDERSCRIPT_BUILDERS.get(template_enum)
                 if builder:
                     source_dict = builder(request, theme, analysis_result)
-                    creatomate = CreatomateService()
                     render_id = await creatomate.render_with_source(source_dict)
 
             # ---- Build modifications via template mappers ------------------
@@ -288,11 +328,10 @@ async def generate_video_stream(
 
             # ---- Render via Creatomate -------------------------------------
             if render_id is None:
-                creatomate = CreatomateService()
-            if "source" in modifications:
-                render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
-            else:
-                render_id = await creatomate.render(template_id, modifications, **extra_params)
+                if "source" in modifications:
+                    render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
+                else:
+                    render_id = await creatomate.render(template_id, modifications, **extra_params)
 
             # ---- Emit: rendering (initial) ---------------------------------
             yield f'data: {json.dumps({"type": "progress", "phase": "rendering", "elapsed_seconds": 0, "message": "Sending to render pipeline..."})}\n\n'

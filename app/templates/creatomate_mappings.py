@@ -213,6 +213,18 @@ def map_big_quote(req: GenerateVideoRequest) -> tuple[dict, dict]:
         "Video-1": req.video_urls[0],
         **_mute_video("Video-1"),
         "Text-1": req.text_1 or "",
+        "Text-1.visible": True,
+        "Text-1.x": "50%",
+        "Text-1.y": "50%",
+        "Text-1.width": "76%",
+        "Text-1.x_anchor": "50%",
+        "Text-1.y_anchor": "50%",
+        "Text-1.x_alignment": "50%",
+        "Text-1.text_align": "center",
+        "Text-1.font_size": "5.2 vmin",
+        "Text-1.font_size_minimum": "3.2 vmin",
+        "Text-1.font_weight": "700",
+        "Text-1.fill_color": "#FFFFFF",
     }
     extra = {
         "output_format": "mp4",
