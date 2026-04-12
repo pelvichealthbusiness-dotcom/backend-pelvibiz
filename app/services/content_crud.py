@@ -122,10 +122,11 @@ class ContentCRUD:
             "published": False,
             "scheduled_date": None,
             "reel_category": reel_category or "",
-            "metadata": metadata or {},
         }
         if content_id:
             payload["id"] = content_id
+        if metadata:
+            payload["reply"] = reply or caption or title or ""
         try:
             result = self.client.table("requests_log").insert(payload).execute()
             return result.data[0]

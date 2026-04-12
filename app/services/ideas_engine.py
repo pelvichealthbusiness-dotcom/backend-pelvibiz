@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 SIMILARITY_THRESHOLD = 0.8
 
+_PROMPT_LEAK_PATTERNS = [
+    "generate fresh video content ideas",
+    "without numbering them",
+    "video content ideas for the",
+]
+
 # Music track IDs must match the frontend music-tracks.ts definitions
 _BRAND_VOICE_MUSIC: dict[str, str] = {
     # energetic / bold voices
@@ -132,6 +138,7 @@ class IdeasEngine:
         # Call LLM with retry
         try:
             ideas = await self._call_llm_with_retry(system_prompt, message, count)
+            ideas = self._sanitize_prompt_leaks(ideas, message)
         except Exception as e:
             logger.error(f"Ideas generation failed: {e}")
             raise IdeasGenerationError(str(e))
@@ -220,7 +227,7 @@ class IdeasEngine:
         """Remove ideas too similar to recent titles using string similarity."""
         if not recent_titles:
             return ideas
-        
+
         filtered = []
         for idea in ideas:
             title = idea.get("title", "").lower()
@@ -232,5 +239,29 @@ class IdeasEngine:
                 filtered.append(idea)
             else:
                 logger.debug(f"Filtered similar idea: {idea.get('title')}")
-        
+
         return filtered
+
+    def _sanitize_prompt_leaks(self, ideas: list[dict], seed: str) -> list[dict]:
+        """Strip accidental prompt echoing from titles/hooks/angles."""
+        seed_lower = seed.lower().strip()
+
+        def clean(text: str) -> str:
+            value = (text or "").strip()
+            lowered = value.lower()
+            for pattern in _PROMPT_LEAK_PATTERNS:
+                if pattern in lowered:
+                    value = value.lower().replace(pattern, " ")
+                    lowered = value
+            if seed_lower and seed_lower in lowered:
+                value = value.replace(seed, " ")
+            value = " ".join(value.split())
+            return value.strip(" -:.,")
+
+        sanitized: list[dict] = []
+        for idea in ideas:
+            title = clean(str(idea.get("title", ""))) or "Fresh content idea"
+            hook = clean(str(idea.get("hook", ""))) or title
+            angle = clean(str(idea.get("angle", ""))) or idea.get("angle", "creative")
+            sanitized.append({**idea, "title": title, "hook": hook, "angle": angle})
+        return sanitized
