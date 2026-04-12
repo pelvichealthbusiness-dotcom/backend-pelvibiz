@@ -154,7 +154,8 @@ class IdeasEngine:
         if not ideas:
             ideas = [{"id": str(uuid4()), "title": "Fresh content idea", "hook": "Something new", "angle": "creative", "content_type": "educational", "engagement_score": 0.5, "slides_suggestion": 5}]
 
-        ideas = review_ideas(profile, ideas, count=count, seed_idea=message)
+        fallback_seed = profile.get("brand_name") or (video_template or message)
+        ideas = review_ideas(profile, ideas, count=count, seed_idea=fallback_seed)
 
         return {
             "ideas": ideas[:count],
