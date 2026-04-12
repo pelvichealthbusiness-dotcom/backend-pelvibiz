@@ -6,6 +6,7 @@ from typing import Any
 from supabase import Client
 
 from app.dependencies import get_supabase_admin
+from app.services.content_intelligence import ContentIntelligenceService
 from app.services.brand import BrandService
 
 
@@ -13,6 +14,7 @@ class ScriptingService:
     def __init__(self, supabase: Client | None = None):
         self.supabase = supabase or get_supabase_admin()
         self.brand_service = BrandService(self.supabase)
+        self.content_service = ContentIntelligenceService(self.supabase)
 
     def _row(self, data: Any) -> dict[str, Any]:
         if isinstance(data, list):
@@ -144,19 +146,50 @@ class ScriptingService:
         research_topic_id: str | None,
         idea_variation_id: str | None,
     ) -> dict[str, Any]:
+        source: dict[str, Any] | None = None
         if idea_variation_id:
             result = self.supabase.table('idea_variations').select('*').eq('user_id', user_id).eq('id', idea_variation_id).maybe_single().execute()
             row = self._row(result.data)
             if row:
-                return {'source_type': 'idea_variation', 'source_id': row.get('id'), 'source_topic': row.get('source_topic') or row.get('title') or 'topic', 'hook_seed': row.get('hook', ''), 'content_type': row.get('content_type', 'educational')}
+                source = {'source_type': 'idea_variation', 'source_id': row.get('id'), 'source_topic': row.get('source_topic') or row.get('title') or 'topic', 'hook_seed': row.get('hook', ''), 'content_type': row.get('content_type', 'educational')}
+                studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
+                return self._apply_studio_context(source, studio_context)
 
-        if research_topic_id:
+        if source is None and research_topic_id:
             result = self.supabase.table('research_topics').select('*').eq('user_id', user_id).eq('id', research_topic_id).maybe_single().execute()
             row = self._row(result.data)
             if row:
-                return {'source_type': 'research_topic', 'source_id': row.get('id'), 'source_topic': row.get('title') or row.get('topic') or 'topic', 'hook_seed': row.get('title', ''), 'content_type': 'educational'}
+                source = {'source_type': 'research_topic', 'source_id': row.get('id'), 'source_topic': row.get('title') or row.get('topic') or 'topic', 'hook_seed': row.get('title', ''), 'content_type': 'educational'}
+                studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
+                return self._apply_studio_context(source, studio_context)
 
-        return {'source_type': 'manual', 'source_id': None, 'source_topic': topic or 'topic', 'hook_seed': topic or '', 'content_type': 'educational'}
+        if source is None:
+            source = {'source_type': 'manual', 'source_id': None, 'source_topic': topic or 'topic', 'hook_seed': topic or '', 'content_type': 'educational'}
+
+        studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
+        return self._apply_studio_context(source, studio_context)
+
+    def _apply_studio_context(self, source: dict[str, Any], studio_context: dict[str, Any] | None) -> dict[str, Any]:
+        if not studio_context:
+            return source
+
+        context_parts: list[str] = [source.get('hook_seed', '')]
+        style_brief = studio_context.get('content_style_brief') or ''
+        if style_brief:
+            context_parts.append(style_brief[:180])
+        top_topics = studio_context.get('top_topics') or []
+        if top_topics:
+            context_parts.append(f"Top topics: {', '.join(top_topics[:3])}")
+        top_hooks = studio_context.get('top_hooks') or []
+        if top_hooks:
+            context_parts.append(f"Hook structures: {', '.join(top_hooks[:3])}")
+        top_content_types = studio_context.get('top_content_types') or []
+        if top_content_types:
+            context_parts.append(f"Content types: {', '.join(top_content_types[:3])}")
+
+        source['studio_context'] = studio_context
+        source['hook_seed'] = '\n'.join(part for part in context_parts if part)
+        return source
 
     def _build_hooks(self, topic: str, seed: str, content_type: str, count: int) -> list[dict[str, Any]]:
         frameworks = [

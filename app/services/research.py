@@ -11,6 +11,7 @@ import httpx
 from supabase import Client
 
 from app.dependencies import get_supabase_admin
+from app.services.content_intelligence import ContentIntelligenceService
 
 
 def _normalize_topic(text: str) -> str:
@@ -20,6 +21,7 @@ def _normalize_topic(text: str) -> str:
 class ResearchService:
     def __init__(self, supabase: Client | None = None):
         self.supabase = supabase or get_supabase_admin()
+        self.content_service = ContentIntelligenceService(self.supabase)
 
     async def run_research(
         self,
@@ -79,7 +81,8 @@ class ResearchService:
             result = self.supabase.table('research_topics').upsert(payload, on_conflict='user_id,source,title').execute()
             saved_topics.append(result.data[0] if result.data else payload)
 
-        brief_markdown = self._build_brief(niche, saved_topics, sources)
+        studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
+        brief_markdown = self._build_brief(niche, saved_topics, sources, studio_context)
         return {
             'ready': True,
             'reason': None,
@@ -215,7 +218,7 @@ class ResearchService:
             score += 0.1
         return round(min(score, 1.0), 2)
 
-    def _build_brief(self, niche: str, topics: list[dict[str, Any]], sources: list[str]) -> str:
+    def _build_brief(self, niche: str, topics: list[dict[str, Any]], sources: list[str], studio_context: dict[str, Any] | None = None) -> str:
         top = topics[0]
         lines = [
             '# Daily Research Brief',
@@ -223,9 +226,23 @@ class ResearchService:
             f'- Niche: {niche}',
             f'- Sources: {", ".join(sources)}',
             f'- Top topic: {top["title"]}',
-            '',
-            '## Top Topics',
         ]
+        if studio_context:
+            style_brief = studio_context.get('content_style_brief') or ''
+            top_topics = studio_context.get('top_topics') or []
+            top_hooks = studio_context.get('top_hooks') or []
+            top_content_types = studio_context.get('top_content_types') or []
+            if style_brief:
+                lines.extend(['', '## Content Studio Context', style_brief])
+            if top_topics or top_hooks or top_content_types:
+                lines.extend(['', '## Studio Signals'])
+                if top_topics:
+                    lines.append(f"- Top topics: {', '.join(top_topics)}")
+                if top_hooks:
+                    lines.append(f"- Hook structures: {', '.join(top_hooks)}")
+                if top_content_types:
+                    lines.append(f"- Content types: {', '.join(top_content_types)}")
+        lines.extend(['', '## Top Topics'])
         for topic in topics[:10]:
             lines.append(f'- {topic["title"]} ({topic["source"]})')
         return '\n'.join(lines)

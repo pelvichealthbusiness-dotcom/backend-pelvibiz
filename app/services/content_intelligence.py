@@ -313,3 +313,37 @@ class ContentIntelligenceService:
                 'content_types': dict(content_type_counts),
             },
         }
+
+    async def get_optional_studio_context(
+        self,
+        *,
+        user_id: str,
+    ) -> dict[str, Any]:
+        profile_result = (
+            self.supabase.table('profiles')
+            .select('content_style_brief')
+            .eq('id', user_id)
+            .maybe_single()
+            .execute()
+        )
+        profile = profile_result.data or {}
+        brief = await self.generate_brief(user_id=user_id)
+
+        if not brief.get('ready'):
+            brief = {
+                'ready': False,
+                'reason': brief.get('reason'),
+                'brief_markdown': '',
+                'summary': {},
+                'account_stats': [],
+            }
+
+        summary = brief.get('summary') or {}
+        return {
+            'content_style_brief': profile.get('content_style_brief') or '',
+            'brief_markdown': brief.get('brief_markdown') or '',
+            'summary': summary,
+            'top_topics': list((summary.get('topics') or {}).keys())[:5],
+            'top_hooks': list((summary.get('hook_structures') or {}).keys())[:5],
+            'top_content_types': list((summary.get('content_types') or {}).keys())[:5],
+        }

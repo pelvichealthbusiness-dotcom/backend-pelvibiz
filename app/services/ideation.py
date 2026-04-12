@@ -6,11 +6,13 @@ from typing import Any
 from supabase import Client
 
 from app.dependencies import get_supabase_admin
+from app.services.content_intelligence import ContentIntelligenceService
 
 
 class IdeationService:
     def __init__(self, supabase: Client | None = None):
         self.supabase = supabase or get_supabase_admin()
+        self.content_service = ContentIntelligenceService(self.supabase)
 
     async def generate_from_research(
         self,
@@ -61,7 +63,8 @@ class IdeationService:
                 result = self.supabase.table('idea_variations').upsert(payload, on_conflict='user_id,source_topic,angle').execute()
                 saved.append(result.data[0] if result.data else payload)
 
-        brief_markdown = self._build_brief(niche, topics, saved)
+        studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
+        brief_markdown = self._build_brief(niche, topics, saved, studio_context)
         return {
             'ready': True,
             'reason': None,
@@ -127,7 +130,7 @@ class IdeationService:
             return f"5 things to check before posting {topic}"
         return f"My honest take on {topic}"
 
-    def _build_brief(self, niche: str, topics: list[dict[str, Any]], variations: list[dict[str, Any]]) -> str:
+    def _build_brief(self, niche: str, topics: list[dict[str, Any]], variations: list[dict[str, Any]], studio_context: dict[str, Any] | None = None) -> str:
         counts = Counter(v.get('content_type') for v in variations if v.get('content_type'))
         lines = [
             '# Ideation Brief',
@@ -136,8 +139,31 @@ class IdeationService:
             f'- Topics used: {len(topics)}',
             f'- Variations generated: {len(variations)}',
             '',
-            '## Content Types',
         ]
+        if studio_context:
+            style_brief = studio_context.get('content_style_brief') or ''
+            top_topics = studio_context.get('top_topics') or []
+            top_hooks = studio_context.get('top_hooks') or []
+            top_content_types = studio_context.get('top_content_types') or []
+            if style_brief:
+                lines.extend([
+                    '## Content Studio Context',
+                    style_brief,
+                    '',
+                ])
+            if top_topics or top_hooks or top_content_types:
+                lines.append('## Studio Signals')
+                if top_topics:
+                    lines.append(f"- Top topics: {', '.join(top_topics)}")
+                if top_hooks:
+                    lines.append(f"- Hook structures: {', '.join(top_hooks)}")
+                if top_content_types:
+                    lines.append(f"- Content types: {', '.join(top_content_types)}")
+                lines.append('')
+
+        lines.extend([
+            '## Content Types',
+        ])
         for label, count in counts.most_common():
             lines.append(f'- {label}: {count}')
         lines.append('')

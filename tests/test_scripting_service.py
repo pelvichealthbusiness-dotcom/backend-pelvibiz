@@ -43,6 +43,12 @@ class _Query:
 
     def execute(self):
         datasets = self.client.datasets
+        if self.table_name == 'profiles':
+            return _Result(datasets.get('profiles', []))
+        if self.table_name == 'account_stats':
+            return _Result(datasets.get('account_stats', []))
+        if self.table_name == 'content_with_scores':
+            return _Result(datasets.get('content_with_scores', []))
         if self.table_name == 'idea_variations' and self.filters.get('id'):
             return _Result(datasets.get('idea_variation'))
         if self.table_name == 'research_topics' and self.filters.get('id'):
@@ -90,3 +96,20 @@ def test_generate_script_uses_selected_hook_and_saves():
     assert 'script_body' in result
     assert client.calls[0][0] == 'scripting_runs'
     assert client.calls[1][0] == 'content_scripts'
+
+
+def test_generate_hook_pack_uses_content_studio_context_when_available():
+    client = _Client({
+        'profiles': [{'content_style_brief': 'You write with a direct, educational, punchy tone.'}],
+        'idea_variation': {'id': 'idea-1', 'source_topic': 'hooks', 'hook': 'Stop doing hooks the usual way', 'content_type': 'tutorial'},
+        'account_stats': [{'handle': 'creator1', 'avg_views': 120.0, 'post_count': 3}],
+        'content_with_scores': [
+            {'views': 300, 'topic': 'hooks', 'hook_structure': 'Contrarian', 'content_type': 'tutorial', 'outlier_category': 'viral', 'source_post_id': 'p1'},
+        ],
+    })
+    service = ScriptingService(client)
+
+    result = asyncio.run(service.generate_hook_pack(user_id='user-1', idea_variation_id='idea-1', count=1))
+
+    assert result['ready'] is True
+    assert 'You write with a direct' in result['hooks'][0]['hook_text']
