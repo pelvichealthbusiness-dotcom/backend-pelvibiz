@@ -32,12 +32,14 @@ router = APIRouter(prefix="/content", tags=["content-v2"])
 # ---------------------------------------------------------------------------
 
 class CreateContentRequest(BaseModel):
+    id: Optional[str] = Field(None, description="Client-generated content ID")
     agent_type: str = Field(..., description="Agent type that generated this content")
     title: Optional[str] = Field(None, max_length=500)
     caption: Optional[str] = Field(None, max_length=5000)
     reply: Optional[str] = Field(None, description="Full AI reply text")
     media_urls: Optional[list[str]] = Field(None, description="Generated media URLs")
     reel_category: Optional[str] = Field(None, max_length=100)
+    metadata: Optional[dict[str, object]] = Field(None, description="Additional metadata")
 
 
 class UpdateContentV2Request(BaseModel):
@@ -134,12 +136,14 @@ async def create_content(
     crud = ContentCRUD()
     item = crud.create_content(
         user_id=user.user_id,
+        content_id=body.id,
         agent_type=body.agent_type,
         title=body.title,
         caption=body.caption,
         reply=body.reply,
         media_urls=body.media_urls,
         reel_category=body.reel_category,
+        metadata=body.metadata,
     )
     return success(item)
 

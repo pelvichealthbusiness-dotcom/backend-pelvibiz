@@ -102,12 +102,14 @@ class ContentCRUD:
     def create_content(
         self,
         user_id: str,
+        content_id: str | None,
         agent_type: str,
         title: str | None = None,
         caption: str | None = None,
         reply: str | None = None,
         media_urls: list[str] | None = None,
         reel_category: str | None = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Save a new content/asset to requests_log."""
         payload = {
@@ -120,7 +122,10 @@ class ContentCRUD:
             "published": False,
             "scheduled_date": None,
             "reel_category": reel_category or "",
+            "metadata": metadata or {},
         }
+        if content_id:
+            payload["id"] = content_id
         try:
             result = self.client.table("requests_log").insert(payload).execute()
             return result.data[0]
