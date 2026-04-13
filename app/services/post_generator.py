@@ -87,7 +87,6 @@ class PostGeneratorService:
             request=request,
             user_id=user_id,
             image_url=image_url,
-            brand=brand,
         )
 
         # 8. Increment credits
@@ -103,7 +102,6 @@ class PostGeneratorService:
         request: PostGenerateRequest,
         user_id: str,
         image_url: str,
-        brand: dict,
     ) -> None:
         """Upsert a row into requests_log using message_id as idempotency key."""
         try:
@@ -117,19 +115,6 @@ class PostGeneratorService:
                     "caption": request.caption,
                     "media_urls": [image_url],
                     "published": False,
-                    "metadata": {
-                        "template_key": request.template_key,
-                        "template_label": request.template_label,
-                        "topic": request.topic,
-                        "text_fields": request.text_fields,
-                        "conversation_id": request.conversation_id,
-                        "brand_snapshot": {
-                            "brand_color_primary": brand.get("brand_color_primary"),
-                            "brand_color_secondary": brand.get("brand_color_secondary"),
-                            "font_style": brand.get("font_style"),
-                            "font_prompt": brand.get("font_prompt"),
-                        },
-                    },
                 },
                 on_conflict="id",
             ).execute()
