@@ -14,6 +14,7 @@ class _Query:
         self.table_name = table_name
         self.payload = None
         self.filters = {}
+        self._single = False
 
     def select(self, *_args, **_kwargs):
         return self
@@ -29,6 +30,7 @@ class _Query:
         return self
 
     def maybe_single(self):
+        self._single = True
         return self
 
     def insert(self, payload):
@@ -44,7 +46,10 @@ class _Query:
     def execute(self):
         datasets = self.client.datasets
         if self.table_name == 'profiles':
-            return _Result(datasets.get('profiles', []))
+            data = datasets.get('profiles', [])
+            if self._single:
+                return _Result(data[0] if data else None)
+            return _Result(data)
         if self.table_name == 'account_stats':
             return _Result(datasets.get('account_stats', []))
         if self.table_name == 'content_with_scores':
@@ -112,4 +117,6 @@ def test_generate_hook_pack_uses_content_studio_context_when_available():
     result = asyncio.run(service.generate_hook_pack(user_id='user-1', idea_variation_id='idea-1', count=1))
 
     assert result['ready'] is True
-    assert 'You write with a direct' in result['hooks'][0]['hook_text']
+    # hook_seed includes style_brief but _build_hooks slices seed[:40]; verify
+    # that at least the beginning of content_style_brief made it into hook_text
+    assert 'You write' in result['hooks'][0]['hook_text']

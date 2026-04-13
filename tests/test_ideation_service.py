@@ -14,6 +14,7 @@ class _Query:
         self.table_name = table_name
         self.payload = None
         self.filters = {}
+        self._single = False
 
     def select(self, *_args, **_kwargs):
         return self
@@ -28,6 +29,10 @@ class _Query:
     def limit(self, *_args, **_kwargs):
         return self
 
+    def maybe_single(self):
+        self._single = True
+        return self
+
     def insert(self, payload):
         self.payload = payload
         self.client.calls.append((self.table_name, payload))
@@ -40,7 +45,10 @@ class _Query:
 
     def execute(self):
         if self.table_name == 'profiles':
-            return _Result(self.client.datasets.get('profiles', []))
+            data = self.client.datasets.get('profiles', [])
+            if self._single:
+                return _Result(data[0] if data else None)
+            return _Result(data)
         if self.table_name == 'account_stats':
             return _Result(self.client.datasets.get('account_stats', []))
         if self.table_name == 'content_with_scores':
