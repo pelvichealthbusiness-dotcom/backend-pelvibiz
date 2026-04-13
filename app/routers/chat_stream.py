@@ -64,7 +64,7 @@ class ChatStreamRequest(BaseModel):
     @field_validator("wizard_mode")
     @classmethod
     def validate_wizard_mode(cls, v: Optional[str]) -> Optional[str]:
-        valid = {"ideas", "draft", "generate", "fix", "generate_content"}
+        valid = {"ideas", "draft", "generate", "fix", "generate_content", "brainstorm_post_ideas"}
         if v is not None and v not in valid:
             raise ValueError(f"Invalid wizard_mode: {v}. Must be one of: {', '.join(sorted(valid))}")
         return v
@@ -123,7 +123,7 @@ async def chat_stream(
     # Wizard generate mode skips conversation persistence entirely.
     # "generate"/"fix" save to requests_log inside the agent.
     # "generate_content" is a one-shot LLM call for the post wizard — no conversation needed.
-    is_wizard_generate = body.wizard_mode in ("generate", "fix", "generate_content")
+    is_wizard_generate = body.wizard_mode in ("generate", "fix", "generate_content", "brainstorm_post_ideas")
 
     # 1. Acquire stream slot
     await stream_tracker.acquire(user.user_id)

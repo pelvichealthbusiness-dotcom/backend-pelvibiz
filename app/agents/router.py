@@ -69,6 +69,7 @@ _WIZARD_MAP: dict[str, str] = {
     "generate": "WizardGenerateAgent",
     "fix": "WizardFixAgent",
     "generate_content": "PostContentAgent",
+    "brainstorm_post_ideas": "BrainstormPostIdeasAgent",
 }
 
 
@@ -95,6 +96,9 @@ def _resolve_wizard(
     elif wizard_mode == "generate_content":
         from app.agents.post_content import PostContentAgent
         return PostContentAgent(user_id=user_id, agent_type=agent_type)
+    elif wizard_mode == "brainstorm_post_ideas":
+        from app.agents.brainstorm_post_ideas import BrainstormPostIdeasAgent
+        return BrainstormPostIdeasAgent(user_id=user_id, agent_type=agent_type)
 
     # Fallback (should not reach here due to validation above)
     from app.agents.general_chat import GeneralChatAgent

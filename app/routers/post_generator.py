@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends
 
 from app.core.auth import UserContext, get_current_user
 from app.core.exceptions import AppError
-from app.models.post_generator import PostGenerateRequest, PostGenerateResponse
+from app.core.responses import success
+from app.models.post_generator import PostGenerateRequest
 from app.services.post_generator import PostGeneratorService
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/post", tags=["post-generator"])
 
 
-@router.post("/generate", response_model=PostGenerateResponse)
+@router.post("/generate")
 async def generate_post(
     request: PostGenerateRequest,
     user: UserContext = Depends(get_current_user),
@@ -59,8 +60,8 @@ async def generate_post(
             message="Post image generation failed. Please try again.",
         ) from exc
 
-    return PostGenerateResponse(
-        image_url=image_url,
-        caption=caption,
-        message_id=request.message_id,
-    )
+    return success({
+        "image_url": image_url,
+        "caption": caption,
+        "message_id": request.message_id,
+    })
