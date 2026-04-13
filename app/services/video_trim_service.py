@@ -87,8 +87,17 @@ class VideoTrimService:
             duration = await self._probe_duration(input_path)
             window = validate_trim_window(mode='manual', start_seconds=start_seconds, end_seconds=end_seconds, duration_seconds=duration)
 
-            export_cmd = build_ffmpeg_reencode_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
-            await asyncio.to_thread(self._run_command, export_cmd)
+            # Fast path: stream-copy the selected range first. This is much faster
+            # than re-encoding and is enough for the common case.
+            export_cmd = build_ffmpeg_trim_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
+            try:
+                await asyncio.to_thread(self._run_command, export_cmd)
+            except StorageUploadError:
+                logger.info('Fast trim failed, falling back to reencode')
+
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                export_cmd = build_ffmpeg_reencode_command(str(input_path), str(output_path), window.start_seconds, window.end_seconds)
+                await asyncio.to_thread(self._run_command, export_cmd)
 
             if not output_path.exists() or output_path.stat().st_size == 0:
                 raise AgentAPIError(message='Video export produced an empty file', code='TRIM_EMPTY_OUTPUT', status_code=500)
