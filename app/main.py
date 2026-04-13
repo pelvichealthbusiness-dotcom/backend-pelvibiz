@@ -13,6 +13,7 @@ from app.routers import health, carousel, user, onboarding, wizard, ai_carousel,
 from app.routers import user_preferences, content_generator, conversations, content_v2, competitors, research, ideation, scripting
 from app.routers import chat_test_stream
 from app.routers import chat_stream, upload, admin
+from app.routers import post_generator
 from app.routers.brand_stories import router as brand_stories_router
 from app.services.exceptions import AgentAPIError
 from app.core.exceptions import AppError, register_exception_handlers
@@ -108,6 +109,7 @@ def create_app() -> FastAPI:
     app.include_router(user_preferences.router, prefix="/api/v1")
     app.include_router(content_generator.router, prefix="/api/v1")
     app.include_router(chat_stream.router, prefix="/api/v1")
+    app.include_router(post_generator.router, prefix="/api/v1")
     app.include_router(brand_stories_router, prefix="/api/v1")
 
     return app

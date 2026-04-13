@@ -1,0 +1,237 @@
+"""PostContentAgent — generates structured text fields + caption for a post template.
+
+Handles wizard_mode='generate_content' in the /chat/stream endpoint.
+Returns ONLY a JSON object so the frontend can parse it directly from
+text-delta events (PostApiService fallback path).
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, AsyncGenerator
+
+from app.agents.base import BaseStreamingAgent
+from app.core.gemini_stream import stream_chat_with_retry
+from app.core.streaming import text_chunk, finish_event, error_event
+from app.services.brand import BrandService
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Template field registry (mirrors post-templates.ts on the frontend)
+# ---------------------------------------------------------------------------
+
+_TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
+    "tip-card": {
+        "headline": "Bold, actionable headline (max 60 chars)",
+        "tip_body": "Clear, concise tip (max 160 chars)",
+    },
+    "myth-vs-fact": {
+        "myth": "Common false belief (max 80 chars)",
+        "fact": "The truth / correction (max 160 chars)",
+    },
+    "quote-card": {
+        "quote": "Inspiring quote (max 200 chars)",
+        "author": "Author attribution, e.g. 'Dr. Smith, PT' (max 50 chars, optional)",
+    },
+    "did-you-know": {
+        "headline": "Scroll-stopping hook headline (max 60 chars)",
+        "fact": "Supporting educational detail (max 200 chars)",
+    },
+    "offer-flyer": {
+        "offer_title": "Offer name (max 60 chars)",
+        "offer_details": "What is included (max 140 chars)",
+        "price": "Price display, e.g. '$75 (reg. $150)' (max 30 chars, optional)",
+        "cta": "Action-oriented CTA (max 40 chars)",
+    },
+    "event-banner": {
+        "event_name": "Event title (max 60 chars)",
+        "date_time": "Date and time, e.g. 'Saturday, May 10 · 10am–12pm' (max 50 chars)",
+        "location": "Location or 'Online via Zoom' (max 60 chars)",
+        "cta": "Registration CTA (max 40 chars)",
+    },
+    "testimonial-card": {
+        "testimonial": "Authentic client quote (max 200 chars)",
+        "client_name": "Client name, e.g. 'María G., 34' (max 40 chars)",
+        "result": "Key measurable result, e.g. 'Leak-free in 6 sessions' (max 60 chars, optional)",
+    },
+    "before-after-teaser": {
+        "headline": "Transformation headline (max 60 chars)",
+        "before_state": "How the client felt / struggled before (max 100 chars)",
+        "after_state": "What they achieved after treatment (max 100 chars)",
+    },
+    "service-spotlight": {
+        "service_name": "Service name (max 60 chars)",
+        "benefit_1": "Top benefit (max 70 chars)",
+        "benefit_2": "Second benefit (max 70 chars)",
+        "benefit_3": "Third benefit (max 70 chars)",
+        "cta": "Next step CTA (max 40 chars)",
+    },
+    "checklist-post": {
+        "headline": "Checklist title that promises value (max 70 chars)",
+        "item_1": "Checklist item 1 (max 70 chars)",
+        "item_2": "Checklist item 2 (max 70 chars)",
+        "item_3": "Checklist item 3 (max 70 chars)",
+        "item_4": "Checklist item 4 (max 70 chars, optional — leave empty if not needed)",
+    },
+    "question-hook": {
+        "question": "Personal, relatable question (max 150 chars)",
+        "subtitle": "Follow-up or context line (max 120 chars, optional)",
+    },
+    "stat-callout": {
+        "stat_number": "Big number, e.g. '1 in 3' (max 15 chars)",
+        "stat_label": "What the number represents (max 60 chars)",
+        "context": "Why it matters and what to do (max 160 chars)",
+        "source": "Source citation, e.g. 'WHO, 2023' (max 40 chars, optional)",
+    },
+}
+
+
+def _build_fields_spec(template_key: str) -> str:
+    """Build a JSON example showing the expected field keys."""
+    fields = _TEMPLATE_FIELDS.get(template_key, {})
+    if not fields:
+        return '"headline": "...", "body": "..."'
+    lines = [f'    "{k}": "{v}"' for k, v in fields.items()]
+    return ",\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Agent
+# ---------------------------------------------------------------------------
+
+class PostContentAgent(BaseStreamingAgent):
+    """Generates post text fields + caption as pure JSON output.
+
+    Called via wizard_mode='generate_content'. Returns a single JSON object:
+        {
+            "text_fields": { <field_key>: <value>, ... },
+            "caption": "<Instagram caption with hashtags>"
+        }
+    """
+
+    def __init__(self, user_id: str, agent_type: str) -> None:
+        super().__init__(user_id=user_id, agent_type=agent_type)
+        self._brand_service = BrandService()
+
+    @property
+    def model(self) -> str:
+        return self._settings.gemini_model_lite
+
+    @property
+    def temperature(self) -> float:
+        return 0.4  # Lower for consistent structured output
+
+    @property
+    def max_tokens(self) -> int:
+        return 1024
+
+    @property
+    def system_prompt(self) -> str:
+        # Overridden dynamically in stream() — this is the fallback
+        return (
+            "You are a social media copywriter. Respond ONLY with a valid JSON object. "
+            "No markdown, no explanation, no code fences."
+        )
+
+    async def execute_tool(
+        self, name: str, args: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        return {"error": f"Unknown tool: {name}"}
+
+    async def stream(
+        self,
+        message: str,
+        history: list[dict] | None = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[str, None]:
+        """Override to inject brand profile and build template-aware prompt."""
+        metadata = kwargs.get("metadata") or {}
+        template_key = metadata.get("template_key", "tip-card")
+        topic = metadata.get("topic") or message
+
+        # Load brand profile
+        try:
+            profile = await self._brand_service.load_profile(self.user_id)
+        except Exception as exc:
+            logger.warning("Failed to load brand profile for %s: %s", self.user_id, exc)
+            profile = BrandService._defaults(self.user_id)
+
+        brand_name = profile.get("brand_name") or "the brand"
+        brand_voice = profile.get("brand_voice") or "professional and empathetic"
+        target_audience = profile.get("target_audience") or "women with pelvic health concerns"
+        services = profile.get("services_offered") or "pelvic floor therapy"
+        cta = profile.get("cta") or "Book a free consultation"
+        keywords = profile.get("keywords") or ""
+        content_style = profile.get("content_style_brief") or ""
+
+        fields_spec = _build_fields_spec(template_key)
+
+        style_block = ""
+        if content_style and content_style.strip():
+            style_block = (
+                f"\n\nContent style DNA (match this voice closely):\n{content_style.strip()}"
+            )
+
+        system = f"""You are an expert social media copywriter for health and wellness businesses.
+Your task: generate post copy for a '{template_key}' Instagram post.
+
+BRAND CONTEXT:
+- Brand: {brand_name}
+- Voice: {brand_voice}
+- Audience: {target_audience}
+- Services: {services}
+- CTA: {cta}
+- Keywords: {keywords}{style_block}
+
+OUTPUT FORMAT — CRITICAL:
+Respond with ONLY a valid JSON object. No markdown. No code fences. No explanation. Start directly with {{.
+
+The JSON must have this exact shape:
+{{
+  "text_fields": {{
+{fields_spec}
+  }},
+  "caption": "<Instagram caption — hook line, 2-3 sentence body, CTA, 5 relevant hashtags>"
+}}
+
+COPY RULES:
+1. Text fields: match the character limits in the spec. Be punchy and specific.
+2. Caption: open with a hook that differs from the headline, add 2-3 sentences of value, end with the CTA, then 5 niche hashtags on the last line.
+3. Voice: {brand_voice}. Never use generic wellness platitudes.
+4. All copy must feel authentic for {brand_name}.
+5. Write in the same language as the topic below."""
+
+        user_message = f"Topic: {topic}\nTemplate: {template_key}"
+
+        # Stream directly from Gemini — no history needed for this wizard step
+        try:
+            full_response = ""
+            async for chunk in stream_chat_with_retry(
+                messages=[{"role": "user", "content": user_message}],
+                system_prompt=system,
+                model=self.model,
+                temperature=self.temperature,
+                max_output_tokens=self.max_tokens,
+            ):
+                if chunk["type"] == "text":
+                    full_response += chunk["content"]
+                    yield text_chunk(chunk["content"])
+
+            yield finish_event("stop")
+
+        except Exception as exc:
+            logger.error(
+                "PostContentAgent stream error [%s]: %s",
+                self.user_id,
+                exc,
+                exc_info=True,
+            )
+            exc_str = str(exc).lower()
+            if "429" in exc_str or "resourceexhausted" in exc_str:
+                yield error_event("Rate limit exceeded, please try again", "LLM_RATE_LIMIT")
+            elif "timeout" in exc_str:
+                yield error_event("Request timed out, please try again", "LLM_TIMEOUT")
+            else:
+                yield error_event("Content generation failed. Please try again.", "INTERNAL_ERROR")

@@ -56,7 +56,7 @@ class ChatStreamRequest(BaseModel):
     @field_validator("agent_type")
     @classmethod
     def validate_agent_type(cls, v: str) -> str:
-        valid = {"real-carousel", "ai-carousel", "reels-edited-by-ai", "general", "pelvibiz-ai"}
+        valid = {"real-carousel", "ai-carousel", "reels-edited-by-ai", "general", "pelvibiz-ai", "ai-post-generator"}
         if v not in valid:
             raise ValueError(f"Invalid agent_type: {v}. Must be one of: {', '.join(sorted(valid))}")
         return v
@@ -64,8 +64,9 @@ class ChatStreamRequest(BaseModel):
     @field_validator("wizard_mode")
     @classmethod
     def validate_wizard_mode(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in ("ideas", "draft", "generate", "fix"):
-            raise ValueError(f"Invalid wizard_mode: {v}. Must be 'ideas', 'draft', 'generate', or 'fix'")
+        valid = {"ideas", "draft", "generate", "fix", "generate_content"}
+        if v is not None and v not in valid:
+            raise ValueError(f"Invalid wizard_mode: {v}. Must be one of: {', '.join(sorted(valid))}")
         return v
 
 
@@ -119,9 +120,10 @@ async def chat_stream(
     7. Save assistant message AFTER stream completes (skipped for wizard_mode=generate)
     8. Auto-generate title for new conversations (skipped for wizard_mode=generate)
     """
-    # Wizard generate mode skips conversation persistence entirely —
-    # it saves results directly to requests_log inside the agent.
-    is_wizard_generate = body.wizard_mode in ("generate", "fix")
+    # Wizard generate mode skips conversation persistence entirely.
+    # "generate"/"fix" save to requests_log inside the agent.
+    # "generate_content" is a one-shot LLM call for the post wizard — no conversation needed.
+    is_wizard_generate = body.wizard_mode in ("generate", "fix", "generate_content")
 
     # 1. Acquire stream slot
     await stream_tracker.acquire(user.user_id)
