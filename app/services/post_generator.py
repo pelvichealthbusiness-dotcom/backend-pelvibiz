@@ -17,6 +17,7 @@ from app.dependencies import get_supabase_admin
 from app.models.post_generator import PostGenerateRequest
 from app.prompts.post_generate import build_post_image_prompt
 from app.services.brand import BrandService
+from app.services.content_service import ContentService
 from app.services.credits import CreditsService
 from app.services.image_generator import ImageGeneratorService
 from app.services.storage import StorageService
@@ -88,6 +89,7 @@ class PostGeneratorService:
             user_id=user_id,
             image_url=image_url,
         )
+        ContentService._invalidate_cache(user_id)
 
         # 8. Increment credits
         try:
