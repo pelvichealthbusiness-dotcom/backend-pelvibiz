@@ -136,8 +136,8 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
     VideoTemplate.TALKING_HEAD: {
         "creatomate_id": "RENDERSCRIPT",
         "required_videos": 1,
-        "required_text_count": 1,   # text_1=Hook; text_2=caption (optional)
-        "needs_analysis": False,
+        "required_text_count": 1,   # text_1=Hook (optional); captions auto-generated from audio
+        "needs_analysis": True,
         "output_format": "mp4",
         "width": 1080,
         "height": 1920,
@@ -244,7 +244,7 @@ class VideoStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class VideoAnalysisResult(BaseModel):
-    """Parsed Gemini video analysis output (T3/T4)."""
+    """Parsed Gemini video analysis output (T3/T4/Talking Head)."""
 
     # T3 Viral Reaction
     start_time_seconds: Optional[float] = None
@@ -253,6 +253,10 @@ class VideoAnalysisResult(BaseModel):
 
     # Shared
     analysis_summary: Optional[str] = None
+
+    # Talking Head — auto-caption segments from speech transcription
+    # Each item: {"text": "phrase", "start": 0.0, "end": 1.2}
+    transcript_segments: Optional[list[dict]] = None
 
 
 class CreatomateRenderStatus(BaseModel):

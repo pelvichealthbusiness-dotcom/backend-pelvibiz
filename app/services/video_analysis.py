@@ -54,6 +54,48 @@ class VideoAnalysisService:
             generated_hook=raw.get("text_overlay", "Watch this"),
         )
 
+    async def analyze_for_talking_head(self, video_url: str) -> VideoAnalysisResult:
+        """Analyze video for Talking Head template.
+
+        Returns actual video duration and speech transcript split into
+        short phrase segments with start/end timestamps for auto-captions.
+        """
+        prompt = (
+            "Analyze this video for a Talking Head auto-caption template.\n\n"
+            "Tasks:\n"
+            "1. Measure the total video duration in seconds (be precise).\n"
+            "2. Transcribe ALL speech in the video. Split the transcript into\n"
+            "   short phrases of 3-5 words each, with the approximate start and\n"
+            "   end time (in seconds) for each phrase.\n"
+            "   If there is no speech, return an empty segments array.\n\n"
+            "Return ONLY valid JSON — no markdown, no explanation:\n"
+            '{"duration": 18.5, "segments": ['
+            '{"text": "Hello everyone", "start": 0.3, "end": 1.1}, '
+            '{"text": "today we are going", "start": 1.1, "end": 2.4}'
+            "]}"
+        )
+
+        defaults: dict = {"duration": 30.0, "segments": []}
+        raw = await self._analyze(video_url, prompt, defaults)
+
+        segments = raw.get("segments") or []
+        # Sanitize: ensure each segment has required keys and numeric times
+        clean_segments = []
+        for seg in segments:
+            try:
+                clean_segments.append({
+                    "text": str(seg.get("text", "")).strip(),
+                    "start": float(seg.get("start", 0)),
+                    "end": float(seg.get("end", 0)),
+                })
+            except (TypeError, ValueError):
+                continue
+
+        return VideoAnalysisResult(
+            duration_seconds=float(raw.get("duration") or 30.0),
+            transcript_segments=clean_segments if clean_segments else None,
+        )
+
     async def analyze_for_testimonial(self, video_url: str) -> VideoAnalysisResult:
         """Analyze video for T4 Testimonial Story template.
 

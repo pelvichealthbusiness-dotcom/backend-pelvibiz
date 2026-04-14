@@ -108,9 +108,10 @@ async def generate_video(
         "music_url": getattr(request, "music_track", None),
     }
 
-    # ---- Video analysis for T3/T4 -----------------------------------------
+    # ---- Video analysis (templates with needs_analysis: True) ---------------
     analysis_result = None
-    if template_enum in ANALYSIS_MAPPERS and effective_video_urls:
+    needs_analysis = config.get("needs_analysis", False)
+    if needs_analysis and effective_video_urls:
         analysis_service = VideoAnalysisService()
         if template_enum == VideoTemplate.VIRAL_REACTION:
             analysis_result = await analysis_service.analyze_for_viral_reaction(
@@ -118,6 +119,10 @@ async def generate_video(
             )
         elif template_enum == VideoTemplate.TESTIMONIAL_STORY:
             analysis_result = await analysis_service.analyze_for_testimonial(
+                effective_video_urls[0],
+            )
+        elif template_enum == VideoTemplate.TALKING_HEAD:
+            analysis_result = await analysis_service.analyze_for_talking_head(
                 effective_video_urls[0],
             )
 
@@ -284,9 +289,10 @@ async def generate_video_stream(
             # ---- Video URLs already validated; no inline trim step ---------
             effective_video_urls = request.video_urls
 
-            # ---- Video analysis for T3/T4 ----------------------------------
+            # ---- Video analysis (templates with needs_analysis: True) --------
             analysis_result = None
-            if template_enum in ANALYSIS_MAPPERS and effective_video_urls:
+            needs_analysis = config.get("needs_analysis", False)
+            if needs_analysis and effective_video_urls:
                 yield f'data: {json.dumps({"type": "progress", "phase": "analyzing", "message": "Analyzing your video with AI..."})}\n\n'
                 analysis_service = VideoAnalysisService()
                 if template_enum == VideoTemplate.VIRAL_REACTION:
@@ -295,6 +301,10 @@ async def generate_video_stream(
                     )
                 elif template_enum == VideoTemplate.TESTIMONIAL_STORY:
                     analysis_result = await analysis_service.analyze_for_testimonial(
+                        effective_video_urls[0],
+                    )
+                elif template_enum == VideoTemplate.TALKING_HEAD:
+                    analysis_result = await analysis_service.analyze_for_talking_head(
                         effective_video_urls[0],
                     )
 

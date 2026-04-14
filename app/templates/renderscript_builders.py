@@ -432,20 +432,22 @@ def _caption_elements(
 #   Audio:  video audio ON (person is speaking)
 
 def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
-    dur = _resolve_target_duration(request, 30.0)
-    clip_count = _resolve_clip_count(request, 1, 1)
+    # Use actual video duration from Gemini analysis; fall back to target_duration or 30s
+    if analysis and analysis.duration_seconds:
+        dur = float(analysis.duration_seconds)
+    else:
+        dur = _resolve_target_duration(request, 30.0)
 
     source = _base_source(dur)
     els = source["elements"]
 
-    # Video clips (audio ON — person is speaking)
-    videos = (request.video_urls or [])[:clip_count]
-    clip_dur = dur / max(len(videos), 1)
-    for i, url in enumerate(videos):
-        els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
-                               round(i * clip_dur, 3), round(clip_dur, 3), volume="100%"))
+    # Video — full duration, audio ON (person is speaking)
+    url = request.video_urls[0] if request.video_urls else ""
+    if url:
+        els.append(_video_elem("Video", 1, url, 0.0, dur, volume="100%"))
 
-    # HOOK card — TOP, white box with dark text, spans entire video
+    # HOOK card — TOP, white box with dark text, static throughout
+    # text_1 is optional; if not provided, no hook card shown
     hook = (request.text_1 or "").strip()
     if hook:
         els.append({
@@ -464,15 +466,46 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
             "background_y_padding": "5%",
         })
 
-    # CAPTIONS — BOTTOM CENTER, word-group rotation
-    caption_text = (request.text_2 or "").strip()
-    if caption_text:
-        caption_dur = dur - 1.0  # leave a beat at the end
-        els.extend(_caption_elements(
-            caption_text, caption_dur,
-            start_track=30, theme=theme,
-            y="73%", font_size="5.5 vmin", chunk_size=3,
-        ))
+    # AUTO-CAPTIONS — synchronized with speech from Gemini transcription
+    segments = (analysis and analysis.transcript_segments) or []
+    if segments:
+        # Each segment is {"text", "start", "end"} from Gemini
+        for i, seg in enumerate(segments):
+            text = seg.get("text", "").strip()
+            t_start = float(seg.get("start", 0))
+            t_end = float(seg.get("end", t_start + 0.5))
+            seg_dur = max(t_end - t_start - 0.05, 0.1)
+            if not text:
+                continue
+            els.append({
+                "type": "text",
+                "track": 30 + i,
+                "name": f"Caption-{i}",
+                "text": text,
+                "time": round(t_start, 3),
+                "duration": round(seg_dur, 3),
+                "x": "50%", "y": "78%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%",
+                "width": "88%",
+                "font_family": theme.font_family,
+                "font_weight": "700",
+                "font_size": "5.5 vmin",
+                "fill_color": "#FFFFFF",
+                "background_color": "rgba(0,0,0,0.70)",
+                "background_x_padding": "6%",
+                "background_y_padding": "3%",
+            })
+    else:
+        # Fallback: manual text_2 split into timed groups (no analysis available)
+        caption_text = (request.text_2 or "").strip()
+        if caption_text:
+            caption_dur = dur - 1.0
+            els.extend(_caption_elements(
+                caption_text, caption_dur,
+                start_track=30, theme=theme,
+                y="78%", font_size="5.5 vmin", chunk_size=3,
+            ))
 
     if theme.music_url:
         els.append(_audio_elem(theme, dur, track=200))
