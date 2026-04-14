@@ -30,7 +30,9 @@ def _rect_elem(name: str, track: int, time: float, duration: float,
 def _text_elem(name: str, track: int, text: str, time: float, duration: float,
                theme: BrandTheme, y: str, fill_color: Optional[str] = None,
                font_size: Optional[str] = None, x: str = "8%", width: str = "84%",
-               x_alignment: str = "50%", y_anchor: str = "50%") -> dict:
+               x_alignment: str = "50%", y_anchor: str = "50%",
+               bg_color: Optional[str] = "rgba(0,0,0,0.75)",
+               bg_x_padding: str = "8%", bg_y_padding: str = "4%") -> dict:
     el = {"type": "text", "track": track, "name": name, "text": text,
           "time": time, "duration": duration,
           "x": x, "y": y, "width": width,
@@ -40,6 +42,10 @@ def _text_elem(name: str, track: int, text: str, time: float, duration: float,
           "fill_color": fill_color or theme.primary_color}
     if x_alignment and x_alignment != "50%":
         el["x_alignment"] = x_alignment
+    if bg_color is not None:
+        el["background_color"] = bg_color
+        el["background_x_padding"] = bg_x_padding
+        el["background_y_padding"] = bg_y_padding
     return el
 
 def _logo_elem(theme: BrandTheme, duration: float, track: int = 10) -> Optional[dict]:
@@ -52,11 +58,11 @@ def _logo_elem(theme: BrandTheme, duration: float, track: int = 10) -> Optional[
             "x_anchor": "0%", "y_anchor": "0%",
             "fit": "contain"}
 
-def _audio_elem(theme: BrandTheme, duration: float, volume: str = "40%", track: int = 11) -> Optional[dict]:
+def _audio_elem(theme: BrandTheme, duration: float, track: int = 11) -> Optional[dict]:
     if not theme.music_url:
         return None
     return {"type": "audio", "track": track, "name": "Background Music",
-            "source": theme.music_url, "time": 0, "volume": volume,
+            "source": theme.music_url, "time": 0, "volume": f"{int(theme.music_volume)}%",
             "duration": duration, "loop": True}
 
 def _add_optional(*elements) -> list[dict]:
@@ -79,12 +85,13 @@ def build_big_quote(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
         "type": "text", "track": 4, "name": "Quote",
         "text": request.text_1 or "",
         "time": 0.4, "duration": dur - 0.8,
-        "x": "14%", "y": "50%", "width": "78%",
-        "y_anchor": "50%", "x_alignment": "0%",
+        "x": "50%", "y": "50%", "width": "80%",
+        "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%",
         "font_family": theme.font_family, "font_weight": "700",
         "font_size": "5.5 vmin", "fill_color": "#FFFFFF",
-        "shadow_color": "rgba(0,0,0,0.85)",
-        "shadow_blur": "6px", "shadow_x": "0px", "shadow_y": "2px",
+        "background_color": "rgba(0,0,0,0.75)",
+        "background_x_padding": "8%", "background_y_padding": "4%",
     })
     if theme.logo_url:
         els.append({
@@ -242,7 +249,7 @@ def build_viral_reaction(request: GenerateVideoRequest, theme: BrandTheme, analy
                           opacity="80%", width="100%", height="22%", x="0%", y="78%"))
     els.append(_text_elem("Hook Text", 3, hook_text, 0, dur,
                           theme, y="89%", fill_color="#FFFFFF", font_size="3.8 vmin",
-                          x="4%", width="92%", x_alignment="50%"))
+                          x="4%", width="92%", x_alignment="50%", bg_color=None))
     els.extend(_add_optional(_logo_elem(theme, dur),
                              _audio_elem(theme, dur)))
     return source
@@ -266,7 +273,7 @@ def build_testimonial_story(request: GenerateVideoRequest, theme: BrandTheme, an
                           opacity="100%", width="90%", height="0.6%", x="5%", y="57%"))
     els.append(_text_elem("Story", 4, story_text, 0, dur,
                           theme, y="74%", fill_color=theme.secondary_color,
-                          font_size="3.9 vmin", x="7%", width="86%"))
+                          font_size="3.9 vmin", x="7%", width="86%", bg_color=None))
     els.extend(_add_optional(_logo_elem(theme, dur),
                              _audio_elem(theme, dur)))
     return source
@@ -360,6 +367,350 @@ def build_offer_drop(request: GenerateVideoRequest, theme: BrandTheme, analysis=
     return source
 
 
+# ── Helpers for new social-first templates ────────────────────────────────
+
+_DURATION_MAP: dict[str, float] = {"15s": 15.0, "30s": 30.0, "60s": 60.0, "90s": 90.0}
+
+
+def _resolve_target_duration(request, default: float = 30.0) -> float:
+    raw = getattr(request, "target_duration", None) or ""
+    return _DURATION_MAP.get(raw, default)
+
+
+def _resolve_clip_count(request, default: int = 3, minimum: int = 1) -> int:
+    val = getattr(request, "clip_count", None)
+    return max(minimum, int(val)) if val else default
+
+
+def _word_chunks(text: str, size: int = 3) -> list[str]:
+    """Split text into groups of `size` words."""
+    words = (text or "").split()
+    return [" ".join(words[i : i + size]) for i in range(0, len(words), size)] or [""]
+
+
+def _caption_elements(
+    text: str,
+    dur: float,
+    start_track: int,
+    theme: BrandTheme,
+    y: str = "72%",
+    font_size: str = "5.5 vmin",
+    chunk_size: int = 3,
+) -> list[dict]:
+    """Split a caption into timed word-group elements for word-by-word animation."""
+    chunks = _word_chunks(text, chunk_size)
+    chunk_dur = dur / len(chunks)
+    elements = []
+    for i, chunk in enumerate(chunks):
+        elements.append({
+            "type": "text",
+            "track": start_track + i,
+            "name": f"Caption-{i}",
+            "text": chunk,
+            "time": round(i * chunk_dur, 3),
+            "duration": round(chunk_dur - 0.08, 3),
+            "x": "50%", "y": y,
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%",
+            "width": "88%",
+            "font_family": theme.font_family,
+            "font_weight": "700",
+            "font_size": font_size,
+            "fill_color": "#FFFFFF",
+            "background_color": "rgba(0,0,0,0.65)",
+            "background_x_padding": "6%",
+            "background_y_padding": "4%",
+        })
+    return elements
+
+
+# ── Talking Head ──────────────────────────────────────────────────────────
+#
+# Layout:
+#   TOP   → Hook card: white box, black bold text (static throughout)
+#   BOTTOM → Caption: 3-word groups rotating (word-by-word animation)
+#   Audio:  video audio ON (person is speaking)
+
+def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    dur = _resolve_target_duration(request, 30.0)
+    clip_count = _resolve_clip_count(request, 1, 1)
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    # Video clips (audio ON — person is speaking)
+    videos = (request.video_urls or [])[:clip_count]
+    clip_dur = dur / max(len(videos), 1)
+    for i, url in enumerate(videos):
+        els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
+                               round(i * clip_dur, 3), round(clip_dur, 3), volume="100%"))
+
+    # HOOK card — TOP, white box with dark text, spans entire video
+    hook = (request.text_1 or "").strip()
+    if hook:
+        els.append({
+            "type": "text", "track": 20, "name": "Hook",
+            "text": hook.upper(),
+            "time": 0.0, "duration": dur,
+            "x": "50%", "y": "7%",
+            "x_anchor": "50%", "y_anchor": "0%",
+            "x_alignment": "50%",
+            "width": "88%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "5.5 vmin",
+            "fill_color": "#0A0A0A",
+            "background_color": "#FFFFFF",
+            "background_x_padding": "8%",
+            "background_y_padding": "5%",
+        })
+
+    # CAPTIONS — BOTTOM CENTER, word-group rotation
+    caption_text = (request.text_2 or "").strip()
+    if caption_text:
+        caption_dur = dur - 1.0  # leave a beat at the end
+        els.extend(_caption_elements(
+            caption_text, caption_dur,
+            start_track=30, theme=theme,
+            y="73%", font_size="5.5 vmin", chunk_size=3,
+        ))
+
+    if theme.music_url:
+        els.append(_audio_elem(theme, dur, track=200))
+
+    return source
+
+
+# ── Bullet Reel ───────────────────────────────────────────────────────────
+#
+# Layout:
+#   Each clip = one big phrase CENTER SCREEN (hook → bullet 1 → bullet 2 …)
+#   Text appears as 2-word micro-groups that pop on/off within each clip.
+#   Overlay: dark semi-transparent. Audio: music only.
+
+def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    clip_count = _resolve_clip_count(request, 3, 2)
+    dur = _resolve_target_duration(request, 30.0)
+    clip_dur = dur / clip_count
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    videos = request.video_urls or []
+    for i in range(clip_count):
+        url = videos[i] if i < len(videos) else (videos[-1] if videos else "")
+        if url:
+            els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
+                                   round(i * clip_dur, 3), round(clip_dur, 3), volume="0%"))
+
+    # Dark overlay across the whole video
+    els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="52%"))
+
+    # Text fields: text_1=hook, text_2..text_6=bullets
+    texts = [
+        request.text_1, request.text_2, request.text_3,
+        request.text_4, request.text_5, request.text_6,
+    ]
+
+    track_base = 21
+    for clip_idx in range(clip_count):
+        raw = (texts[clip_idx] or "").strip() if clip_idx < len(texts) else ""
+        if not raw:
+            continue
+        t_start = clip_idx * clip_dur
+        # 2-word micro-groups within each clip
+        chunks = _word_chunks(raw, size=2)
+        sub_dur = (clip_dur - 0.3) / len(chunks)
+        for k, chunk in enumerate(chunks):
+            els.append({
+                "type": "text",
+                "track": track_base + clip_idx * 10 + k,
+                "name": f"Text-{clip_idx + 1}-{k}",
+                "text": chunk.upper(),
+                "time": round(t_start + 0.15 + k * sub_dur, 3),
+                "duration": round(sub_dur - 0.08, 3),
+                "x": "50%", "y": "50%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%",
+                "width": "88%",
+                "font_family": theme.font_family, "font_weight": "800",
+                "font_size": "7 vmin",
+                "fill_color": "#FFFFFF",
+                "shadow_color": "rgba(0,0,0,0.85)",
+                "shadow_blur": "3%",
+                "shadow_x": "1%",
+                "shadow_y": "1%",
+            })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
+    return source
+
+
+# ── Hook Reveal ───────────────────────────────────────────────────────────
+#
+# Layout:
+#   First ~45%: Hook words pop one-by-one (curiosity gap) — huge, white
+#   Pause "..." beat
+#   Next ~45%: Reveal phrase in brand primary color
+#   Last ~10%: CTA
+
+def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    dur = _resolve_target_duration(request, 20.0)
+    hook_end = dur * 0.45
+    reveal_start = dur * 0.48
+    reveal_end = dur * 0.90
+    cta_start = dur * 0.92
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    videos = request.video_urls or []
+    if len(videos) >= 2:
+        els.append(_video_elem("Video-1", 1, videos[0], 0, hook_end, volume="0%"))
+        els.append(_video_elem("Video-2", 2, videos[1], hook_end, dur - hook_end, volume="0%"))
+    elif videos:
+        els.append(_video_elem("Video", 1, videos[0], 0, dur, volume="0%"))
+
+    els.append(_rect_elem("Overlay", 3, 0, dur, "#000000", opacity="55%"))
+
+    # HOOK: word by word (2-word groups) — first 45%
+    hook = (request.text_1 or "").strip()
+    if hook:
+        chunks = _word_chunks(hook, size=2)
+        sub_dur = (hook_end - 0.3) / len(chunks)
+        for i, chunk in enumerate(chunks):
+            els.append({
+                "type": "text", "track": 10 + i, "name": f"Hook-{i}",
+                "text": chunk.upper(),
+                "time": round(0.2 + i * sub_dur, 3),
+                "duration": round(sub_dur - 0.08, 3),
+                "x": "50%", "y": "50%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "88%",
+                "font_family": theme.font_family, "font_weight": "800",
+                "font_size": "7.5 vmin", "fill_color": "#FFFFFF",
+            })
+
+    # Pause beat "..."
+    els.append({
+        "type": "text", "track": 30, "name": "Pause",
+        "text": "...",
+        "time": round(hook_end - 0.1, 3), "duration": 0.6,
+        "x": "50%", "y": "50%",
+        "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%", "width": "50%",
+        "font_family": theme.font_family, "font_weight": "700",
+        "font_size": "6 vmin", "fill_color": theme.primary_color,
+    })
+
+    # REVEAL: brand color, center — 3-word groups
+    reveal = (request.text_2 or "").strip()
+    if reveal:
+        reveal_dur = reveal_end - reveal_start
+        els.extend(_caption_elements(
+            reveal, reveal_dur, start_track=40, theme=theme,
+            y="50%", font_size="6 vmin", chunk_size=3,
+        ))
+        # Override timing to start at reveal_start
+        for el in els[-len(_word_chunks(reveal, 3)):]:
+            el["time"] = round(el["time"] + reveal_start, 3)
+            el["fill_color"] = theme.primary_color
+            el["background_color"] = "rgba(0,0,0,0)"
+
+    # CTA at end
+    cta = (request.text_3 or "").strip()
+    if cta:
+        els.append({
+            "type": "text", "track": 60, "name": "CTA",
+            "text": cta,
+            "time": round(cta_start, 3), "duration": round(dur - cta_start - 0.1, 3),
+            "x": "50%", "y": "78%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "86%",
+            "font_family": theme.font_family, "font_weight": "600",
+            "font_size": "4 vmin", "fill_color": "#FFFFFF",
+            "background_color": theme.primary_color,
+            "background_x_padding": "8%", "background_y_padding": "4%",
+        })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
+    return source
+
+
+# ── Edu Steps ─────────────────────────────────────────────────────────────
+#
+# Layout:
+#   Title (text_1): TOP colored band, static throughout
+#   Each clip: step number (①②③) + step text CENTER SCREEN
+
+def build_edu_steps(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+    clip_count = _resolve_clip_count(request, 4, 2)
+    dur = _resolve_target_duration(request, 30.0)
+    clip_dur = dur / clip_count
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    videos = request.video_urls or []
+    for i in range(clip_count):
+        url = videos[i] if i < len(videos) else (videos[-1] if videos else "")
+        if url:
+            els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
+                                   round(i * clip_dur, 3), round(clip_dur, 3), volume="0%"))
+
+    els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="48%"))
+
+    # Title band — TOP, brand primary, static
+    title = (request.text_1 or "").strip()
+    if title:
+        els.append({
+            "type": "text", "track": 21, "name": "Title",
+            "text": title.upper(),
+            "time": 0.0, "duration": dur,
+            "x": "50%", "y": "7%",
+            "x_anchor": "50%", "y_anchor": "0%",
+            "x_alignment": "50%", "width": "90%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "4.5 vmin",
+            "fill_color": "#FFFFFF",
+            "background_color": theme.primary_color,
+            "background_x_padding": "8%", "background_y_padding": "4%",
+        })
+
+    # Steps
+    steps = [request.text_2, request.text_3, request.text_4, request.text_5, request.text_6]
+    step_nums = ["①", "②", "③", "④", "⑤"]
+    for i in range(clip_count):
+        step_text = (steps[i] or "").strip() if i < len(steps) else ""
+        if not step_text:
+            continue
+        t = round(i * clip_dur, 3)
+        # Step number — large, brand primary
+        els.append({
+            "type": "text", "track": 22 + i * 2, "name": f"StepNum-{i + 1}",
+            "text": step_nums[i] if i < len(step_nums) else str(i + 1),
+            "time": round(t + 0.15, 3), "duration": round(clip_dur - 0.3, 3),
+            "x": "50%", "y": "36%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "88%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "8 vmin", "fill_color": theme.primary_color,
+        })
+        # Step text — white, below the number
+        els.append({
+            "type": "text", "track": 23 + i * 2, "name": f"Step-{i + 1}",
+            "text": step_text,
+            "time": round(t + 0.15, 3), "duration": round(clip_dur - 0.3, 3),
+            "x": "50%", "y": "55%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "84%",
+            "font_family": theme.font_family, "font_weight": "700",
+            "font_size": "4.8 vmin", "fill_color": "#FFFFFF",
+        })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -372,4 +723,8 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.BRAND_SPOTLIGHT: build_brand_spotlight,
     VideoTemplate.SOCIAL_PROOF_STACK: build_social_proof_stack,
     VideoTemplate.OFFER_DROP: build_offer_drop,
+    VideoTemplate.BULLET_REEL: build_bullet_reel,
+    VideoTemplate.TALKING_HEAD: build_talking_head,
+    VideoTemplate.HOOK_REVEAL: build_hook_reveal,
+    VideoTemplate.EDU_STEPS: build_edu_steps,
 }

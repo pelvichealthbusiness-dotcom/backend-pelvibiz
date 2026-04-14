@@ -22,6 +22,11 @@ class VideoTemplate(str, Enum):
     BRAND_SPOTLIGHT = "brand-spotlight"
     SOCIAL_PROOF_STACK = "social-proof-stack"
     OFFER_DROP = "offer-drop"
+    # New social-first templates
+    BULLET_REEL = "bullet-reel"
+    TALKING_HEAD = "talking-head"
+    HOOK_REVEAL = "hook-reveal"
+    EDU_STEPS = "edu-steps"
 
 
 TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
@@ -119,6 +124,42 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "height": 1920,
         "duration": 10,
     },
+    VideoTemplate.BULLET_REEL: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 2,       # minimum; builder uses all provided URLs
+        "required_text_count": 2,   # hook + at least one bullet
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.TALKING_HEAD: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 1,
+        "required_text_count": 1,   # text_1=Hook; text_2=caption (optional)
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.HOOK_REVEAL: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 1,
+        "required_text_count": 2,   # text_1=Hook, text_2=Reveal
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.EDU_STEPS: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 2,       # minimum; builder uses all provided URLs
+        "required_text_count": 2,   # title + at least one step
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
 }
 
 
@@ -156,11 +197,16 @@ class GenerateVideoRequest(BaseModel):
     text_7: Optional[str] = Field(None, max_length=300)
     text_8: Optional[str] = Field(None, max_length=300)
 
+    # Clip configuration — set by the wizard's clip_config phase
+    clip_count: Optional[int] = Field(None, ge=1, le=10, description="Number of clips selected by the user")
+    target_duration: Optional[str] = Field(None, description="Target video duration: 15s | 30s | 60s | 90s")
+
     # Caption (all templates)
     caption: Optional[str] = Field(None, max_length=2200)
 
     # Background music track ID from the curated library (optional)
     music_track: Optional[str] = Field(None, max_length=200)
+    music_volume: Optional[float] = Field(40.0, ge=0, le=100)
     logo_url: Optional[str] = Field(None, description="Public URL of the business logo")
     brand_settings: Optional[dict] = Field(None, description="Dynamic brand settings (colors, fonts, etc.)")
 
