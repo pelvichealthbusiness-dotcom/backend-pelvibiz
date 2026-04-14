@@ -98,7 +98,8 @@ async def generate_video(
 
     effective_video_urls = request.video_urls
 
-    theme = resolve_theme(profile, getattr(request, "music_track", None))
+    theme = resolve_theme(profile, getattr(request, "music_track", None),
+                          music_volume=getattr(request, "music_volume", 40.0) or 40.0)
     request.logo_url = profile.get("logo_url")
     request.brand_settings = {
         "font_family": theme.font_family if theme else None,
@@ -120,21 +121,7 @@ async def generate_video(
                 effective_video_urls[0],
             )
 
-    # ---- Build modifications via template mappers -------------------------
-    if template_enum in ANALYSIS_MAPPERS and analysis_result:
-        mapper = ANALYSIS_MAPPERS[template_enum]
-        modifications, extra_params = mapper(request, analysis_result)
-    elif template_enum in TEMPLATE_MAPPERS:
-        mapper = TEMPLATE_MAPPERS[template_enum]
-        modifications, extra_params = mapper(request)
-    else:
-        raise AgentAPIError(
-            message=f"No mapper for template: {request.template}",
-            code="INTERNAL_ERROR",
-            status_code=500,
-        )
-
-    # ---- Render via Creatomate --------------------------------------------
+    # ---- Render via Creatomate (renderscript path first) ------------------
     creatomate = CreatomateService()
     render_id = None
     if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
@@ -143,7 +130,21 @@ async def generate_video(
             source_dict = builder(request, theme, analysis_result)
             render_id = await creatomate.render_with_source(source_dict)
 
+    # ---- Build modifications via template mappers (legacy fallback) -------
     if render_id is None:
+        if template_enum in ANALYSIS_MAPPERS and analysis_result:
+            mapper = ANALYSIS_MAPPERS[template_enum]
+            modifications, extra_params = mapper(request, analysis_result)
+        elif template_enum in TEMPLATE_MAPPERS:
+            mapper = TEMPLATE_MAPPERS[template_enum]
+            modifications, extra_params = mapper(request)
+        else:
+            raise AgentAPIError(
+                message=f"No mapper for template: {request.template}",
+                code="INTERNAL_ERROR",
+                status_code=500,
+            )
+
         if "source" in modifications:
             render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
         else:
@@ -300,7 +301,8 @@ async def generate_video_stream(
             # ---- RenderScript path (feature-flagged) --------------------------
             creatomate = CreatomateService()
             render_id = None
-            theme = resolve_theme(profile, getattr(request, 'music_track', None))
+            theme = resolve_theme(profile, getattr(request, 'music_track', None),
+                                  music_volume=getattr(request, 'music_volume', 40.0) or 40.0)
             # Load brand info into request for mappers
             request.logo_url = profile.get("logo_url")
             request.brand_settings = {
@@ -315,19 +317,20 @@ async def generate_video_stream(
                     source_dict = builder(request, theme, analysis_result)
                     render_id = await creatomate.render_with_source(source_dict)
 
-            # ---- Build modifications via template mappers ------------------
-            if template_enum in ANALYSIS_MAPPERS and analysis_result:
-                mapper = ANALYSIS_MAPPERS[template_enum]
-                modifications, extra_params = mapper(request, analysis_result)
-            elif template_enum in TEMPLATE_MAPPERS:
-                mapper = TEMPLATE_MAPPERS[template_enum]
-                modifications, extra_params = mapper(request)
-            else:
-                yield f'data: {json.dumps({"type": "error", "message": f"No mapper for template: {request.template}", "code": "INTERNAL_ERROR"})}\n\n'
-                return
-
-            # ---- Render via Creatomate -------------------------------------
+            # ---- Build modifications via template mappers (legacy path) -------
+            # Only needed when render_id was not already set by the renderscript path
             if render_id is None:
+                if template_enum in ANALYSIS_MAPPERS and analysis_result:
+                    mapper = ANALYSIS_MAPPERS[template_enum]
+                    modifications, extra_params = mapper(request, analysis_result)
+                elif template_enum in TEMPLATE_MAPPERS:
+                    mapper = TEMPLATE_MAPPERS[template_enum]
+                    modifications, extra_params = mapper(request)
+                else:
+                    yield f'data: {json.dumps({"type": "error", "message": f"No mapper for template: {request.template}", "code": "INTERNAL_ERROR"})}\n\n'
+                    return
+
+                # ---- Render via Creatomate (legacy mapper path) ----------------
                 if "source" in modifications:
                     render_id = await creatomate.render_with_source(modifications["source"], **extra_params)
                 else:
