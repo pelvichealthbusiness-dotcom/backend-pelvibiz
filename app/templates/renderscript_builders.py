@@ -536,9 +536,9 @@ def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "font_size": "7 vmin",
                 "fill_color": "#FFFFFF",
                 "shadow_color": "rgba(0,0,0,0.85)",
-                "shadow_blur": "3%",
-                "shadow_x": "1%",
-                "shadow_y": "1%",
+                "shadow_blur": "4px",
+                "shadow_x": "1px",
+                "shadow_y": "2px",
             })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
@@ -614,7 +614,9 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
         for el in els[-len(_word_chunks(reveal, 3)):]:
             el["time"] = round(el["time"] + reveal_start, 3)
             el["fill_color"] = theme.primary_color
-            el["background_color"] = "rgba(0,0,0,0)"
+            el.pop("background_color", None)
+            el.pop("background_x_padding", None)
+            el.pop("background_y_padding", None)
 
     # CTA at end
     cta = (request.text_3 or "").strip()
