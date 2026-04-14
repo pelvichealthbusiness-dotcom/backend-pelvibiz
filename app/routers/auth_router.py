@@ -11,6 +11,7 @@ from app.core.responses import success
 from app.core.exceptions import AuthError, NotFoundError, AppError
 from app.services.brand import BrandService
 from app.services.blotato import build_blotato_connections, fetch_blotato_connections
+from app.services.credits import CreditsService
 from app.services.exceptions import AgentAPIError
 from app.models.auth_models import (
     LoginRequest, RegisterRequest, RefreshRequest,
@@ -465,3 +466,11 @@ async def reset_password(request: ResetPasswordRequest):
         # Don't reveal if email exists
 
     return success({"sent": True, "message": "If an account with this email exists, a reset link has been sent."})
+
+
+@router.post("/credits/increment")
+async def increment_credits(user: UserContext = Depends(get_current_user)):
+    """Increment the current user's credits_used by 1."""
+    credits_service = CreditsService()
+    new_value = await credits_service.increment_credits(user.user_id)
+    return success({"credits_used": new_value})
