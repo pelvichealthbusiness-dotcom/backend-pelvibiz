@@ -54,9 +54,11 @@ class BrandTheme:
     font_size_vmin: str     # e.g. "5.0 vmin"
     logo_url: Optional[str]   # None → logo element omitted from composition
     music_url: Optional[str]  # None → audio element omitted from composition
+    music_volume: float = 40.0  # 0–100, sent to Creatomate as "{n}%"
 
 
-def resolve_theme(profile: dict, music_url: Optional[str] = None) -> BrandTheme:
+def resolve_theme(profile: dict, music_url: Optional[str] = None,
+                  music_volume: float = 40.0) -> BrandTheme:
     """
     Build a BrandTheme from a user profile dict.
     Guarantees non-null values for all 6 visual properties via fallback cascade.
@@ -71,6 +73,7 @@ def resolve_theme(profile: dict, music_url: Optional[str] = None) -> BrandTheme:
         font_size_vmin=_px_to_vmin(profile.get("font_size")),
         logo_url=profile.get("logo_url") or None,
         music_url=music_url or None,
+        music_volume=music_volume,
     )
 
 
