@@ -635,24 +635,43 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "font_size": "6 vmin", "fill_color": theme.primary_color,
     })
 
-    # REVEAL: brand color, center — 3-word groups
+    # REVEAL: big impactful text, white with drop shadow — 3-word groups
     reveal = (request.text_2 or "").strip()
+    cta = (request.text_3 or "").strip()
+
     if reveal:
         reveal_dur = reveal_end - reveal_start
-        els.extend(_caption_elements(
-            reveal, reveal_dur, start_track=40, theme=theme,
-            y="50%", font_size="6 vmin", chunk_size=3,
-        ))
-        # Override timing to start at reveal_start
-        for el in els[-len(_word_chunks(reveal, 3)):]:
-            el["time"] = round(el["time"] + reveal_start, 3)
-            el["fill_color"] = theme.primary_color
-            el.pop("background_color", None)
-            el.pop("background_x_padding", None)
-            el.pop("background_y_padding", None)
+        chunks = _word_chunks(reveal, size=3)
+        chunk_dur = reveal_dur / len(chunks)
+        reveal_elements = []
+        for i, chunk in enumerate(chunks):
+            t = round(reveal_start + i * chunk_dur, 3)
+            reveal_elements.append({
+                "type": "text", "track": 40 + i, "name": f"Reveal-{i}",
+                "text": chunk,
+                "time": t,
+                "duration": round(chunk_dur - 0.08, 3),
+                "x": "50%", "y": "50%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "86%",
+                "font_family": theme.font_family, "font_weight": "800",
+                "font_size": "7 vmin",
+                "fill_color": "#FFFFFF",
+                "shadow_color": "rgba(0,0,0,0.9)",
+                "shadow_blur": "8px",
+                "shadow_x": "0px",
+                "shadow_y": "3px",
+            })
 
-    # CTA at end
-    cta = (request.text_3 or "").strip()
+        # If no CTA, extend the last reveal chunk to cover the remaining video
+        # so there is no blank ending
+        if not cta and reveal_elements:
+            last = reveal_elements[-1]
+            last["duration"] = round(dur - last["time"] - 0.1, 3)
+
+        els.extend(reveal_elements)
+
+    # CTA at end — only rendered when text_3 is provided
     if cta:
         els.append({
             "type": "text", "track": 60, "name": "CTA",
@@ -661,10 +680,10 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
             "x": "50%", "y": "78%",
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%", "width": "86%",
-            "font_family": theme.font_family, "font_weight": "600",
-            "font_size": "4 vmin", "fill_color": "#FFFFFF",
+            "font_family": theme.font_family, "font_weight": "700",
+            "font_size": "5 vmin", "fill_color": "#FFFFFF",
             "background_color": theme.primary_color,
-            "background_x_padding": "8%", "background_y_padding": "4%",
+            "background_x_padding": "8%", "background_y_padding": "5%",
         })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))

@@ -222,6 +222,43 @@ def build_video_ideas_prompt(
             "Each idea should present a topic explored in depth across 7 video segments, "
             "each with its own insight. Think comprehensive guides or multi-angle explorations."
         ),
+        # ── Social-first templates ──────────────────────────────────────────
+        "hook-reveal": (
+            "Each idea is built around a CURIOSITY GAP — a hook that creates irresistible tension, "
+            "followed by a surprising reveal that pays it off. "
+            "Structure: Hook (open loop, 2-5 dramatic words, e.g. 'You've been lied to') -> "
+            "Pause beat -> Reveal (the full unexpected truth in one punchy line) -> "
+            "Optional: CTA. "
+            "The hook must NOT give away the reveal. The reveal must feel earned and surprising. "
+            "Think: 'The question nobody asks', 'What they never told you', 'The real reason X'. "
+            "AVOID generic hooks like 'Did you know?' or 'Here's the thing'."
+        ),
+        "bullet-reel": (
+            "Each idea presents a bold topic that breaks into 3-5 ultra-short punchy statements "
+            "(2-5 words each) that pop on screen one by one. "
+            "Every bullet must hit hard and stand alone — no filler. "
+            "Structure: Hook phrase (text_1) -> Bullet 1 -> Bullet 2 -> Bullet 3 -> optional more. "
+            "Think listicles with attitude: not '5 tips' but '5 truths your doctor won't say'. "
+            "Each bullet should be a punchy CLAIM, not an explanation."
+        ),
+        "talking-head": (
+            "Each idea is a topic designed for a direct-to-camera monologue — someone speaking "
+            "directly to the viewer with authority and energy. "
+            "The hook (text_1) appears as a bold TOP card while the person speaks — it must "
+            "compress the entire argument into 5-8 words that DEMAND attention. "
+            "Ideas should feel like a personal confession, a strong opinion, or insider knowledge. "
+            "Best formats: 'I stopped doing X and here's what happened', 'Stop asking for X, do Y instead', "
+            "'The one thing nobody tells you about X'. "
+            "The topic must support 15-60 seconds of compelling monologue."
+        ),
+        "edu-steps": (
+            "Each idea teaches a process, framework, or skill in exactly 3-5 clear numbered steps. "
+            "Structure: Title (what you'll learn) -> Step 1 -> Step 2 -> Step 3 (-> Step 4 -> Step 5 optional). "
+            "Each step must be concrete and actionable — no vague advice. "
+            "Think: how-to's with real outcomes, frameworks with specific applications, "
+            "checklists that people want to screenshot. "
+            "The title (text_1) should name the outcome, not the process: not 'How to do X' but 'The X System'."
+        ),
     }
 
     angle_guidance = template_angles.get(
