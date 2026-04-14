@@ -229,6 +229,7 @@ class ContentIntelligenceService:
         *,
         user_id: str,
         account_id: str | None = None,
+        account_type: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         query = (
@@ -240,6 +241,8 @@ class ContentIntelligenceService:
         )
         if account_id:
             query = query.eq('account_id', account_id)
+        if account_type:
+            query = query.eq('account_type', account_type)
         result = query.execute()
         return result.data or []
 
@@ -250,7 +253,15 @@ class ContentIntelligenceService:
         account_id: str | None = None,
     ) -> dict[str, Any]:
         account_stats = await self.list_account_stats(user_id)
-        content_rows = await self.list_content_with_scores(user_id=user_id, account_id=account_id)
+        # Filter to own-account content only to prevent competitor posts from
+        # polluting style signals (T1.4). When a specific account_id is given we
+        # trust the caller already selected the right account; otherwise restrict
+        # to account_type='own' to exclude competitor data.
+        content_rows = await self.list_content_with_scores(
+            user_id=user_id,
+            account_id=account_id,
+            account_type=None if account_id else 'own',
+        )
 
         if not content_rows:
             return {
@@ -314,6 +325,99 @@ class ContentIntelligenceService:
             },
         }
 
+    def get_competitor_context_block(self, user_id: str, competitor_handle: str | None) -> str | None:
+        """
+        Returns a formatted ## Competitor Intelligence block for injection into agent prompts.
+        Reads from competitor_analyses cache only (no recompute).
+        Returns None if handle is None or no cached analysis found.
+        Enforces ~800-token budget: top 5 hook_gaps, top 5 topic_gaps, top 3 white_space.
+        """
+        if not competitor_handle:
+            return None
+
+        # 1. Find the competitor account by handle
+        competitor_account = (
+            self.supabase.table('content_accounts')
+            .select('id, handle, followers_count')
+            .eq('user_id', user_id)
+            .eq('handle', competitor_handle.lstrip('@'))
+            .eq('account_type', 'competitor')
+            .maybe_single()
+            .execute()
+        )
+        if not competitor_account.data:
+            return None
+
+        # 2. Find own account
+        own_account = (
+            self.supabase.table('content_accounts')
+            .select('id')
+            .eq('user_id', user_id)
+            .eq('account_type', 'own')
+            .maybe_single()
+            .execute()
+        )
+        if not own_account.data:
+            return None
+
+        # 3. Read cached analysis (must be within 24h)
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+        cached = (
+            self.supabase.table('competitor_analyses')
+            .select('hook_gaps, topic_gaps, white_space, benchmarks')
+            .eq('user_id', user_id)
+            .eq('own_account_id', own_account.data['id'])
+            .eq('competitor_account_id', competitor_account.data['id'])
+            .gte('updated_at', cutoff)
+            .order('updated_at', desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not cached.data:
+            return None
+
+        analysis = cached.data[0]
+        hook_gaps = (analysis.get('hook_gaps') or [])[:5]
+        topic_gaps = (analysis.get('topic_gaps') or [])[:5]
+        white_space = (analysis.get('white_space') or [])[:3]
+        benchmarks = analysis.get('benchmarks') or {}
+
+        # Format block
+        handle_display = competitor_account.data['handle']
+        followers = competitor_account.data.get('followers_count', 0)
+        posts_per_week = benchmarks.get('posts_per_week', '?')
+
+        lines = [
+            '## Competitor Intelligence',
+            '',
+            f'Handle: @{handle_display} | Followers: {followers:,} | Posts/week: {posts_per_week}',
+            '',
+        ]
+
+        if hook_gaps:
+            lines += ['### Hook Gaps (hooks they use that you don\'t)']
+            for h in hook_gaps:
+                lines.append(f"- {h['hook_structure']} ({h['competitor_frequency']}x)")
+            lines.append('')
+
+        if topic_gaps:
+            lines += ['### Topic Gaps (topics they own that you don\'t)']
+            for t in topic_gaps:
+                lines.append(f"- {t['topic']} ({t['competitor_frequency']}x)")
+            lines.append('')
+
+        if white_space:
+            lines += ['### White Space Opportunities']
+            for w in white_space:
+                lines.append(f"- {w['topic']}")
+            lines.append('')
+
+        lines.append('Use this data to bias your output toward addressing these gaps where relevant.')
+
+        return '\n'.join(lines)
+
     async def get_optional_studio_context(
         self,
         *,
@@ -327,6 +431,9 @@ class ContentIntelligenceService:
             .execute()
         )
         profile = profile_result.data or {}
+        # Studio context must only reflect the user's own style — pass no
+        # account_id so generate_brief applies the account_type='own' guard
+        # and competitor posts are excluded from style signals (T1.5).
         brief = await self.generate_brief(user_id=user_id)
 
         if not brief.get('ready'):

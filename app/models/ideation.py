@@ -9,6 +9,7 @@ class IdeationRequest(BaseModel):
     research_run_id: str | None = None
     variations_per_topic: int = Field(default=5, ge=1, le=5)
     topic_limit: int = Field(default=3, ge=1, le=10)
+    competitor_handle: str | None = None
 
 
 class IdeaVariationResponse(BaseModel):
@@ -30,3 +31,4 @@ class IdeationResponse(BaseModel):
     niche: str
     variations: list[IdeaVariationResponse] = Field(default_factory=list)
     brief_markdown: str = ''
+    used_competitor_handle: str | None = None

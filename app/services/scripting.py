@@ -29,6 +29,7 @@ class ScriptingService:
         research_topic_id: str | None = None,
         idea_variation_id: str | None = None,
         count: int = 6,
+        competitor_handle: str | None = None,
     ) -> dict[str, Any]:
         source = await self._resolve_source(user_id=user_id, topic=topic, research_topic_id=research_topic_id, idea_variation_id=idea_variation_id)
         run = self.supabase.table('scripting_runs').insert({
@@ -59,12 +60,17 @@ class ScriptingService:
             result = self.supabase.table('hook_packs').upsert(payload, on_conflict='user_id,source_topic,hook_framework').execute()
             saved.append(result.data[0] if result.data else payload)
 
+        brief_markdown = self._build_hook_brief(source['source_topic'], saved)
+        competitor_block = self.content_service.get_competitor_context_block(user_id, competitor_handle)
+        if competitor_block:
+            brief_markdown += '\n\n' + competitor_block
         return {
             'ready': True,
             'run_id': run_id,
             'source_topic': source['source_topic'],
             'hooks': saved,
-            'brief_markdown': self._build_hook_brief(source['source_topic'], saved),
+            'brief_markdown': brief_markdown,
+            'used_competitor_handle': competitor_handle if competitor_block else None,
         }
 
     async def generate_script(
@@ -75,6 +81,7 @@ class ScriptingService:
         research_topic_id: str | None = None,
         idea_variation_id: str | None = None,
         selected_hook: str | None = None,
+        competitor_handle: str | None = None,
     ) -> dict[str, Any]:
         source = await self._resolve_source(user_id=user_id, topic=topic, research_topic_id=research_topic_id, idea_variation_id=idea_variation_id)
         hook = selected_hook or self._build_hooks(source['source_topic'], source.get('hook_seed', ''), source.get('content_type', 'educational'), 1)[0]['hook_text']
@@ -109,10 +116,13 @@ class ScriptingService:
         result = self.supabase.table('content_scripts').insert(payload).execute()
         saved = result.data[0] if result.data else payload
 
+        competitor_block = self.content_service.get_competitor_context_block(user_id, competitor_handle)
+        used_competitor_handle = competitor_handle if competitor_block else None
         return {
             'ready': True,
             'run_id': run_id,
             'source_topic': source['source_topic'],
+            'used_competitor_handle': used_competitor_handle,
             **saved,
         }
 

@@ -20,6 +20,7 @@ async def ideate_from_research(body: IdeationRequest, user: dict = Depends(get_c
         research_run_id=body.research_run_id,
         topic_limit=body.topic_limit,
         variations_per_topic=body.variations_per_topic,
+        competitor_handle=body.competitor_handle,
     )
 
 

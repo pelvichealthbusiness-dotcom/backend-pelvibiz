@@ -23,6 +23,7 @@ class IdeationService:
         research_run_id: str | None = None,
         topic_limit: int = 3,
         variations_per_topic: int = 5,
+        competitor_handle: str | None = None,
     ) -> dict[str, Any]:
         topics = await self._load_topics(user_id=user_id, research_topic_id=research_topic_id, research_run_id=research_run_id, limit=topic_limit)
         if not topics:
@@ -33,6 +34,7 @@ class IdeationService:
                 'niche': niche,
                 'variations': [],
                 'brief_markdown': 'No research topics available to multiply into ideas yet.',
+                'used_competitor_handle': None,
             }
 
         run = self.supabase.table('ideation_runs').insert({
@@ -65,6 +67,9 @@ class IdeationService:
 
         studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
         brief_markdown = self._build_brief(niche, topics, saved, studio_context)
+        competitor_block = self.content_service.get_competitor_context_block(user_id, competitor_handle)
+        if competitor_block:
+            brief_markdown += '\n\n' + competitor_block
         return {
             'ready': True,
             'reason': None,
@@ -72,6 +77,7 @@ class IdeationService:
             'niche': niche,
             'variations': saved,
             'brief_markdown': brief_markdown,
+            'used_competitor_handle': competitor_handle if competitor_block else None,
         }
 
     async def list_latest_variations(self, user_id: str, limit: int = 20) -> list[dict[str, Any]]:

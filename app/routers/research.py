@@ -13,7 +13,7 @@ router = APIRouter(prefix='/research', tags=['research'])
 @router.post('/daily')
 async def run_daily_research(body: ResearchRunRequest, user: dict = Depends(get_current_user)):
     service = ResearchService()
-    return await service.run_research(user_id=user['id'], niche=body.niche, sources=body.sources, limit=body.limit)
+    return await service.run_research(user_id=user['id'], niche=body.niche, sources=body.sources, limit=body.limit, competitor_handle=body.competitor_handle)
 
 
 @router.get('/latest')

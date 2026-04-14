@@ -19,6 +19,7 @@ async def generate_hooks(body: HookPackRequest, user: dict = Depends(get_current
         research_topic_id=body.research_topic_id,
         idea_variation_id=body.idea_variation_id,
         count=body.count,
+        competitor_handle=body.competitor_handle,
     )
 
 
@@ -31,6 +32,7 @@ async def generate_script(body: ScriptRequest, user: dict = Depends(get_current_
         research_topic_id=body.research_topic_id,
         idea_variation_id=body.idea_variation_id,
         selected_hook=body.selected_hook,
+        competitor_handle=body.competitor_handle,
     )
 
 

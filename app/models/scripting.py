@@ -8,6 +8,7 @@ class HookPackRequest(BaseModel):
     research_topic_id: str | None = None
     idea_variation_id: str | None = None
     count: int = Field(default=6, ge=1, le=6)
+    competitor_handle: str | None = None
 
 
 class ScriptRequest(BaseModel):
@@ -15,6 +16,7 @@ class ScriptRequest(BaseModel):
     research_topic_id: str | None = None
     idea_variation_id: str | None = None
     selected_hook: str | None = None
+    competitor_handle: str | None = None
 
 
 class HookPackResponse(BaseModel):

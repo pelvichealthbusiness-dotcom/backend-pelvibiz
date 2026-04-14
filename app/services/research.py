@@ -30,18 +30,31 @@ class ResearchService:
         niche: str,
         sources: list[str] | None = None,
         limit: int = 10,
+        competitor_handle: str | None = None,
     ) -> dict[str, Any]:
         sources = sources or ['reddit', 'github', 'news']
         collected: list[dict[str, Any]] = []
 
         if 'reddit' in sources:
-            collected.extend(await self._fetch_reddit(niche))
+            try:
+                collected.extend(await self._fetch_reddit(niche))
+            except Exception:
+                pass  # Reddit may block VPS IPs — skip gracefully
         if 'github' in sources:
-            collected.extend(await self._fetch_github(niche))
+            try:
+                collected.extend(await self._fetch_github(niche))
+            except Exception:
+                pass
         if 'news' in sources:
-            collected.extend(await self._fetch_news(niche))
+            try:
+                collected.extend(await self._fetch_news(niche))
+            except Exception:
+                pass
         if 'x' in sources:
-            collected.extend(await self._fetch_x(niche))
+            try:
+                collected.extend(await self._fetch_x(niche))
+            except Exception:
+                pass
 
         deduped = self._score_and_dedupe(collected, niche)
         top_topics = deduped[:limit]
@@ -54,6 +67,7 @@ class ResearchService:
                 'niche': niche,
                 'topics': [],
                 'brief_markdown': 'Not enough trend signal to generate topics yet.',
+                'used_competitor_handle': None,
             }
 
         run = self.supabase.table('research_runs').insert({
@@ -83,6 +97,9 @@ class ResearchService:
 
         studio_context = await self.content_service.get_optional_studio_context(user_id=user_id)
         brief_markdown = self._build_brief(niche, saved_topics, sources, studio_context)
+        competitor_block = self.content_service.get_competitor_context_block(user_id, competitor_handle)
+        if competitor_block:
+            brief_markdown += '\n\n' + competitor_block
         return {
             'ready': True,
             'reason': None,
@@ -90,6 +107,7 @@ class ResearchService:
             'niche': niche,
             'topics': saved_topics,
             'brief_markdown': brief_markdown,
+            'used_competitor_handle': competitor_handle if competitor_block else None,
         }
 
     async def list_latest_topics(self, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
