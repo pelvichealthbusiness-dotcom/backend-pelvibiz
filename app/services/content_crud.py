@@ -111,7 +111,12 @@ class ContentCRUD:
         reel_category: str | None = None,
         metadata: dict | None = None,
     ) -> dict:
-        """Save a new content/asset to requests_log."""
+        """Save or update a content/asset in requests_log.
+
+        Uses upsert (conflict on id) so that repeated tracking calls with the
+        same content_id — e.g. upload_started → upload_completed → generation_started
+        — update the existing row instead of failing with a duplicate-key error.
+        """
         payload = {
             "user_id": user_id,
             "agent_type": agent_type,
@@ -128,7 +133,11 @@ class ContentCRUD:
         if metadata:
             payload["reply"] = reply or caption or title or ""
         try:
-            result = self.client.table("requests_log").insert(payload).execute()
+            result = (
+                self.client.table("requests_log")
+                .upsert(payload, on_conflict="id")
+                .execute()
+            )
             return result.data[0]
         except Exception as exc:
             logger.error("Failed to create content: %s", exc)
