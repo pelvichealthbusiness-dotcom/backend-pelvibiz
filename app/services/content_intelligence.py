@@ -241,8 +241,21 @@ class ContentIntelligenceService:
         )
         if account_id:
             query = query.eq('account_id', account_id)
-        if account_type:
-            query = query.eq('account_type', account_type)
+        elif account_type:
+            # content_with_scores view doesn't expose account_type — resolve the
+            # own/competitor account IDs first and filter by those.
+            accounts_result = (
+                self.supabase.table('content_accounts')
+                .select('id')
+                .eq('user_id', user_id)
+                .eq('account_type', account_type)
+                .execute()
+            )
+            own_ids = [row['id'] for row in (accounts_result.data or [])]
+            if own_ids:
+                query = query.in_('account_id', own_ids)
+            else:
+                return []  # No own accounts yet — return empty rather than all
         result = query.execute()
         return result.data or []
 
