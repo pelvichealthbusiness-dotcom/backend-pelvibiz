@@ -107,11 +107,12 @@ class CompetitorService:
         handle: str,
     ) -> dict[str, Any]:
         brief = await self.content_service.generate_brief(user_id=user_id)
+        user_summary = brief.get('summary', {})
         competitor_feed = await self.get_competitor_feed(user_id=user_id, handle=handle)
 
         if not competitor_feed:
             return {
-                'user_summary': brief['summary'],
+                'user_summary': user_summary,
                 'competitor_summary': {},
                 'gaps': ['No competitor content found'],
                 'shared_topics': [],
@@ -122,18 +123,18 @@ class CompetitorService:
         hooks = Counter(row.get('hook_structure') for row in competitor_feed if row.get('hook_structure'))
         content_types = Counter(row.get('content_type') for row in competitor_feed if row.get('content_type'))
 
-        user_topics = set(brief['summary'].get('topics', {}).keys())
+        user_topics = set(user_summary.get('topics', {}).keys())
         competitor_topics = set(topics.keys())
         shared_topics = sorted(user_topics.intersection(competitor_topics))
 
         gaps: list[str] = []
         if hooks:
             top_hook = hooks.most_common(1)[0][0]
-            if top_hook and top_hook not in brief['summary'].get('hook_structures', {}):
+            if top_hook and top_hook not in user_summary.get('hook_structures', {}):
                 gaps.append(f'Competitor uses {top_hook} hooks more than you do')
         if content_types:
             top_type = content_types.most_common(1)[0][0]
-            if top_type and top_type not in brief['summary'].get('content_types', {}):
+            if top_type and top_type not in user_summary.get('content_types', {}):
                 gaps.append(f'Competitor leans on {top_type} content more than you do')
         if competitor_topics:
             top_topic = topics.most_common(1)[0][0]
@@ -141,7 +142,7 @@ class CompetitorService:
                 gaps.append(f'Competitor owns topic "{top_topic}" more strongly')
 
         return {
-            'user_summary': brief['summary'],
+            'user_summary': user_summary,
             'competitor_summary': {
                 'total_posts': len(competitor_feed),
                 'avg_views': round(sum(int(row.get('views', 0) or 0) for row in competitor_feed) / len(competitor_feed), 2),
