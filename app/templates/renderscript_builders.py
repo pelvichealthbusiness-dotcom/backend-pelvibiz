@@ -672,18 +672,31 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
         els.extend(reveal_elements)
 
     # CTA at end — only rendered when text_3 is provided
+    # Always uses dark background so white text is visible regardless of brand colors
     if cta:
+        t_cta = round(cta_start, 3)
+        cta_dur = round(dur - cta_start - 0.1, 3)
+        # Brand accent bar above the CTA text
+        els.append(_rect_elem(
+            "CTA-Accent", 58, t_cta, cta_dur,
+            theme.primary_color, opacity="100%",
+            width="100%", height="0.8%", x="0%", y="72%",
+        ))
+        # Dark full-width band behind CTA
+        els.append(_rect_elem(
+            "CTA-Band", 59, t_cta, cta_dur,
+            "#000000", opacity="88%",
+            width="100%", height="20%", x="0%", y="73%",
+        ))
         els.append({
             "type": "text", "track": 60, "name": "CTA",
             "text": cta,
-            "time": round(cta_start, 3), "duration": round(dur - cta_start - 0.1, 3),
-            "x": "50%", "y": "78%",
+            "time": t_cta, "duration": cta_dur,
+            "x": "50%", "y": "83%",
             "x_anchor": "50%", "y_anchor": "50%",
-            "x_alignment": "50%", "width": "86%",
+            "x_alignment": "50%", "width": "88%",
             "font_family": theme.font_family, "font_weight": "700",
-            "font_size": "5 vmin", "fill_color": "#FFFFFF",
-            "background_color": theme.primary_color,
-            "background_x_padding": "8%", "background_y_padding": "5%",
+            "font_size": "5.5 vmin", "fill_color": "#FFFFFF",
         })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
