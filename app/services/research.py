@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html import unescape
 from typing import Any
+from urllib.parse import quote_plus
 from xml.etree import ElementTree as ET
 
 import httpx
 from supabase import Client
 
+from app.config import get_settings
 from app.dependencies import get_supabase_admin
 from app.services.content_intelligence import ContentIntelligenceService
 
@@ -32,7 +34,7 @@ class ResearchService:
         limit: int = 10,
         competitor_handle: str | None = None,
     ) -> dict[str, Any]:
-        sources = sources or ['reddit', 'github', 'news']
+        sources = sources or ['reddit', 'news', 'youtube']
         collected: list[dict[str, Any]] = []
 
         if 'reddit' in sources:
@@ -40,19 +42,14 @@ class ResearchService:
                 collected.extend(await self._fetch_reddit(niche))
             except Exception:
                 pass  # Reddit may block VPS IPs — skip gracefully
-        if 'github' in sources:
-            try:
-                collected.extend(await self._fetch_github(niche))
-            except Exception:
-                pass
         if 'news' in sources:
             try:
                 collected.extend(await self._fetch_news(niche))
             except Exception:
                 pass
-        if 'x' in sources:
+        if 'youtube' in sources:
             try:
-                collected.extend(await self._fetch_x(niche))
+                collected.extend(await self._fetch_youtube(niche))
             except Exception:
                 pass
 
@@ -143,22 +140,46 @@ class ResearchService:
             })
         return topics
 
-    async def _fetch_github(self, niche: str) -> list[dict[str, Any]]:
-        url = 'https://github.com/trending?since=daily'
-        async with httpx.AsyncClient(timeout=20, headers={'User-Agent': 'PelviBizResearch/1.0'}) as client:
-            resp = await client.get(url)
+    async def _fetch_youtube(self, niche: str) -> list[dict[str, Any]]:
+        """Fetch trending YouTube videos for the niche via YouTube Data API v3.
+
+        Uses the same Google Cloud API key as Gemini. Falls back gracefully
+        if the YouTube Data API is not enabled in the project.
+        """
+        api_key = get_settings().google_gemini_api_key
+        if not api_key:
+            return []
+
+        published_after = (datetime.now(timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        url = 'https://www.googleapis.com/youtube/v3/search'
+        params = {
+            'part': 'snippet',
+            'q': niche,
+            'type': 'video',
+            'order': 'viewCount',
+            'publishedAfter': published_after,
+            'maxResults': 10,
+            'relevanceLanguage': 'en',
+            'key': api_key,
+        }
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(url, params=params)
             resp.raise_for_status()
-            html = resp.text
-        matches = re.findall(r'href="/([^/]+/[^/]+)"', html)
+            data = resp.json()
+
         topics: list[dict[str, Any]] = []
-        for repo in matches[:10]:
-            title = repo.replace('/', ' / ')
+        for item in data.get('items', []):
+            snippet = item.get('snippet', {})
+            title = snippet.get('title', '')
+            channel = snippet.get('channelTitle', '')
+            if not title:
+                continue
             topics.append({
-                'source': 'github',
-                'topic': _normalize_topic(repo.split('/')[-1].replace('-', ' ')),
+                'source': 'youtube',
+                'topic': _normalize_topic(title),
                 'title': title,
-                'summary': f'GitHub trending repo: {repo}',
-                'raw_data': {'repo': repo},
+                'summary': f'YouTube — {channel}',
+                'raw_data': {'video_id': item.get('id', {}).get('videoId'), 'channel': channel},
             })
         return topics
 
@@ -184,8 +205,6 @@ class ResearchService:
             })
         return topics
 
-    async def _fetch_x(self, niche: str) -> list[dict[str, Any]]:
-        return []
 
     def _score_and_dedupe(self, items: list[dict[str, Any]], niche: str) -> list[dict[str, Any]]:
         seen: set[str] = set()

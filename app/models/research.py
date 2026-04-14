@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class ResearchRunRequest(BaseModel):
     niche: str = Field(min_length=2, max_length=200)
     limit: int = Field(default=10, ge=1, le=20)
-    sources: list[str] = Field(default_factory=lambda: ['reddit', 'github', 'news'])
+    sources: list[str] = Field(default_factory=lambda: ['reddit', 'news', 'youtube'])
     competitor_handle: str | None = None
 
 
