@@ -135,7 +135,7 @@ async def instagram_status(
         .maybe_single()
         .execute()
     )
-    profile_data = profile_row.data or {}
+    profile_data = (profile_row.data if profile_row else None) or {}
     ig_username: str | None = profile_data.get("ig_username")
     ig_last_sync_at: str | None = profile_data.get("ig_last_sync_at")
 
@@ -158,7 +158,7 @@ async def instagram_status(
         .execute()
     )
     post_count = 0
-    if accounts_row.data:
+    if accounts_row and accounts_row.data:
         account_id = accounts_row.data["id"]
         count_row = (
             supabase.table("content")
@@ -214,7 +214,7 @@ async def sync_instagram(
         .maybe_single()
         .execute()
     )
-    profile_data = profile_row.data or {}
+    profile_data = (profile_row.data if profile_row else None) or {}
     own_handle: str | None = profile_data.get("ig_username")
     ig_last_sync_at: str | None = profile_data.get("ig_last_sync_at")
 
@@ -255,7 +255,7 @@ async def sync_instagram(
         .execute()
     )
     total_before = 0
-    if accounts_row.data:
+    if accounts_row and accounts_row.data:
         account_id = accounts_row.data["id"]
         count_row = (
             supabase.table("content")
@@ -282,7 +282,7 @@ async def sync_instagram(
         .execute()
     )
     total_after = 0
-    if accounts_row2.data:
+    if accounts_row2 and accounts_row2.data:
         account_id2 = accounts_row2.data["id"]
         count_row2 = (
             supabase.table("content")
