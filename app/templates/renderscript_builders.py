@@ -41,7 +41,7 @@ def _text_elem(name: str, track: int, text: str, time: float, duration: float,
           "font_size": font_size or theme.font_size_vmin,
           "fill_color": fill_color or theme.primary_color,
           "stroke_color": "#000000",
-          "stroke_width": "4 vmin"}
+          "stroke_width": "1.2 vmin"}
     if x_alignment and x_alignment != "50%":
         el["x_alignment"] = x_alignment
     if bg_color is not None:
@@ -429,7 +429,7 @@ def _caption_elements(
             "font_size": font_size,
             "fill_color": "#FFFFFF",
             "stroke_color": "#000000",
-            "stroke_width": "4 vmin",
+            "stroke_width": "1.2 vmin",
             "background_color": "rgba(0,0,0,0.65)",
             "background_x_padding": "6%",
             "background_y_padding": "4%",
@@ -475,7 +475,7 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
             "font_size": "5.5 vmin",
             "fill_color": "#0A0A0A",
             "stroke_color": "#000000",
-            "stroke_width": "2 vmin",
+            "stroke_width": "0.8 vmin",
             "background_color": "#FFFFFF",
             "background_x_padding": "8%",
             "background_y_padding": "5%",
@@ -512,7 +512,7 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
                 "font_size": "5.5 vmin",
                 "fill_color": "#FFFFFF",
                 "stroke_color": "#000000",
-                "stroke_width": "4 vmin",
+                "stroke_width": "1.2 vmin",
                 "background_color": "rgba(0,0,0,0.70)",
                 "background_x_padding": "6%",
                 "background_y_padding": "3%",
@@ -592,7 +592,7 @@ def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "font_size": "7 vmin",
                 "fill_color": "#FFFFFF",
                 "stroke_color": "#000000",
-                "stroke_width": "4 vmin",
+                "stroke_width": "1.2 vmin",
             })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
@@ -644,7 +644,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "x_alignment": "50%", "width": "88%",
                 "font_family": theme.font_family, "font_weight": "800",
                 "font_size": "7.5 vmin", "fill_color": "#FFFFFF",
-                "stroke_color": "#000000", "stroke_width": "4 vmin",
+                "stroke_color": "#000000", "stroke_width": "1.2 vmin",
             })
 
     # Pause beat "..."
@@ -657,7 +657,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "x_alignment": "50%", "width": "50%",
         "font_family": theme.font_family, "font_weight": "700",
         "font_size": "6 vmin", "fill_color": theme.primary_color,
-        "stroke_color": "#000000", "stroke_width": "4 vmin",
+        "stroke_color": "#000000", "stroke_width": "1.2 vmin",
     })
 
     # REVEAL: big impactful text, white with drop shadow — 3-word groups
@@ -683,7 +683,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "font_size": "7 vmin",
                 "fill_color": "#FFFFFF",
                 "stroke_color": "#000000",
-                "stroke_width": "4 vmin",
+                "stroke_width": "1.2 vmin",
             })
 
         # If no CTA, extend the last reveal chunk to cover the remaining video
@@ -720,7 +720,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
             "x_alignment": "50%", "width": "88%",
             "font_family": theme.font_family, "font_weight": "700",
             "font_size": "5.5 vmin", "fill_color": "#FFFFFF",
-            "stroke_color": "#000000", "stroke_width": "4 vmin",
+            "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
@@ -763,7 +763,7 @@ def build_edu_steps(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
             "font_family": theme.font_family, "font_weight": "800",
             "font_size": "4.5 vmin",
             "fill_color": "#FFFFFF",
-            "stroke_color": "#000000", "stroke_width": "3 vmin",
+            "stroke_color": "#000000", "stroke_width": "1 vmin",
             "background_color": theme.primary_color,
             "background_x_padding": "8%", "background_y_padding": "4%",
         })
@@ -786,7 +786,7 @@ def build_edu_steps(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
             "x_alignment": "50%", "width": "88%",
             "font_family": theme.font_family, "font_weight": "800",
             "font_size": "8 vmin", "fill_color": theme.primary_color,
-            "stroke_color": "#000000", "stroke_width": "4 vmin",
+            "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
         # Step text — white, below the number
         els.append({
@@ -798,7 +798,7 @@ def build_edu_steps(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
             "x_alignment": "50%", "width": "84%",
             "font_family": theme.font_family, "font_weight": "700",
             "font_size": "4.8 vmin", "fill_color": "#FFFFFF",
-            "stroke_color": "#000000", "stroke_width": "4 vmin",
+            "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
