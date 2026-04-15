@@ -39,7 +39,9 @@ def _text_elem(name: str, track: int, text: str, time: float, duration: float,
           "x_anchor": "0%", "y_anchor": y_anchor,
           "font_family": theme.font_family, "font_weight": theme.font_weight,
           "font_size": font_size or theme.font_size_vmin,
-          "fill_color": fill_color or theme.primary_color}
+          "fill_color": fill_color or theme.primary_color,
+          "stroke_color": "#000000",
+          "stroke_width": "4 vmin"}
     if x_alignment and x_alignment != "50%":
         el["x_alignment"] = x_alignment
     if bg_color is not None:
