@@ -44,14 +44,20 @@ class Settings(BaseSettings):
     creatomate_poll_interval: int = 5
     creatomate_max_wait: int = 180
     renderscript_templates: str = ""
-    # Instagram scraper
+    # Instagram scraper (legacy — kept for rollback)
     apify_api_key: str = ""
-    ig_private_api_rate_limit: int = 6  # requests per minute
-    ig_cache_profile_ttl: int = 86400  # 24h
-    ig_cache_posts_ttl: int = 21600  # 6h
-
-    # P4 Instagram Style Analyzer
+    ig_private_api_rate_limit: int = 6
+    ig_cache_profile_ttl: int = 86400
+    ig_cache_posts_ttl: int = 21600
     rapidapi_key: str = ""
+
+    # Instagram Instaloader backend
+    ig_scraper_backend: str = "instaloader"  # "instaloader" | "legacy"
+    ig_session_backend: str = "db"           # "file" | "db"
+    ig_session_dir: str = "/tmp/pelvibiz_ig_sessions"
+    ig_encryption_key: str = ""             # 32-byte hex, required for db backend
+    ig_min_resync_minutes: int = 10         # min gap between own-account resyncs
+    ig_competitor_delay_seconds: int = 30   # min gap between competitor scrapes
 
     # Supabase auth (used by JWT verification)
     supabase_jwt_secret: str = ""

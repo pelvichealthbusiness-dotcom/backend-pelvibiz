@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
-import statistics
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 from typing import Any
+
+import pandas as pd
 
 from supabase import Client
 
@@ -274,19 +275,17 @@ class CompetitorService:
     # ------------------------------------------------------------------
 
     def _compute_benchmarks(self, posts: list[dict], window_days: int) -> BenchmarkMetrics:
-        likes = [float(p.get('likes', 0) or 0) for p in posts]
-        comments = [float(p.get('comments', 0) or 0) for p in posts]
-        views = [float(p.get('views', 0) or 0) for p in posts]
+        df = pd.DataFrame(posts)
+        likes = pd.to_numeric(df.get('likes', pd.Series(dtype=float)), errors='coerce').fillna(0)
+        comments = pd.to_numeric(df.get('comments', pd.Series(dtype=float)), errors='coerce').fillna(0)
+        views = pd.to_numeric(df.get('views', pd.Series(dtype=float)), errors='coerce').fillna(0)
 
-        avg_likes = round(sum(likes) / len(likes), 2) if likes else 0.0
-        median_likes = round(statistics.median(likes), 2) if likes else 0.0
-        avg_comments = round(sum(comments) / len(comments), 2) if comments else 0.0
-        avg_views = round(sum(views) / len(views), 2) if views else 0.0
+        avg_likes = round(float(likes.mean()), 2) if len(likes) > 0 else 0.0
+        median_likes = round(float(likes.median()), 2) if len(likes) > 0 else 0.0
+        avg_comments = round(float(comments.mean()), 2) if len(comments) > 0 else 0.0
+        avg_views = round(float(views.mean()), 2) if len(views) > 0 else 0.0
         posts_per_week = round(len(posts) / (window_days / 7), 2)
-
-        engagement_rate: float | None = None
-        if avg_views > 0:
-            engagement_rate = round((avg_likes + avg_comments) / avg_views, 4)
+        engagement_rate = round(float((avg_likes + avg_comments) / avg_views), 4) if avg_views > 0 else None
 
         return BenchmarkMetrics(
             avg_likes=avg_likes,
@@ -298,51 +297,49 @@ class CompetitorService:
         )
 
     def _compute_hook_gaps(self, own_posts: list[dict], competitor_posts: list[dict]) -> list[HookGap]:
-        own_top = Counter(
-            p.get('hook_structure') for p in own_posts if p.get('hook_structure')
-        )
-        comp_top = Counter(
-            p.get('hook_structure') for p in competitor_posts if p.get('hook_structure')
-        )
-        # Hooks present in competitor top-10 that are absent or less frequent in own
-        gaps: list[HookGap] = []
-        for hook, comp_freq in comp_top.most_common(10):
-            own_freq = own_top.get(hook, 0)
-            if own_freq < comp_freq:
-                gaps.append(HookGap(
-                    hook_structure=hook,
-                    competitor_frequency=comp_freq,
-                    own_frequency=own_freq,
-                ))
-        return sorted(gaps, key=lambda g: g.competitor_frequency, reverse=True)
+        df_own = pd.DataFrame(own_posts)
+        df_comp = pd.DataFrame(competitor_posts)
+
+        own_freq = df_own['hook_structure'].dropna().value_counts() if 'hook_structure' in df_own else pd.Series(dtype=int)
+        comp_freq = df_comp['hook_structure'].dropna().value_counts() if 'hook_structure' in df_comp else pd.Series(dtype=int)
+
+        merged = pd.DataFrame({'comp': comp_freq, 'own': own_freq}).fillna(0).astype(int)
+        gaps_df = merged[merged['comp'] > merged['own']].sort_values('comp', ascending=False).head(10)
+
+        return [
+            HookGap(hook_structure=idx, competitor_frequency=int(row['comp']), own_frequency=int(row['own']))
+            for idx, row in gaps_df.iterrows()
+        ]
 
     def _compute_topic_gaps(self, own_posts: list[dict], competitor_posts: list[dict]) -> list[TopicGap]:
-        own_top = Counter(p.get('topic') for p in own_posts if p.get('topic'))
-        comp_top = Counter(p.get('topic') for p in competitor_posts if p.get('topic'))
-        gaps: list[TopicGap] = []
-        for topic, comp_freq in comp_top.most_common(10):
-            own_freq = own_top.get(topic, 0)
-            if own_freq < comp_freq:
-                gaps.append(TopicGap(
-                    topic=topic,
-                    competitor_frequency=comp_freq,
-                    own_frequency=own_freq,
-                ))
-        return sorted(gaps, key=lambda g: g.competitor_frequency, reverse=True)
+        df_own = pd.DataFrame(own_posts)
+        df_comp = pd.DataFrame(competitor_posts)
+
+        own_freq = df_own['topic'].dropna().value_counts() if 'topic' in df_own else pd.Series(dtype=int)
+        comp_freq = df_comp['topic'].dropna().value_counts() if 'topic' in df_comp else pd.Series(dtype=int)
+
+        merged = pd.DataFrame({'comp': comp_freq, 'own': own_freq}).fillna(0).astype(int)
+        gaps_df = merged[merged['comp'] > merged['own']].sort_values('comp', ascending=False).head(10)
+
+        return [
+            TopicGap(topic=idx, competitor_frequency=int(row['comp']), own_frequency=int(row['own']))
+            for idx, row in gaps_df.iterrows()
+        ]
 
     def _compute_content_type_gaps(self, own_posts: list[dict], competitor_posts: list[dict]) -> list[ContentTypeGap]:
-        own_top = Counter(p.get('content_type') for p in own_posts if p.get('content_type'))
-        comp_top = Counter(p.get('content_type') for p in competitor_posts if p.get('content_type'))
-        gaps: list[ContentTypeGap] = []
-        for ct, comp_freq in comp_top.most_common(10):
-            own_freq = own_top.get(ct, 0)
-            if own_freq < comp_freq:
-                gaps.append(ContentTypeGap(
-                    content_type=ct,
-                    competitor_frequency=comp_freq,
-                    own_frequency=own_freq,
-                ))
-        return sorted(gaps, key=lambda g: g.competitor_frequency, reverse=True)
+        df_own = pd.DataFrame(own_posts)
+        df_comp = pd.DataFrame(competitor_posts)
+
+        own_freq = df_own['content_type'].dropna().value_counts() if 'content_type' in df_own else pd.Series(dtype=int)
+        comp_freq = df_comp['content_type'].dropna().value_counts() if 'content_type' in df_comp else pd.Series(dtype=int)
+
+        merged = pd.DataFrame({'comp': comp_freq, 'own': own_freq}).fillna(0).astype(int)
+        gaps_df = merged[merged['comp'] > merged['own']].sort_values('comp', ascending=False).head(10)
+
+        return [
+            ContentTypeGap(content_type=idx, competitor_frequency=int(row['comp']), own_frequency=int(row['own']))
+            for idx, row in gaps_df.iterrows()
+        ]
 
     def _compute_white_space(
         self,

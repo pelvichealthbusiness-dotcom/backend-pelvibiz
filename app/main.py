@@ -10,7 +10,8 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.middleware.request_id import RequestIdMiddleware, request_id_var
 from app.routers import health, carousel, user, onboarding, wizard, ai_carousel, video, chat, analyzer, content, auth_router, video_trim
-from app.routers import user_preferences, content_generator, conversations, content_v2, competitors, research, ideation, scripting
+from app.routers import user_preferences, content_generator, conversations, content_v2, competitors, research, ideation, scripting, social_intelligence
+from app.routers import instagram as instagram_router
 from app.routers import chat_test_stream
 from app.routers import chat_stream, upload, admin
 from app.routers import post_generator
@@ -98,9 +99,11 @@ def create_app() -> FastAPI:
     app.include_router(content_v2.router, prefix="/api/v1")
     app.include_router(content.router, prefix="/api/v1")
     app.include_router(competitors.router, prefix="/api/v1")
+    app.include_router(instagram_router.router, prefix="/api/v1")
     app.include_router(research.router, prefix="/api/v1")
     app.include_router(ideation.router, prefix="/api/v1")
     app.include_router(scripting.router, prefix="/api/v1")
+    app.include_router(social_intelligence.router, prefix="/api/v1")
     app.include_router(auth_router.router, prefix="/api/v1")
     app.include_router(conversations.router, prefix="/api/v1")
     app.include_router(chat_test_stream.router, prefix="/api/v1")
