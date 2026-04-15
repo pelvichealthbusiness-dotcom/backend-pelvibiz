@@ -121,7 +121,7 @@ async def connect_instagram(
         user_id=user_id,
         handle=handle,
         posts=posts,
-        account_type="own",
+        account_type="personal",
     )
 
     avg_engagement = _compute_avg_engagement(posts)
@@ -176,7 +176,7 @@ async def instagram_status(
         supabase.table("content_accounts")
         .select("id")
         .eq("user_id", user_id)
-        .eq("account_type", "own")
+        .eq("account_type", "personal")
         .maybe_single()
         .execute()
     )
@@ -258,7 +258,7 @@ async def sync_instagram(
         except ValueError:
             pass
 
-    account_type = "own" if is_own else "competitor"
+    account_type = "personal" if is_own else "competitor"
     scraper = _build_scraper()
     profile, raw_posts = await scraper.scrape(handle, max_posts=30)
     posts = _normalize_posts(raw_posts)

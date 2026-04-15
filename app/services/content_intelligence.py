@@ -269,11 +269,11 @@ class ContentIntelligenceService:
         # Filter to own-account content only to prevent competitor posts from
         # polluting style signals (T1.4). When a specific account_id is given we
         # trust the caller already selected the right account; otherwise restrict
-        # to account_type='own' to exclude competitor data.
+        # to account_type='personal' to exclude competitor data.
         content_rows = await self.list_content_with_scores(
             user_id=user_id,
             account_id=account_id,
-            account_type=None if account_id else 'own',
+            account_type=None if account_id else 'personal',
         )
 
         if not content_rows:
@@ -366,7 +366,7 @@ class ContentIntelligenceService:
             self.supabase.table('content_accounts')
             .select('id')
             .eq('user_id', user_id)
-            .eq('account_type', 'own')
+            .eq('account_type', 'personal')
             .maybe_single()
             .execute()
         )
@@ -457,7 +457,7 @@ class ContentIntelligenceService:
             self.supabase.table('content_accounts')
             .select('id')
             .eq('user_id', user_id)
-            .eq('account_type', 'own')
+            .eq('account_type', 'personal')
             .maybe_single()
             .execute()
         )
@@ -524,7 +524,7 @@ class ContentIntelligenceService:
         )
         profile = profile_result.data or {}
         # Studio context must only reflect the user's own style — pass no
-        # account_id so generate_brief applies the account_type='own' guard
+        # account_id so generate_brief applies the account_type='personal' guard
         # and competitor posts are excluded from style signals (T1.5).
         brief = await self.generate_brief(user_id=user_id)
 
