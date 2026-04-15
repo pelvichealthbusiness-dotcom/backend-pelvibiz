@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import UserContext, get_current_user
@@ -41,7 +43,8 @@ async def compare_competitors(
         raise HTTPException(status_code=422, detail='competitor_handles must have 1 or 2 entries')
 
     service = CompetitorService()
-    result = service.compare_accounts(
+    result = await asyncio.to_thread(
+        service.compare_accounts,
         user_id=user.user_id,
         own_handle=request.own_handle,
         competitor_handles=request.competitor_handles,

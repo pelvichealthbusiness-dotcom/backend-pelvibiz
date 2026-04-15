@@ -50,6 +50,7 @@ class SocialIdeationRequest(BaseModel):
 
 class SocialIdeaVariation(BaseModel):
     id: str
+    source_topic: str
     title: str
     hook: str
     angle: str

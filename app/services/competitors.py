@@ -180,7 +180,7 @@ class CompetitorService:
         competitor_results: list[CompetitorResult] = []
 
         for comp_handle in competitor_handles:
-            comp_account = self._get_account_by_handle(user_id, comp_handle)
+            comp_account = self._get_account_by_handle(user_id, comp_handle, account_type='competitor')
 
             if not comp_account:
                 competitor_results.append(CompetitorResult(
@@ -370,10 +370,14 @@ class CompetitorService:
         except Exception:
             logger.debug('research_topics not available, falling back to inferred white space')
 
-        # Infer from topics absent in both
+        # Infer from topics that appear in one side but not the other
         if len(entries) < _WHITE_SPACE_LIMIT:
-            # Nothing to infer if there are no topics at all
-            pass
+            asymmetric = own_topics.symmetric_difference(comp_topics)
+            for topic in sorted(asymmetric):
+                if topic:
+                    entries.append(WhiteSpaceEntry(topic=topic, signal_source='inferred'))
+                if len(entries) >= _WHITE_SPACE_LIMIT:
+                    break
 
         return entries[:_WHITE_SPACE_LIMIT]
 
