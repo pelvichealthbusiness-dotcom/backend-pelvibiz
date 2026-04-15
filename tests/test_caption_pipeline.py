@@ -24,6 +24,7 @@ from app.templates.renderscript_builders import (
     build_talking_head,
     build_hook_reveal,
     build_edu_steps,
+    RENDERSCRIPT_BUILDERS,
 )
 
 
@@ -556,3 +557,32 @@ class TestBuilderCaptionIntegration:
             assert cap["track"] not in template_tracks, (
                 f"Caption track {cap['track']} collides with template element"
             )
+
+    def test_all_builders_accept_phrase_blocks_via_router_pattern(self):
+        """Regression: router passes phrase_blocks only to builders that accept it.
+        All builders must be callable via the inspect-based dispatch without TypeError.
+        """
+        import inspect
+        from app.models.video import VideoTemplate
+
+        blocks = _make_phrase_blocks()
+        theme = _make_theme()
+
+        for template_enum, builder in RENDERSCRIPT_BUILDERS.items():
+            request = GenerateVideoRequest(
+                template=template_enum.value,
+                video_urls=["https://example.com/v1.mp4", "https://example.com/v2.mp4"],
+                text_1="Hook text",
+                text_2="Point one",
+                text_3="Point two",
+                enable_captions=True,
+            )
+            # This is the exact pattern used in the router
+            _bkw = (
+                {"phrase_blocks": blocks}
+                if "phrase_blocks" in inspect.signature(builder).parameters
+                else {}
+            )
+            # Must not raise TypeError regardless of whether the builder supports captions
+            source = builder(request, theme, None, **_bkw)
+            assert "elements" in source, f"{builder.__name__} did not return a valid source dict"

@@ -33,14 +33,18 @@ class TranscriptionService:
             List of PhraseBlock objects (empty list if no speech or on failure).
         """
         try:
+            logger.info("TranscriptionService: transcribing %s", video_url)
             result = await self._analysis.analyze_for_talking_head(video_url)
             segments = result.transcript_segments or []
             if not segments:
                 logger.info("TranscriptionService: no speech detected in %s", video_url)
                 return []
-            return _group_into_phrase_blocks(segments)
+            logger.info("TranscriptionService: got %d segments → grouping into phrase blocks", len(segments))
+            blocks = _group_into_phrase_blocks(segments)
+            logger.info("TranscriptionService: produced %d phrase blocks", len(blocks))
+            return blocks
         except Exception as exc:
-            logger.warning("TranscriptionService.transcribe failed: %s", exc)
+            logger.warning("TranscriptionService.transcribe failed: %s", exc, exc_info=True)
             return []
 
 

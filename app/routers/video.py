@@ -24,6 +24,7 @@ from app.services.storage import StorageService
 from app.services.transcription_service import TranscriptionService
 from app.services.video_analysis import VideoAnalysisService
 from app.templates.creatomate_mappings import TEMPLATE_MAPPERS, ANALYSIS_MAPPERS
+import inspect
 import os
 from app.templates.brand_theme import resolve_theme
 from app.templates.renderscript_builders import RENDERSCRIPT_BUILDERS
@@ -141,7 +142,12 @@ async def generate_video(
     if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
         builder = RENDERSCRIPT_BUILDERS.get(template_enum)
         if builder:
-            source_dict = builder(request, theme, analysis_result, phrase_blocks=phrase_blocks or None)
+            _bkw = (
+                {"phrase_blocks": phrase_blocks or None}
+                if "phrase_blocks" in inspect.signature(builder).parameters
+                else {}
+            )
+            source_dict = builder(request, theme, analysis_result, **_bkw)
             # Duration trim: cut black tail frame at last phrase block end + 0.3s buffer
             if phrase_blocks and "duration" not in source_dict:
                 source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
@@ -309,6 +315,7 @@ async def generate_video_stream(
             if request.enable_captions and effective_video_urls:
                 yield f'data: {json.dumps({"type": "progress", "phase": "transcribing", "message": "Transcribing audio for captions..."})}\n\n'
                 phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
+                logger.info("generate-stream: transcription returned %d phrase blocks for template %s", len(phrase_blocks), request.template)
 
             if needs_analysis and effective_video_urls:
                 yield f'data: {json.dumps({"type": "progress", "phase": "analyzing", "message": "Analyzing your video with AI..."})}\n\n'
@@ -342,7 +349,12 @@ async def generate_video_stream(
             if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
                 builder = RENDERSCRIPT_BUILDERS.get(template_enum)
                 if builder:
-                    source_dict = builder(request, theme, analysis_result, phrase_blocks=phrase_blocks or None)
+                    _bkw = (
+                        {"phrase_blocks": phrase_blocks or None}
+                        if "phrase_blocks" in inspect.signature(builder).parameters
+                        else {}
+                    )
+                    source_dict = builder(request, theme, analysis_result, **_bkw)
                     if phrase_blocks and "duration" not in source_dict:
                         source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
                     render_id = await creatomate.render_with_source(source_dict)
