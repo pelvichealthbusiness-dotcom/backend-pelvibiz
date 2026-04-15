@@ -178,6 +178,22 @@ class DbSessionStore(SessionStore):
         return await loop.run_in_executor(None, _check)
 
 
+class NullSessionStore(SessionStore):
+    """No-op session store for providers that only do public scraping."""
+
+    async def save(self, _user_id: str, _data: bytes) -> None:
+        pass
+
+    async def load(self, _user_id: str) -> bytes | None:
+        return None
+
+    async def delete(self, _user_id: str) -> None:
+        pass
+
+    async def exists(self, _user_id: str) -> bool:
+        return False
+
+
 def create_session_store(settings) -> SessionStore:
     """Factory: returns the right SessionStore implementation based on settings."""
     backend = getattr(settings, "ig_session_backend", "file")

@@ -17,20 +17,18 @@ from app.models.instagram import (
 )
 from app.services.content_intelligence import ContentIntelligenceService
 from app.services.exceptions import AgentAPIError
-from app.services.session_store import create_session_store
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/instagram", tags=["instagram"])
 
 
-def _build_provider(user_id: str):
-    """Instantiate InstaloaderProvider with the configured session store."""
+def _build_provider():
+    """Instantiate InstaloaderProvider (no session store needed for public scraping)."""
     from app.services.instaloader_provider import InstaloaderProvider
+    from app.services.session_store import NullSessionStore
 
-    settings = get_settings()
-    session_store = create_session_store(settings)
-    return InstaloaderProvider(session_store=session_store)
+    return InstaloaderProvider(session_store=NullSessionStore())
 
 
 def _compute_avg_engagement(posts: list[dict]) -> float:
@@ -68,22 +66,19 @@ async def connect_instagram(
     user_id = user.user_id
     username = body.username.strip().lstrip("@").lower()
 
-    provider = _build_provider(user_id)
+    provider = _build_provider()
 
     try:
-        await provider.login(username, body.password.get_secret_value(), user_id)
-        profile, posts = await provider.scrape_own(user_id, max_posts=30)
+        profile, posts = await provider.scrape_public(username, max_posts=30)
     except InstagramScraperError as exc:
-        code_map = {
-            "INVALID_CREDENTIALS": 401,
-            "REQUIRES_2FA": 422,
-        }
-        status_code = code_map.get(exc.code, 502)
+        _raise_from_scraper_error(exc)
+
+    if not profile:
         raise AgentAPIError(
-            message=exc.message,
-            code=exc.code,
-            status_code=status_code,
-        ) from exc
+            message=f"No se pudo obtener el perfil de @{username}.",
+            code="SCRAPE_FAILED",
+            status_code=502,
+        )
 
     handle = profile.get("username", username)
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -225,39 +220,30 @@ async def sync_instagram(
 
     is_own = own_handle and own_handle.lower() == handle
 
-    provider = _build_provider(user_id)
+    provider = _build_provider()
 
-    if is_own:
-        # Enforce resync cooldown
-        if ig_last_sync_at and not force:
-            try:
-                last_sync_dt = datetime.fromisoformat(ig_last_sync_at)
-                elapsed = datetime.now(timezone.utc) - last_sync_dt
-                wait_minutes = settings.ig_min_resync_minutes - int(elapsed.total_seconds() / 60)
-                if elapsed.total_seconds() < settings.ig_min_resync_minutes * 60:
-                    raise AgentAPIError(
-                        message=f"Wait {wait_minutes} minute(s) before resyncing",
-                        code="SYNC_TOO_SOON",
-                        status_code=429,
-                    )
-            except AgentAPIError:
-                raise
-            except ValueError:
-                pass
-
+    # Enforce resync cooldown for own account
+    if is_own and ig_last_sync_at and not force:
         try:
-            profile, posts = await provider.scrape_own(user_id, max_posts=30)
-        except InstagramScraperError as exc:
-            _raise_from_scraper_error(exc)
+            last_sync_dt = datetime.fromisoformat(ig_last_sync_at)
+            elapsed = datetime.now(timezone.utc) - last_sync_dt
+            wait_minutes = settings.ig_min_resync_minutes - int(elapsed.total_seconds() / 60)
+            if elapsed.total_seconds() < settings.ig_min_resync_minutes * 60:
+                raise AgentAPIError(
+                    message=f"Wait {wait_minutes} minute(s) before resyncing",
+                    code="SYNC_TOO_SOON",
+                    status_code=429,
+                )
+        except AgentAPIError:
+            raise
+        except ValueError:
+            pass
 
-        account_type = "own"
-    else:
-        try:
-            profile, posts = await provider.scrape_public(handle, max_posts=30)
-        except InstagramScraperError as exc:
-            _raise_from_scraper_error(exc)
-
-        account_type = "competitor"
+    account_type = "own" if is_own else "competitor"
+    try:
+        profile, posts = await provider.scrape_public(handle, max_posts=30)
+    except InstagramScraperError as exc:
+        _raise_from_scraper_error(exc)
 
     # Count existing posts before upsert
     accounts_row = (
