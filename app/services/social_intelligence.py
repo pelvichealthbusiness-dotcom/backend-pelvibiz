@@ -394,7 +394,7 @@ class SocialIntelligenceService:
 
     async def list_latest_research(self, user_id: str, limit: int = 10) -> list[dict[str, Any]]:
         result = (
-            self.supabase.table("social_research_runs")
+            self.supabase.table("social_research_items")
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
