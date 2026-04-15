@@ -1,6 +1,20 @@
 import logging
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Configure file logging
+LOG_DIR = Path("/root/pelvibiz-agent-api/logs")
+LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_DIR / "app.log"),
+        logging.StreamHandler(),
+    ],
+)
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
