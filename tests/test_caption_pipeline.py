@@ -5,17 +5,62 @@ Covers:
 - _caption_elem() element structure
 - _append_captions() builder helper
 - TranscriptionService.transcribe() with mocked VideoAnalysisService
+- End-to-end: builders receive phrase_blocks and produce caption elements
 """
 
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from app.models.video import PhraseBlock, VideoAnalysisResult
+from app.models.video import PhraseBlock, VideoAnalysisResult, GenerateVideoRequest
 from app.services.transcription_service import (
     TranscriptionService,
     _group_into_phrase_blocks,
 )
-from app.templates.renderscript_builders import _caption_elem, _append_captions
+from app.templates.brand_theme import BrandTheme
+from app.templates.renderscript_builders import (
+    _caption_elem,
+    _append_captions,
+    build_bullet_reel,
+    build_talking_head,
+    build_hook_reveal,
+    build_edu_steps,
+)
+
+
+# ── Shared test fixtures ──────────────────────────────────────────────────
+
+def _make_theme() -> BrandTheme:
+    return BrandTheme(
+        primary_color="#FF0000",
+        secondary_color="#FFFFFF",
+        background_color="#000000",
+        font_family="Montserrat",
+        font_weight="700",
+        font_size_vmin="4.0 vmin",
+        logo_url=None,
+        music_url=None,
+    )
+
+
+def _make_phrase_blocks() -> list[PhraseBlock]:
+    return [
+        PhraseBlock(text="This is the first phrase.", start=0.0, end=1.5),
+        PhraseBlock(text="And here is the second one.", start=1.5, end=3.0),
+        PhraseBlock(text="Finally the third.", start=3.0, end=4.5),
+    ]
+
+
+def _make_request(**kwargs) -> GenerateVideoRequest:
+    defaults = {
+        "template": "bullet-reel",
+        "video_urls": ["https://example.com/v1.mp4", "https://example.com/v2.mp4"],
+        "text_1": "Stop scrolling",
+        "text_2": "Point one",
+        "text_3": "Point two",
+        "enable_captions": True,
+    }
+    defaults.update(kwargs)
+    return GenerateVideoRequest(**defaults)
 
 
 # ── _group_into_phrase_blocks ─────────────────────────────────────────────
@@ -248,4 +293,134 @@ class TestTranscriptionService:
             blocks = await service.transcribe("https://example.com/video.mp4")
 
         for block in blocks:
-            assert len(block.text) <= 150
+            assert len(block.text) <= 150, f"Block exceeded 150 chars: {len(block.text)}"
+
+
+# ── End-to-end: builders receive phrase_blocks → produce caption elements ─
+
+def _get_caption_elements(source: dict) -> list[dict]:
+    """Extract elements that use the Anton caption font."""
+    return [
+        el for el in source["elements"]
+        if el.get("type") == "text" and el.get("font_family") == "Anton"
+    ]
+
+
+class TestBuilderCaptionIntegration:
+    """Verify each builder actually appends caption elements when phrase_blocks are passed."""
+
+    def test_bullet_reel_includes_captions(self):
+        request = _make_request(template="bullet-reel", clip_count=2)
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_bullet_reel(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+
+        assert len(captions) == len(blocks), "One caption element per phrase block"
+        assert all(el["fill_color"] == "#FFFFFF" for el in captions)
+        assert all(el["font_weight"] == "900" for el in captions)
+
+    def test_talking_head_includes_captions(self):
+        request = _make_request(template="talking-head", clip_count=1)
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+
+        assert len(captions) == len(blocks)
+
+    def test_talking_head_captions_at_bottom_safe_zone(self):
+        request = _make_request(template="talking-head", clip_count=1)
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+
+        for el in captions:
+            y_pct = float(el["y"].replace("%", ""))
+            assert y_pct >= 65, f"Caption y={el['y']} is above bottom safe zone"
+
+    def test_talking_head_hook_at_top_zone(self):
+        request = _make_request(
+            template="talking-head", clip_count=1, text_1="Stop scrolling now"
+        )
+        theme = _make_theme()
+
+        source = build_talking_head(request, theme)
+        hook_els = [el for el in source["elements"] if el.get("name") == "Hook"]
+
+        assert len(hook_els) == 1
+        hook_y = float(hook_els[0]["y"].replace("%", ""))
+        assert hook_y <= 20, f"Hook y={hook_els[0]['y']} exceeds top zone"
+
+    def test_hook_reveal_includes_captions(self):
+        request = _make_request(
+            template="hook-reveal",
+            video_urls=["https://example.com/v1.mp4"],
+            text_1="You won't believe this",
+            text_2="The answer is pelvic floor",
+        )
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_hook_reveal(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+
+        assert len(captions) == len(blocks)
+
+    def test_edu_steps_includes_captions(self):
+        request = _make_request(
+            template="edu-steps",
+            video_urls=["https://example.com/v1.mp4", "https://example.com/v2.mp4"],
+            text_1="How to strengthen",
+            text_2="Step one",
+            text_3="Step two",
+            clip_count=2,
+        )
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_edu_steps(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+
+        assert len(captions) == len(blocks)
+
+    def test_no_captions_when_phrase_blocks_empty(self):
+        request = _make_request(template="bullet-reel", clip_count=2)
+        theme = _make_theme()
+
+        source = build_bullet_reel(request, theme, phrase_blocks=[])
+        captions = _get_caption_elements(source)
+
+        assert captions == [], "No caption elements when phrase_blocks is empty"
+
+    def test_caption_timing_matches_phrase_blocks(self):
+        request = _make_request(template="bullet-reel", clip_count=2)
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_bullet_reel(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+
+        for block, el in zip(blocks, captions):
+            assert el["time"] == pytest.approx(block.start, abs=0.01)
+
+    def test_caption_tracks_dont_collide_with_template_tracks(self):
+        """Caption elements use track 500+ so they don't collide with template elements."""
+        request = _make_request(template="bullet-reel", clip_count=2)
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_bullet_reel(request, theme, phrase_blocks=blocks)
+        captions = _get_caption_elements(source)
+        template_tracks = {
+            el["track"] for el in source["elements"] if el not in captions
+        }
+
+        for cap in captions:
+            assert cap["track"] not in template_tracks, (
+                f"Caption track {cap['track']} collides with template element"
+            )
