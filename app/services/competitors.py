@@ -416,7 +416,7 @@ class CompetitorService:
         if account_type is not None:
             query = query.eq('account_type', account_type)
         result = query.maybe_single().execute()
-        return result.data or None
+        return (result.data if result else None) or None
 
     # ------------------------------------------------------------------
     # Cache helpers
