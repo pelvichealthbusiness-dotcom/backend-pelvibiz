@@ -41,7 +41,19 @@ FONT_MAP: dict[str, str] = {
     "modern": "Poppins",
     "minimal": "Inter",
     "script": "Raleway",
+    # Heavy / display fonts (OpusClip-style captions)
+    "anton": "Anton",
+    "kanit": "Kanit",
+    "impact": "Bebas Neue",
+    "heavy": "Anton",
+    "black": "Anton",
+    "opusclip": "Anton",
+    "caption": "Anton",
 }
+
+# Default font for OpusClip-style auto-generated captions.
+# Anton is a display condensed font — always bold, no weight needed.
+CAPTION_FONT = "Anton"
 
 
 @dataclass

@@ -1,10 +1,24 @@
 """P3 Real Video — Pydantic models and template configuration."""
 
+from dataclasses import dataclass
 from enum import Enum
 from typing import Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Caption / Transcription
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PhraseBlock:
+    """A subtitle phrase block produced by TranscriptionService."""
+
+    text: str
+    start: float  # seconds
+    end: float    # seconds
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +218,12 @@ class GenerateVideoRequest(BaseModel):
 
     # Caption (all templates)
     caption: Optional[str] = Field(None, max_length=2200)
+
+    # Auto-subtitle pipeline — transcribe audio and add OpusClip-style captions
+    enable_captions: bool = Field(
+        False,
+        description="Transcribe video audio and overlay OpusClip-style subtitles on all templates",
+    )
 
     # Background music track ID from the curated library (optional)
     music_track: Optional[str] = Field(None, max_length=200)

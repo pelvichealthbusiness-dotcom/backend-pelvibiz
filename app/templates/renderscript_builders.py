@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional, Any
-from app.models.video import GenerateVideoRequest, VideoTemplate
-from app.templates.brand_theme import BrandTheme
+from app.models.video import GenerateVideoRequest, VideoTemplate, PhraseBlock
+from app.templates.brand_theme import BrandTheme, CAPTION_FONT
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -437,6 +437,60 @@ def _caption_elements(
     return elements
 
 
+def _caption_elem(
+    track: int,
+    text: str,
+    time: float,
+    duration: float,
+    y: str = "78%",
+) -> dict:
+    """OpusClip-style caption element.
+
+    Heavy font (Anton 900), white text, thick black stroke, drop shadow.
+    No background box — legibility comes from stroke + shadow.
+    """
+    return {
+        "type": "text",
+        "track": track,
+        "name": f"Sub-{track}",
+        "text": text,
+        "time": round(time, 3),
+        "duration": round(max(duration, 0.5), 3),
+        "x": "50%", "y": y,
+        "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%",
+        "width": "90%",
+        "font_family": CAPTION_FONT,   # Anton
+        "font_weight": "900",
+        "font_size": "6.5 vmin",
+        "fill_color": "#FFFFFF",
+        "stroke_color": "#000000",
+        "stroke_width": "1.8 vmin",
+        "shadow_color": "rgba(0,0,0,0.8)",
+        "shadow_offset_x": "0.4 vmin",
+        "shadow_offset_y": "0.4 vmin",
+        "shadow_blur": "0.2 vmin",
+    }
+
+
+def _append_captions(
+    elements: list,
+    phrase_blocks: list[PhraseBlock],
+    y: str = "78%",
+    base_track: int = 500,
+) -> None:
+    """Append OpusClip-style caption elements to `elements` in-place."""
+    for i, block in enumerate(phrase_blocks):
+        duration = block.end - block.start
+        elements.append(_caption_elem(
+            track=base_track + i,
+            text=block.text,
+            time=block.start,
+            duration=duration,
+            y=y,
+        ))
+
+
 # ── Talking Head ──────────────────────────────────────────────────────────
 #
 # Layout:
@@ -444,10 +498,19 @@ def _caption_elements(
 #   BOTTOM → Caption: 3-word groups rotating (word-by-word animation)
 #   Audio:  video audio ON (person is speaking)
 
-def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+def build_talking_head(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
     # Use actual video duration from Gemini analysis; fall back to target_duration or 30s
     if analysis and analysis.duration_seconds:
         dur = float(analysis.duration_seconds)
+    elif phrase_blocks:
+        # When using the new TranscriptionService we don't have a separate duration;
+        # derive from the last block end + small tail buffer
+        dur = phrase_blocks[-1].end + 0.5 if phrase_blocks else 30.0
     else:
         dur = _resolve_target_duration(request, 30.0)
 
@@ -459,7 +522,7 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
     if url:
         els.append(_video_elem("Video", 1, url, 0.0, dur, volume="100%"))
 
-    # HOOK card — TOP, white box with dark text, static throughout
+    # HOOK card — TOP zone (10–20%), white box with dark text, static throughout
     # text_1 is optional; if not provided, no hook card shown
     hook = (request.text_1 or "").strip()
     if hook:
@@ -467,54 +530,42 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
             "type": "text", "track": 20, "name": "Hook",
             "text": hook.upper(),
             "time": 0.0, "duration": dur,
-            "x": "50%", "y": "7%",
-            "x_anchor": "50%", "y_anchor": "0%",
+            # Fixed at top zone — captions occupy bottom, hook occupies top
+            "x": "50%", "y": "15%",
+            "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
             "width": "88%",
             "font_family": theme.font_family, "font_weight": "800",
-            "font_size": "5.5 vmin",
+            "font_size": "5.0 vmin",
             "fill_color": "#0A0A0A",
             "background_color": "#FFFFFF",
             "background_x_padding": "8%",
-            "background_y_padding": "5%",
+            "background_y_padding": "4%",
         })
 
-    # AUTO-CAPTIONS — synchronized with speech from Gemini transcription
-    caption_y = _y_for_position(
-        getattr(request, "text_position", None),
-        top="12%", center="50%", bottom="78%",
-    )
-    segments = (analysis and analysis.transcript_segments) or []
-    if segments:
-        # Each segment is {"text", "start", "end"} from Gemini
-        for i, seg in enumerate(segments):
+    # CAPTIONS — bottom safe zone (70–90%), never overlaps hook at top
+    # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
+    caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
+
+    if phrase_blocks:
+        # New pipeline: OpusClip-style phrase blocks from TranscriptionService
+        _append_captions(els, phrase_blocks, y=caption_y, base_track=300)
+    elif analysis and analysis.transcript_segments:
+        # Legacy: raw Gemini segments (3-5 word chunks, no grouping)
+        for i, seg in enumerate(analysis.transcript_segments):
             text = seg.get("text", "").strip()
             t_start = float(seg.get("start", 0))
             t_end = float(seg.get("end", t_start + 0.5))
             seg_dur = max(t_end - t_start - 0.05, 0.1)
             if not text:
                 continue
-            els.append({
-                "type": "text",
-                "track": 30 + i,
-                "name": f"Caption-{i}",
-                "text": text,
-                "time": round(t_start, 3),
-                "duration": round(seg_dur, 3),
-                "x": "50%", "y": caption_y,
-                "x_anchor": "50%", "y_anchor": "50%",
-                "x_alignment": "50%",
-                "width": "88%",
-                "font_family": theme.font_family,
-                "font_weight": "700",
-                "font_size": "5.5 vmin",
-                "fill_color": "#FFFFFF",
-                "stroke_color": "#000000",
-                "stroke_width": "1.2 vmin",
-                "background_color": "rgba(0,0,0,0.70)",
-                "background_x_padding": "6%",
-                "background_y_padding": "3%",
-            })
+            els.append(_caption_elem(
+                track=30 + i,
+                text=text,
+                time=t_start,
+                duration=seg_dur,
+                y=caption_y,
+            ))
     else:
         # Fallback: manual text_2 split into timed groups (no analysis available)
         caption_text = (request.text_2 or "").strip()
@@ -539,7 +590,12 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
 #   Text appears as 2-word micro-groups that pop on/off within each clip.
 #   Overlay: dark semi-transparent. Audio: music only.
 
-def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+def build_bullet_reel(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
     clip_count = _resolve_clip_count(request, 3, 2)
     dur = _resolve_target_duration(request, 30.0)
     clip_dur = dur / clip_count
@@ -593,6 +649,9 @@ def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "stroke_width": "1.2 vmin",
             })
 
+    if phrase_blocks:
+        _append_captions(els, phrase_blocks, y="78%", base_track=500)
+
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
     return source
 
@@ -605,7 +664,12 @@ def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis
 #   Next ~45%: Reveal phrase in brand primary color
 #   Last ~10%: CTA
 
-def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+def build_hook_reveal(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
     dur = _resolve_target_duration(request, 20.0)
     hook_end = dur * 0.45
     reveal_start = dur * 0.48
@@ -721,6 +785,9 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
             "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
 
+    if phrase_blocks:
+        _append_captions(els, phrase_blocks, y="78%", base_track=500)
+
     els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
     return source
 
@@ -731,7 +798,12 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
 #   Title (text_1): TOP colored band, static throughout
 #   Each clip: step number (①②③) + step text CENTER SCREEN
 
-def build_edu_steps(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
+def build_edu_steps(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
     clip_count = _resolve_clip_count(request, 4, 2)
     dur = _resolve_target_duration(request, 30.0)
     clip_dur = dur / clip_count
@@ -798,6 +870,9 @@ def build_edu_steps(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
             "font_size": "4.8 vmin", "fill_color": "#FFFFFF",
             "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
+
+    if phrase_blocks:
+        _append_captions(els, phrase_blocks, y="78%", base_track=500)
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
     return source

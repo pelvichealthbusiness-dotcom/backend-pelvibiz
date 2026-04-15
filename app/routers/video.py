@@ -21,6 +21,7 @@ from app.services.creatomate import CreatomateService
 from app.services.credits import CreditsService
 from app.services.exceptions import AgentAPIError
 from app.services.storage import StorageService
+from app.services.transcription_service import TranscriptionService
 from app.services.video_analysis import VideoAnalysisService
 from app.templates.creatomate_mappings import TEMPLATE_MAPPERS, ANALYSIS_MAPPERS
 import os
@@ -110,7 +111,14 @@ async def generate_video(
 
     # ---- Video analysis (templates with needs_analysis: True) ---------------
     analysis_result = None
+    phrase_blocks = []
     needs_analysis = config.get("needs_analysis", False)
+
+    if request.enable_captions and effective_video_urls:
+        # OpusClip subtitle pipeline: transcribe speech → phrase blocks
+        # For TALKING_HEAD this replaces the legacy Gemini analysis path
+        phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
+
     if needs_analysis and effective_video_urls:
         analysis_service = VideoAnalysisService()
         if template_enum == VideoTemplate.VIRAL_REACTION:
@@ -121,7 +129,8 @@ async def generate_video(
             analysis_result = await analysis_service.analyze_for_testimonial(
                 effective_video_urls[0],
             )
-        elif template_enum == VideoTemplate.TALKING_HEAD:
+        elif template_enum == VideoTemplate.TALKING_HEAD and not phrase_blocks:
+            # Only run legacy Gemini analysis when captions pipeline didn't run
             analysis_result = await analysis_service.analyze_for_talking_head(
                 effective_video_urls[0],
             )
@@ -132,7 +141,10 @@ async def generate_video(
     if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
         builder = RENDERSCRIPT_BUILDERS.get(template_enum)
         if builder:
-            source_dict = builder(request, theme, analysis_result)
+            source_dict = builder(request, theme, analysis_result, phrase_blocks=phrase_blocks or None)
+            # Duration trim: cut black tail frame at last phrase block end + 0.3s buffer
+            if phrase_blocks and "duration" not in source_dict:
+                source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
             render_id = await creatomate.render_with_source(source_dict)
 
     # ---- Build modifications via template mappers (legacy fallback) -------
@@ -291,7 +303,13 @@ async def generate_video_stream(
 
             # ---- Video analysis (templates with needs_analysis: True) --------
             analysis_result = None
+            phrase_blocks = []
             needs_analysis = config.get("needs_analysis", False)
+
+            if request.enable_captions and effective_video_urls:
+                yield f'data: {json.dumps({"type": "progress", "phase": "transcribing", "message": "Transcribing audio for captions..."})}\n\n'
+                phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
+
             if needs_analysis and effective_video_urls:
                 yield f'data: {json.dumps({"type": "progress", "phase": "analyzing", "message": "Analyzing your video with AI..."})}\n\n'
                 analysis_service = VideoAnalysisService()
@@ -303,7 +321,7 @@ async def generate_video_stream(
                     analysis_result = await analysis_service.analyze_for_testimonial(
                         effective_video_urls[0],
                     )
-                elif template_enum == VideoTemplate.TALKING_HEAD:
+                elif template_enum == VideoTemplate.TALKING_HEAD and not phrase_blocks:
                     analysis_result = await analysis_service.analyze_for_talking_head(
                         effective_video_urls[0],
                     )
@@ -324,7 +342,9 @@ async def generate_video_stream(
             if _should_use_renderscript(request.template) or _should_force_renderscript(template_enum):
                 builder = RENDERSCRIPT_BUILDERS.get(template_enum)
                 if builder:
-                    source_dict = builder(request, theme, analysis_result)
+                    source_dict = builder(request, theme, analysis_result, phrase_blocks=phrase_blocks or None)
+                    if phrase_blocks and "duration" not in source_dict:
+                        source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
                     render_id = await creatomate.render_with_source(source_dict)
 
             # ---- Build modifications via template mappers (legacy path) -------
