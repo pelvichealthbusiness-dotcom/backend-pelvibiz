@@ -200,6 +200,7 @@ class GenerateVideoRequest(BaseModel):
     # Clip configuration — set by the wizard's clip_config phase
     clip_count: Optional[int] = Field(None, ge=1, le=10, description="Number of clips selected by the user")
     target_duration: Optional[str] = Field(None, description="Target video duration: 15s | 30s | 60s | 90s")
+    text_position: Optional[str] = Field("center", description="Text vertical position: top | center | bottom")
 
     # Caption (all templates)
     caption: Optional[str] = Field(None, max_length=2200)

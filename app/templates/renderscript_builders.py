@@ -390,6 +390,15 @@ def _word_chunks(text: str, size: int = 3) -> list[str]:
     return [" ".join(words[i : i + size]) for i in range(0, len(words), size)] or [""]
 
 
+def _y_for_position(position: str | None, top: str = "15%", center: str = "50%", bottom: str = "78%") -> str:
+    """Resolve a text position string to a CSS y% value."""
+    if position == "top":
+        return top
+    if position == "bottom":
+        return bottom
+    return center  # default: center
+
+
 def _caption_elements(
     text: str,
     dur: float,
@@ -469,6 +478,10 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
         })
 
     # AUTO-CAPTIONS — synchronized with speech from Gemini transcription
+    caption_y = _y_for_position(
+        getattr(request, "text_position", None),
+        top="12%", center="50%", bottom="78%",
+    )
     segments = (analysis and analysis.transcript_segments) or []
     if segments:
         # Each segment is {"text", "start", "end"} from Gemini
@@ -486,7 +499,7 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
                 "text": text,
                 "time": round(t_start, 3),
                 "duration": round(seg_dur, 3),
-                "x": "50%", "y": "78%",
+                "x": "50%", "y": caption_y,
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%",
                 "width": "88%",
@@ -506,7 +519,7 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
             els.extend(_caption_elements(
                 caption_text, caption_dur,
                 start_track=30, theme=theme,
-                y="78%", font_size="5.5 vmin", chunk_size=3,
+                y=caption_y, font_size="5.5 vmin", chunk_size=3,
             ))
 
     if theme.music_url:
@@ -540,6 +553,8 @@ def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis
     # Dark overlay across the whole video
     els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="52%"))
 
+    text_y = _y_for_position(getattr(request, "text_position", None))
+
     # Text fields: text_1=hook, text_2..text_6=bullets
     texts = [
         request.text_1, request.text_2, request.text_3,
@@ -563,7 +578,7 @@ def build_bullet_reel(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "text": chunk.upper(),
                 "time": round(t_start + 0.15 + k * sub_dur, 3),
                 "duration": round(sub_dur - 0.08, 3),
-                "x": "50%", "y": "50%",
+                "x": "50%", "y": text_y,
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%",
                 "width": "88%",
@@ -607,6 +622,8 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
 
     els.append(_rect_elem("Overlay", 3, 0, dur, "#000000", opacity="55%"))
 
+    text_y = _y_for_position(getattr(request, "text_position", None))
+
     # HOOK: word by word (2-word groups) — first 45%
     hook = (request.text_1 or "").strip()
     if hook:
@@ -618,7 +635,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "text": chunk.upper(),
                 "time": round(0.2 + i * sub_dur, 3),
                 "duration": round(sub_dur - 0.08, 3),
-                "x": "50%", "y": "50%",
+                "x": "50%", "y": text_y,
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%", "width": "88%",
                 "font_family": theme.font_family, "font_weight": "800",
@@ -630,7 +647,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "type": "text", "track": 30, "name": "Pause",
         "text": "...",
         "time": round(hook_end - 0.1, 3), "duration": 0.6,
-        "x": "50%", "y": "50%",
+        "x": "50%", "y": text_y,
         "x_anchor": "50%", "y_anchor": "50%",
         "x_alignment": "50%", "width": "50%",
         "font_family": theme.font_family, "font_weight": "700",
@@ -653,7 +670,7 @@ def build_hook_reveal(request: GenerateVideoRequest, theme: BrandTheme, analysis
                 "text": chunk,
                 "time": t,
                 "duration": round(chunk_dur - 0.08, 3),
-                "x": "50%", "y": "50%",
+                "x": "50%", "y": text_y,
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%", "width": "86%",
                 "font_family": theme.font_family, "font_weight": "800",
