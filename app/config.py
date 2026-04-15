@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # Blotato
     blotato_api_key: str = ""
 
+    # Internal service-to-service auth (bypasses JWT for backend→backend calls)
+    internal_api_key: str = ""
+
     @property
     def google_api_key(self) -> str:
         """Alias for google_gemini_api_key — used by Gemini client."""
