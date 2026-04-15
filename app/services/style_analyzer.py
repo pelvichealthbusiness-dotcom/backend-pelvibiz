@@ -422,9 +422,15 @@ class StyleAnalyzer:
         if not posts:
             return {"content_type_performance": {}, "best_content_type": None}
 
+        _media_type_map = {1: "photo", 2: "reel", 8: "carousel"}
         by_type: dict[str, list[dict]] = defaultdict(list)
         for p in posts:
-            ct = p.get("content_type") or p.get("media_type") or "photo"
+            raw_ct = p.get("content_type") or p.get("media_type") or "photo"
+            # Normalize: Instagram API returns int (1=photo, 2=reel, 8=carousel)
+            if isinstance(raw_ct, int):
+                ct = _media_type_map.get(raw_ct, f"type_{raw_ct}")
+            else:
+                ct = str(raw_ct)
             by_type[ct].append(p)
 
         performance: dict[str, dict] = {}
