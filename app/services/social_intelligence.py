@@ -503,7 +503,6 @@ class SocialIntelligenceService:
             "q": query,
             "count": min(max(limit, 5), 20),
             "search_lang": language,
-            "freshness": "pw",  # past week — most relevant for viral content
         }
         headers = {
             "X-Subscription-Token": settings.brave_search_api_key,
