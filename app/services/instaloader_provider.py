@@ -196,6 +196,11 @@ class InstaloaderProvider:
                     code="REQUIRES_2FA",
                     message="Two-factor authentication required.",
                 ) from exc
+            except instaloader.exceptions.QueryReturnedForbiddenException as exc:
+                raise InstagramScraperError(
+                    code="RATE_LIMITED",
+                    message="Instagram is blocking requests from this server. Try again later.",
+                ) from exc
             except instaloader.exceptions.ProfileNotExistsException as exc:
                 raise InstagramScraperError(
                     code="PROFILE_NOT_FOUND",
@@ -274,10 +279,26 @@ class InstaloaderProvider:
                     code="REQUIRES_2FA",
                     message="Two-factor authentication required.",
                 ) from exc
-            except instaloader.exceptions.ProfileNotExistsException as exc:
+            except instaloader.exceptions.QueryReturnedForbiddenException as exc:
+                # Instagram is blocking this IP (VPS/datacenter block) — not a
+                # missing profile. Map to RATE_LIMITED so the UI shows a useful message.
                 raise InstagramScraperError(
-                    code="PROFILE_NOT_FOUND",
-                    message=f"Profile @{handle} does not exist.",
+                    code="RATE_LIMITED",
+                    message=f"Instagram is blocking requests from this server for @{handle}. Try again later.",
+                ) from exc
+            except instaloader.exceptions.ProfileNotExistsException as exc:
+                # Instaloader may also convert a 403 block to ProfileNotExistsException
+                # internally after its retry logic. If the message doesn't look like a
+                # genuine 404, treat it as a block.
+                msg = str(exc)
+                if "does not exist" in msg and "403" not in msg:
+                    raise InstagramScraperError(
+                        code="PROFILE_NOT_FOUND",
+                        message=f"Profile @{handle} does not exist.",
+                    ) from exc
+                raise InstagramScraperError(
+                    code="RATE_LIMITED",
+                    message=f"Instagram is blocking requests from this server for @{handle}. Try again later.",
                 ) from exc
             except instaloader.exceptions.PrivateProfileNotFollowedException as exc:
                 raise InstagramScraperError(
