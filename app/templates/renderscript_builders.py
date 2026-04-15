@@ -474,8 +474,6 @@ def build_talking_head(request: GenerateVideoRequest, theme: BrandTheme, analysi
             "font_family": theme.font_family, "font_weight": "800",
             "font_size": "5.5 vmin",
             "fill_color": "#0A0A0A",
-            "stroke_color": "#000000",
-            "stroke_width": "0.8 vmin",
             "background_color": "#FFFFFF",
             "background_x_padding": "8%",
             "background_y_padding": "5%",
