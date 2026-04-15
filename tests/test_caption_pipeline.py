@@ -321,6 +321,37 @@ class TestBuilderCaptionIntegration:
         assert all(el["fill_color"] == "#FFFFFF" for el in captions)
         assert all(el["font_weight"] == "900" for el in captions)
 
+    def test_bullet_reel_with_captions_shows_only_hook_text(self):
+        """When captions are active, bullet text (text_2-6) is omitted to avoid collision."""
+        request = _make_request(
+            template="bullet-reel", clip_count=3,
+            text_1="Stop scrolling", text_2="Point one", text_3="Point two",
+        )
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_bullet_reel(request, theme, phrase_blocks=blocks)
+        # Non-caption text elements (not Anton font)
+        template_texts = [
+            el for el in source["elements"]
+            if el.get("type") == "text" and el.get("font_family") != "Anton"
+        ]
+        # Only the hook should be present
+        assert len(template_texts) == 1
+        assert template_texts[0]["name"] == "Hook"
+
+    def test_bullet_reel_hook_in_top_zone_with_captions(self):
+        request = _make_request(template="bullet-reel", clip_count=2, text_1="Watch this")
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_bullet_reel(request, theme, phrase_blocks=blocks)
+        hook_els = [el for el in source["elements"] if el.get("name") == "Hook"]
+
+        assert len(hook_els) == 1
+        hook_y = float(hook_els[0]["y"].replace("%", ""))
+        assert hook_y <= 30, f"Hook y={hook_els[0]['y']} exceeds top zone when captions enabled"
+
     def test_talking_head_includes_captions(self):
         request = _make_request(template="talking-head", clip_count=1)
         theme = _make_theme()
@@ -371,6 +402,43 @@ class TestBuilderCaptionIntegration:
 
         assert len(captions) == len(blocks)
 
+    def test_hook_reveal_cta_moves_to_top_when_captions_present(self):
+        """CTA band at y=83% would collide with captions at y=78%. Must move to top."""
+        request = _make_request(
+            template="hook-reveal",
+            video_urls=["https://example.com/v1.mp4"],
+            text_1="You won't believe this",
+            text_2="The answer",
+            text_3="Follow for more",
+        )
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_hook_reveal(request, theme, phrase_blocks=blocks)
+        cta_el = next((el for el in source["elements"] if el.get("name") == "CTA"), None)
+
+        assert cta_el is not None
+        cta_y = float(cta_el["y"].replace("%", ""))
+        assert cta_y <= 30, f"CTA y={cta_el['y']} collides with caption zone when captions enabled"
+
+    def test_hook_reveal_cta_uses_bottom_band_without_captions(self):
+        """Without captions, CTA should use the original bottom band layout."""
+        request = _make_request(
+            template="hook-reveal",
+            video_urls=["https://example.com/v1.mp4"],
+            text_1="You won't believe this",
+            text_2="The answer",
+            text_3="Follow for more",
+        )
+        theme = _make_theme()
+
+        source = build_hook_reveal(request, theme, phrase_blocks=None)
+        cta_el = next((el for el in source["elements"] if el.get("name") == "CTA"), None)
+
+        assert cta_el is not None
+        cta_y = float(cta_el["y"].replace("%", ""))
+        assert cta_y >= 70, f"Without captions, CTA should be in bottom zone, got y={cta_el['y']}"
+
     def test_edu_steps_includes_captions(self):
         request = _make_request(
             template="edu-steps",
@@ -387,6 +455,70 @@ class TestBuilderCaptionIntegration:
         captions = _get_caption_elements(source)
 
         assert len(captions) == len(blocks)
+
+    def test_edu_steps_text_moves_up_when_captions_present(self):
+        """Step text at y=55% and step# at y=36% shift up when captions occupy bottom."""
+        request = _make_request(
+            template="edu-steps",
+            video_urls=["https://example.com/v1.mp4", "https://example.com/v2.mp4"],
+            text_1="How to strengthen",
+            text_2="Step one",
+            text_3="Step two",
+            clip_count=2,
+        )
+        theme = _make_theme()
+        blocks = _make_phrase_blocks()
+
+        source = build_edu_steps(request, theme, phrase_blocks=blocks)
+        step_texts = [
+            el for el in source["elements"]
+            if el.get("name", "").startswith("Step-")
+        ]
+        step_nums = [
+            el for el in source["elements"]
+            if el.get("name", "").startswith("StepNum-")
+        ]
+
+        for el in step_texts:
+            y = float(el["y"].replace("%", ""))
+            assert y <= 55, f"Step text y={el['y']} too low when captions enabled"
+        for el in step_nums:
+            y = float(el["y"].replace("%", ""))
+            assert y <= 30, f"Step number y={el['y']} too low when captions enabled"
+
+    def test_no_template_text_below_65_percent_when_captions_enabled(self):
+        """Regression: verify no template text element lands in the caption zone (y > 65%)."""
+        for build_fn, kwargs in [
+            (build_bullet_reel, {"template": "bullet-reel", "clip_count": 2}),
+            (build_hook_reveal, {
+                "template": "hook-reveal",
+                "video_urls": ["https://example.com/v1.mp4"],
+                "text_1": "Hook text", "text_2": "Reveal", "text_3": "CTA here",
+            }),
+            (build_edu_steps, {
+                "template": "edu-steps",
+                "video_urls": ["https://example.com/v1.mp4", "https://example.com/v2.mp4"],
+                "text_1": "Title", "text_2": "Step one", "text_3": "Step two",
+                "clip_count": 2,
+            }),
+        ]:
+            request = _make_request(**kwargs)
+            theme = _make_theme()
+            blocks = _make_phrase_blocks()
+
+            source = build_fn(request, theme, phrase_blocks=blocks)
+            captions = _get_caption_elements(source)
+            template_texts = [
+                el for el in source["elements"]
+                if el.get("type") == "text" and el not in captions
+            ]
+
+            for el in template_texts:
+                y = float(el["y"].replace("%", ""))
+                assert y <= 65, (
+                    f"{build_fn.__name__}: element '{el.get('name')}' at y={el['y']} "
+                    f"collides with caption zone (>65%)"
+                )
 
     def test_no_captions_when_phrase_blocks_empty(self):
         request = _make_request(template="bullet-reel", clip_count=2)

@@ -399,6 +399,17 @@ def _y_for_position(position: str | None, top: str = "15%", center: str = "50%",
     return center  # default: center
 
 
+def _y_caption_safe(position: str | None, has_captions: bool) -> str:
+    """Return a y% that is guaranteed not to collide with caption zone (y > 65%).
+
+    When captions are enabled, bottom position is remapped to center so
+    template text never lands in the subtitle safe zone.
+    """
+    if has_captions and position == "bottom":
+        return "50%"   # remap bottom → center when captions occupy the bottom
+    return _y_for_position(position)
+
+
 def _caption_elements(
     text: str,
     dur: float,
@@ -613,44 +624,67 @@ def build_bullet_reel(
     # Dark overlay across the whole video
     els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="52%"))
 
-    text_y = _y_for_position(getattr(request, "text_position", None))
+    has_captions = bool(phrase_blocks)
+    text_y = _y_caption_safe(getattr(request, "text_position", None), has_captions)
 
-    # Text fields: text_1=hook, text_2..text_6=bullets
-    texts = [
-        request.text_1, request.text_2, request.text_3,
-        request.text_4, request.text_5, request.text_6,
-    ]
-
-    track_base = 21
-    for clip_idx in range(clip_count):
-        raw = (texts[clip_idx] or "").strip() if clip_idx < len(texts) else ""
-        if not raw:
-            continue
-        t_start = clip_idx * clip_dur
-        # 2-word micro-groups within each clip
-        chunks = _word_chunks(raw, size=2)
-        sub_dur = (clip_dur - 0.3) / len(chunks)
-        for k, chunk in enumerate(chunks):
+    if has_captions:
+        # CAPTION LAYOUT — hook at top, captions carry the content at bottom.
+        # Bullet text (text_2..6) is omitted — the captions are the narrative.
+        # Hook (text_1) shown as a static top badge for the full duration.
+        hook = (request.text_1 or "").strip()
+        if hook:
             els.append({
                 "type": "text",
-                "track": track_base + clip_idx * 10 + k,
-                "name": f"Text-{clip_idx + 1}-{k}",
-                "text": chunk.upper(),
-                "time": round(t_start + 0.15 + k * sub_dur, 3),
-                "duration": round(sub_dur - 0.08, 3),
-                "x": "50%", "y": text_y,
+                "track": 21,
+                "name": "Hook",
+                "text": hook.upper(),
+                "time": 0.15,
+                "duration": round(dur - 0.3, 3),
+                "x": "50%", "y": "15%",
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%",
                 "width": "88%",
                 "font_family": theme.font_family, "font_weight": "800",
-                "font_size": "7 vmin",
+                "font_size": "5.5 vmin",
                 "fill_color": "#FFFFFF",
                 "stroke_color": "#000000",
                 "stroke_width": "1.2 vmin",
+                "background_color": "rgba(0,0,0,0.55)",
+                "background_x_padding": "6%", "background_y_padding": "3%",
             })
-
-    if phrase_blocks:
         _append_captions(els, phrase_blocks, y="78%", base_track=500)
+    else:
+        # ORIGINAL LAYOUT — 2-word micro-animation per clip, no captions.
+        texts = [
+            request.text_1, request.text_2, request.text_3,
+            request.text_4, request.text_5, request.text_6,
+        ]
+        track_base = 21
+        for clip_idx in range(clip_count):
+            raw = (texts[clip_idx] or "").strip() if clip_idx < len(texts) else ""
+            if not raw:
+                continue
+            t_start = clip_idx * clip_dur
+            chunks = _word_chunks(raw, size=2)
+            sub_dur = (clip_dur - 0.3) / len(chunks)
+            for k, chunk in enumerate(chunks):
+                els.append({
+                    "type": "text",
+                    "track": track_base + clip_idx * 10 + k,
+                    "name": f"Text-{clip_idx + 1}-{k}",
+                    "text": chunk.upper(),
+                    "time": round(t_start + 0.15 + k * sub_dur, 3),
+                    "duration": round(sub_dur - 0.08, 3),
+                    "x": "50%", "y": text_y,
+                    "x_anchor": "50%", "y_anchor": "50%",
+                    "x_alignment": "50%",
+                    "width": "88%",
+                    "font_family": theme.font_family, "font_weight": "800",
+                    "font_size": "7 vmin",
+                    "fill_color": "#FFFFFF",
+                    "stroke_color": "#000000",
+                    "stroke_width": "1.2 vmin",
+                })
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
     return source
@@ -688,7 +722,8 @@ def build_hook_reveal(
 
     els.append(_rect_elem("Overlay", 3, 0, dur, "#000000", opacity="55%"))
 
-    text_y = _y_for_position(getattr(request, "text_position", None))
+    has_captions = bool(phrase_blocks)
+    text_y = _y_caption_safe(getattr(request, "text_position", None), has_captions)
 
     # HOOK: word by word (2-word groups) — first 45%
     hook = (request.text_1 or "").strip()
@@ -722,7 +757,7 @@ def build_hook_reveal(
         "stroke_color": "#000000", "stroke_width": "1.2 vmin",
     })
 
-    # REVEAL: big impactful text, white with drop shadow — 3-word groups
+    # REVEAL: big impactful text — 3-word groups
     reveal = (request.text_2 or "").strip()
     cta = (request.text_3 or "").strip()
 
@@ -748,44 +783,57 @@ def build_hook_reveal(
                 "stroke_width": "1.2 vmin",
             })
 
-        # If no CTA, extend the last reveal chunk to cover the remaining video
-        # so there is no blank ending
         if not cta and reveal_elements:
             last = reveal_elements[-1]
             last["duration"] = round(dur - last["time"] - 0.1, 3)
 
         els.extend(reveal_elements)
 
-    # CTA at end — only rendered when text_3 is provided
-    # Always uses dark background so white text is visible regardless of brand colors
+    # CTA at end — layout depends on whether captions are present
     if cta:
         t_cta = round(cta_start, 3)
         cta_dur = round(dur - cta_start - 0.1, 3)
-        # Brand accent bar above the CTA text
-        els.append(_rect_elem(
-            "CTA-Accent", 58, t_cta, cta_dur,
-            theme.primary_color, opacity="100%",
-            width="100%", height="0.8%", x="0%", y="72%",
-        ))
-        # Dark full-width band behind CTA
-        els.append(_rect_elem(
-            "CTA-Band", 59, t_cta, cta_dur,
-            "#000000", opacity="88%",
-            width="100%", height="20%", x="0%", y="73%",
-        ))
-        els.append({
-            "type": "text", "track": 60, "name": "CTA",
-            "text": cta,
-            "time": t_cta, "duration": cta_dur,
-            "x": "50%", "y": "83%",
-            "x_anchor": "50%", "y_anchor": "50%",
-            "x_alignment": "50%", "width": "88%",
-            "font_family": theme.font_family, "font_weight": "700",
-            "font_size": "5.5 vmin", "fill_color": "#FFFFFF",
-            "stroke_color": "#000000", "stroke_width": "1.2 vmin",
-        })
 
-    if phrase_blocks:
+        if has_captions:
+            # TOP ZONE CTA — captions own the bottom; CTA goes to a small top badge
+            els.append({
+                "type": "text", "track": 60, "name": "CTA",
+                "text": cta,
+                "time": t_cta, "duration": cta_dur,
+                "x": "50%", "y": "12%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "88%",
+                "font_family": theme.font_family, "font_weight": "700",
+                "font_size": "4.5 vmin", "fill_color": "#FFFFFF",
+                "stroke_color": "#000000", "stroke_width": "1 vmin",
+                "background_color": theme.primary_color,
+                "background_x_padding": "6%", "background_y_padding": "3%",
+            })
+        else:
+            # ORIGINAL BOTTOM BAND CTA — no captions, bottom is free
+            els.append(_rect_elem(
+                "CTA-Accent", 58, t_cta, cta_dur,
+                theme.primary_color, opacity="100%",
+                width="100%", height="0.8%", x="0%", y="72%",
+            ))
+            els.append(_rect_elem(
+                "CTA-Band", 59, t_cta, cta_dur,
+                "#000000", opacity="88%",
+                width="100%", height="20%", x="0%", y="73%",
+            ))
+            els.append({
+                "type": "text", "track": 60, "name": "CTA",
+                "text": cta,
+                "time": t_cta, "duration": cta_dur,
+                "x": "50%", "y": "83%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "88%",
+                "font_family": theme.font_family, "font_weight": "700",
+                "font_size": "5.5 vmin", "fill_color": "#FFFFFF",
+                "stroke_color": "#000000", "stroke_width": "1.2 vmin",
+            })
+
+    if has_captions:
         _append_captions(els, phrase_blocks, y="78%", base_track=500)
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
@@ -838,7 +886,11 @@ def build_edu_steps(
             "background_x_padding": "8%", "background_y_padding": "4%",
         })
 
-    # Steps
+    # Steps — y positions shift up when captions occupy the bottom zone
+    has_captions = bool(phrase_blocks)
+    step_num_y = "25%" if has_captions else "36%"   # number: 36% → 25%
+    step_text_y = "42%" if has_captions else "55%"  # text:   55% → 42%
+
     steps = [request.text_2, request.text_3, request.text_4, request.text_5, request.text_6]
     step_nums = ["①", "②", "③", "④", "⑤"]
     for i in range(clip_count):
@@ -846,24 +898,22 @@ def build_edu_steps(
         if not step_text:
             continue
         t = round(i * clip_dur, 3)
-        # Step number — large, brand primary
         els.append({
             "type": "text", "track": 22 + i * 2, "name": f"StepNum-{i + 1}",
             "text": step_nums[i] if i < len(step_nums) else str(i + 1),
             "time": round(t + 0.15, 3), "duration": round(clip_dur - 0.3, 3),
-            "x": "50%", "y": "36%",
+            "x": "50%", "y": step_num_y,
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%", "width": "88%",
             "font_family": theme.font_family, "font_weight": "800",
             "font_size": "8 vmin", "fill_color": theme.primary_color,
             "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
-        # Step text — white, below the number
         els.append({
             "type": "text", "track": 23 + i * 2, "name": f"Step-{i + 1}",
             "text": step_text,
             "time": round(t + 0.15, 3), "duration": round(clip_dur - 0.3, 3),
-            "x": "50%", "y": "55%",
+            "x": "50%", "y": step_text_y,
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%", "width": "84%",
             "font_family": theme.font_family, "font_weight": "700",
@@ -871,7 +921,7 @@ def build_edu_steps(
             "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
 
-    if phrase_blocks:
+    if has_captions:
         _append_captions(els, phrase_blocks, y="78%", base_track=500)
 
     els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
