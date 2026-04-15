@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     # n8n publisher webhook
     n8n_publisher_webhook_url: str = ""
 
+    # Brave Search
+    brave_search_api_key: str = ""
+
     # Blotato
     blotato_api_key: str = ""
 

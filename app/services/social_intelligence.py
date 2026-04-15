@@ -14,6 +14,7 @@ from xml.etree import ElementTree as ET
 import httpx
 from supabase import Client
 
+from app.config import get_settings
 from app.dependencies import get_supabase_admin
 from app.services.brand import BrandService
 from app.services.competitors import CompetitorService
@@ -426,9 +427,11 @@ class SocialIntelligenceService:
 
     async def _collect_platform(self, topic: str, platform: str, limit: int, language: str) -> list[dict[str, Any]]:
         query = self._platform_query(topic, platform)
-        html_text = await self._search_google(query, language=language, limit=limit)
-        items = _extract_google_result_cards(html_text, platform, query, limit)
-        return await self._enrich_items(items)
+        settings = get_settings()
+        if settings.brave_search_api_key:
+            return await self._search_brave(query, platform, limit, language)
+        # Fallback: Google News RSS (works from VPS, no auth needed)
+        return await self._collect_google_news_for_platform(topic, platform, limit, language)
 
     async def _collect_google_news(self, topic: str, limit: int, language: str) -> list[dict[str, Any]]:
         params = {
@@ -494,19 +497,82 @@ class SocialIntelligenceService:
                 enriched.append(combined)
         return enriched
 
-    async def _search_google(self, query: str, language: str, limit: int) -> str:
+    async def _search_brave(self, query: str, platform: str, limit: int, language: str) -> list[dict[str, Any]]:
+        settings = get_settings()
+        params: dict[str, Any] = {
+            "q": query,
+            "count": min(max(limit, 5), 20),
+            "search_lang": language,
+            "freshness": "pw",  # past week — most relevant for viral content
+        }
+        headers = {
+            "X-Subscription-Token": settings.brave_search_api_key,
+            "Accept": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params=params,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        results = (data.get("web") or {}).get("results") or []
+        items: list[dict[str, Any]] = []
+        for idx, r in enumerate(results[:limit], start=1):
+            url = r.get("url") or ""
+            items.append({
+                "platform": platform,
+                "source_kind": "brave_search",
+                "title": _normalize_text(r.get("title") or ""),
+                "url": url,
+                "author": _guess_author_from_url(url),
+                "summary": _normalize_text(r.get("description") or ""),
+                "published_at": r.get("age"),
+                "rank": idx,
+                "query": query,
+            })
+        return await self._enrich_items(items)
+
+    async def _collect_google_news_for_platform(self, topic: str, platform: str, limit: int, language: str) -> list[dict[str, Any]]:
+        """RSS fallback when Brave API key is not configured."""
+        query = f"site:{platform}.com {topic}" if platform != "google" else f"{topic} viral trending"
         params = {
             "q": query,
-            "num": max(10, limit),
-            "hl": language,
-            "gl": "us",
-            "gbv": 1,
-            "pws": 0,
+            "hl": f"{language}-US" if len(language) == 2 else language,
+            "gl": "US",
+            "ceid": "US:en",
         }
         async with httpx.AsyncClient(timeout=20, headers={"User-Agent": _SEARCH_USER_AGENT}) as client:
-            resp = await client.get("https://www.google.com/search", params=params)
+            resp = await client.get("https://news.google.com/rss/search", params=params)
             resp.raise_for_status()
-            return resp.text
+            root = ET.fromstring(resp.text)
+
+        items: list[dict[str, Any]] = []
+        for idx, node in enumerate(root.findall(".//item")[:limit], start=1):
+            title_el = node.find("title")
+            link_el = node.find("link")
+            pub_el = node.find("pubDate")
+            if title_el is None or not title_el.text:
+                continue
+            title = _normalize_text(title_el.text)
+            link = _normalize_text(link_el.text) if link_el is not None and link_el.text else None
+            published_at = None
+            if pub_el is not None and pub_el.text:
+                published_at = self._parse_rss_date(pub_el.text)
+            items.append({
+                "platform": platform,
+                "source_kind": "google_news_rss",
+                "title": title,
+                "url": link,
+                "author": _guess_author_from_url(link),
+                "summary": None,
+                "published_at": published_at,
+                "rank": idx,
+                "query": query,
+            })
+        return await self._enrich_items(items)
 
     def _platform_query(self, topic: str, platform: str) -> str:
         if platform == "google":
