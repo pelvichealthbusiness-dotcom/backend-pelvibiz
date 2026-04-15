@@ -17,7 +17,7 @@ class ApplyStyleRequest(BaseModel):
     scrape_id: str = Field(..., description="ID of the content account or analysis source to apply")
 
 
-# ── Stats sub-models ─────────────────────────────────────────────
+# ── Original 8 sub-models ────────────────────────────────────────
 
 class CaptionStats(BaseModel):
     caption_avg_length: float = 0
@@ -66,10 +66,58 @@ class ContentThemes(BaseModel):
     content_categories: dict[str, float] = Field(default_factory=dict)
 
 
+# ── New cross-analysis sub-models ────────────────────────────────
+
+class ProfileStats(BaseModel):
+    profile_followers: int = 0
+    profile_following: int = 0
+    profile_followers_following_ratio: float = 0
+    profile_total_posts: int = 0
+    profile_is_verified: bool = False
+    profile_biography: str = ""
+    profile_avg_days_between_posts: float | None = None
+
+
+class ContentTypePerformance(BaseModel):
+    content_type_performance: dict[str, dict] = Field(default_factory=dict)
+    best_content_type: str | None = None
+
+
+class EngagementDepth(BaseModel):
+    comments_to_likes_ratio: float = 0
+    conversation_score: str = "low"
+    viral_outliers: list[dict] = Field(default_factory=list)
+
+
+class CaptionOptimization(BaseModel):
+    caption_length_vs_engagement: dict[str, dict] = Field(default_factory=dict)
+    optimal_caption_length: str | None = None
+
+
+class HashtagPerformance(BaseModel):
+    hashtag_count_vs_engagement: dict[str, dict] = Field(default_factory=dict)
+    optimal_hashtag_count: str | None = None
+
+
+class ConsistencyScore(BaseModel):
+    consistency_score: int = 0
+    avg_days_between_posts: float | None = None
+    max_gap_days: int | None = None
+    current_streak_days: int | None = None
+    posting_regularity: str = "insufficient_data"
+
+
+class TopPostsAnalysis(BaseModel):
+    top_posts: list[dict] = Field(default_factory=list)
+    top_posts_patterns: dict = Field(default_factory=dict)
+
+
 # ── Composite metrics ────────────────────────────────────────────
 
 class StyleMetrics(BaseModel):
-    """Combines all 8 analysis modules into a single object."""
+    """Combines all 15 analysis modules into a single object."""
+
+    # ── Original 8 modules ──────────────────────────────────────
 
     # Caption analysis
     caption_avg_length: float = 0
@@ -110,6 +158,45 @@ class StyleMetrics(BaseModel):
     top_keywords: list[dict] = Field(default_factory=list)
     content_categories: dict[str, float] = Field(default_factory=dict)
 
+    # ── New cross-analysis modules ───────────────────────────────
+
+    # Profile stats
+    profile_followers: int = 0
+    profile_following: int = 0
+    profile_followers_following_ratio: float = 0
+    profile_total_posts: int = 0
+    profile_is_verified: bool = False
+    profile_biography: str = ""
+    profile_avg_days_between_posts: float | None = None
+
+    # Content type performance
+    content_type_performance: dict[str, dict] = Field(default_factory=dict)
+    best_content_type: str | None = None
+
+    # Engagement depth
+    comments_to_likes_ratio: float = 0
+    conversation_score: str = "low"
+    viral_outliers: list[dict] = Field(default_factory=list)
+
+    # Caption length optimization
+    caption_length_vs_engagement: dict[str, dict] = Field(default_factory=dict)
+    optimal_caption_length: str | None = None
+
+    # Hashtag count performance
+    hashtag_count_vs_engagement: dict[str, dict] = Field(default_factory=dict)
+    optimal_hashtag_count: str | None = None
+
+    # Consistency score
+    consistency_score: int = 0
+    avg_days_between_posts: float | None = None
+    max_gap_days: int | None = None
+    current_streak_days: int | None = None
+    posting_regularity: str = "insufficient_data"
+
+    # Top posts
+    top_posts: list[dict] = Field(default_factory=list)
+    top_posts_patterns: dict = Field(default_factory=dict)
+
 
 # ── Response models ───────────────────────────────────────────────
 
@@ -120,6 +207,7 @@ class AnalyzeResponse(BaseModel):
     followers: int
     metrics: StyleMetrics
     voice_summary: str | None = None
+    ai_recommendations: list[str] = Field(default_factory=list)
     analyzed_at: str | None = None
 
 

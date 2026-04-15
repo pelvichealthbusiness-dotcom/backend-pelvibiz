@@ -79,11 +79,38 @@ Write a concise, actionable voice profile."""
         except Exception as e:
             logger.warning(f"Voice summary generation failed: {e}")
 
-    # 4. Map metrics to frontend-expected format
-    hook_types = metrics.get('hook_types', {})
-    top_hook = max(hook_types, key=hook_types.get) if hook_types else 'mixed'
-    cta_types = metrics.get('cta_types', {})
-    top_cta = max(cta_types, key=cta_types.get) if cta_types else 'none'
+    # 4. Generate AI recommendations (optional, non-blocking)
+    ai_recommendations: list[str] = []
+    if request.generate_voice_summary:
+        try:
+            from openai import AsyncOpenAI
+            settings = get_settings()
+            client = AsyncOpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+
+            rec_prompt = f"""You are an Instagram growth strategist. Based on these account metrics, give exactly 5 short, concrete, actionable recommendations.
+
+Account: @{request.username} | {profile_data.get('followers', 0):,} followers
+Best content type: {metrics.get('best_content_type', 'unknown')}
+Optimal caption length: {metrics.get('optimal_caption_length', 'unknown')}
+Optimal hashtag count: {metrics.get('optimal_hashtag_count', 'unknown')}
+Consistency score: {metrics.get('consistency_score', 0)}/100 ({metrics.get('posting_regularity', 'unknown')})
+Conversation score: {metrics.get('conversation_score', 'unknown')} (comments/likes ratio: {metrics.get('comments_to_likes_ratio', 0):.3f})
+Engagement rate: {metrics.get('engagement_rate', 0):.2%}
+Viral outliers: {len(metrics.get('viral_outliers', []))} posts
+
+Reply with EXACTLY 5 lines. Each line: one sentence starting with an action verb. No bullets, no numbers, no headers."""
+
+            rec_response = await client.chat.completions.create(
+                model=settings.llm_model,
+                messages=[{"role": "user", "content": rec_prompt}],
+                temperature=0.6,
+                max_tokens=200,
+                timeout=15,
+            )
+            raw = rec_response.choices[0].message.content or ""
+            ai_recommendations = [line.strip() for line in raw.strip().splitlines() if line.strip()][:5]
+        except Exception as e:
+            logger.warning(f"AI recommendations generation failed: {e}")
 
     # 5. Save normalized content into the new pipeline
     saved = await content_service.store_scrape(
@@ -122,6 +149,7 @@ Write a concise, actionable voice profile."""
         followers=profile_data.get("followers", 0),
         metrics=metrics,
         voice_summary=voice_summary,
+        ai_recommendations=ai_recommendations,
     )
 
 
