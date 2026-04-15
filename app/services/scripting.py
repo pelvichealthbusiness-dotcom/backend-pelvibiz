@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from collections import Counter
 from typing import Any
 
@@ -8,6 +10,9 @@ from supabase import Client
 from app.dependencies import get_supabase_admin
 from app.services.content_intelligence import ContentIntelligenceService
 from app.services.brand import BrandService
+from app.core.gemini_client import get_gemini_client
+
+logger = logging.getLogger(__name__)
 
 
 class ScriptingService:
@@ -41,7 +46,21 @@ class ScriptingService:
         }).execute()
         run_id = run.data[0]['id'] if run.data else ''
 
-        hooks = self._build_hooks(source['source_topic'], source.get('hook_seed', ''), source.get('content_type', 'educational'), count)
+        competitor_gaps = (
+            self.content_service.get_competitor_gaps(user_id, competitor_handle)
+            if competitor_handle else {}
+        )
+        try:
+            hooks = await self._build_hooks_llm(
+                source['source_topic'],
+                source.get('hook_seed', ''),
+                source.get('content_type', 'educational'),
+                count,
+                competitor_gaps,
+            )
+        except Exception as exc:
+            logger.warning('[Scripting] Gemini hook generation failed, falling back to templates: %s', exc)
+            hooks = self._build_hooks(source['source_topic'], source.get('hook_seed', ''), source.get('content_type', 'educational'), count)
         saved: list[dict[str, Any]] = []
         for hook in hooks:
             payload = {
@@ -84,7 +103,14 @@ class ScriptingService:
         competitor_handle: str | None = None,
     ) -> dict[str, Any]:
         source = await self._resolve_source(user_id=user_id, topic=topic, research_topic_id=research_topic_id, idea_variation_id=idea_variation_id)
-        hook = selected_hook or self._build_hooks(source['source_topic'], source.get('hook_seed', ''), source.get('content_type', 'educational'), 1)[0]['hook_text']
+        if selected_hook:
+            hook = selected_hook
+        else:
+            try:
+                fallback_hooks = await self._build_hooks_llm(source['source_topic'], source.get('hook_seed', ''), source.get('content_type', 'educational'), 1, {})
+                hook = fallback_hooks[0]['hook_text']
+            except Exception:
+                hook = self._build_hooks(source['source_topic'], source.get('hook_seed', ''), source.get('content_type', 'educational'), 1)[0]['hook_text']
 
         run = self.supabase.table('scripting_runs').insert({
             'user_id': user_id,
@@ -95,7 +121,11 @@ class ScriptingService:
         }).execute()
         run_id = run.data[0]['id'] if run.data else ''
 
-        script = self._build_script(source['source_topic'], hook, source.get('hook_seed', ''), source.get('content_type', 'educational'))
+        try:
+            script = await self._build_script_llm(source['source_topic'], hook, source.get('hook_seed', ''), source.get('content_type', 'educational'))
+        except Exception as exc:
+            logger.warning('[Scripting] Gemini script generation failed, falling back to template: %s', exc)
+            script = self._build_script(source['source_topic'], hook, source.get('hook_seed', ''), source.get('content_type', 'educational'))
         payload = {
             'user_id': user_id,
             'run_id': run_id,
@@ -200,6 +230,143 @@ class ScriptingService:
         source['studio_context'] = studio_context
         source['hook_seed'] = '\n'.join(part for part in context_parts if part)
         return source
+
+    async def _build_hooks_llm(
+        self,
+        topic: str,
+        seed: str,
+        content_type: str,
+        count: int,
+        competitor_gaps: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Generate hooks using Gemini 2.5-flash. Raises on failure so caller can fallback."""
+        hook_gap_lines = ''
+        if competitor_gaps.get('hook_gaps'):
+            hook_gap_lines = '\nCompetitor hook gaps (angles your competitor uses that you can hijack or counter):\n' + '\n'.join(f'- {h}' for h in competitor_gaps['hook_gaps'][:5])
+
+        topic_gap_lines = ''
+        if competitor_gaps.get('topic_gaps'):
+            topic_gap_lines = '\nCompetitor topic gaps (subjects they own, find a fresh angle):\n' + '\n'.join(f'- {t}' for t in competitor_gaps['topic_gaps'][:3])
+
+        prompt = f"""You are an expert social media content strategist specializing in short-form video hooks for health and wellness creators.
+
+Generate {count} distinct, high-converting video hooks for the following topic.
+
+Topic: {topic}
+Content type: {content_type}
+Seed context: {seed[:300] if seed else 'none'}{hook_gap_lines}{topic_gap_lines}
+
+Rules:
+- Each hook must be a single punchy sentence (max 15 words) a creator would say on camera
+- Vary the frameworks: secret reveal, contrarian, question, experiment, comparison, educational
+- Make hooks specific to the topic — no generic filler
+- Score each hook from 0.0 to 1.0 based on virality potential
+
+Respond ONLY with a valid JSON array. No markdown, no explanation. Schema:
+[
+  {{
+    "hook_text": "string",
+    "hook_framework": "string (e.g. Secret Reveal, Contrarian Snapback, Question Hook)",
+    "hook_type": "string (e.g. secret_reveal, contrarian, question)",
+    "why_it_works": "string (one sentence)",
+    "score": float
+  }}
+]"""
+
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config={'response_mime_type': 'application/json'},
+        )
+        raw = response.text.strip()
+        hooks = json.loads(raw)
+        if not isinstance(hooks, list) or not hooks:
+            raise ValueError(f'Gemini returned unexpected structure: {raw[:200]}')
+
+        result: list[dict[str, Any]] = []
+        for h in hooks[:count]:
+            result.append({
+                'hook_framework': str(h.get('hook_framework', 'Custom')),
+                'hook_type': str(h.get('hook_type', 'custom')),
+                'content_type': content_type,
+                'score': max(0.0, min(1.0, float(h.get('score', 0.75)))),
+                'hook_text': str(h.get('hook_text', '')),
+                'why_it_works': str(h.get('why_it_works', '')),
+                'raw_data': {'source': 'gemini', 'topic': topic},
+            })
+        return result
+
+    async def _build_script_llm(
+        self,
+        topic: str,
+        hook: str,
+        seed: str,
+        content_type: str,
+    ) -> dict[str, Any]:
+        """Generate a full script using Gemini 2.5-flash. Raises on failure so caller can fallback."""
+        prompt = f"""You are an expert short-form video scriptwriter for health and wellness creators.
+
+Write a complete, ready-to-film video script using the hook provided.
+
+Topic: {topic}
+Hook (opening line): {hook}
+Content type: {content_type}
+Context: {seed[:300] if seed else 'none'}
+
+Structure the script as 4 beats:
+1. Hook beat — the opening hook line + 1 follow-up sentence to hold attention
+2. Story/Problem beat — 2-3 sentences establishing the problem or story
+3. Value beat — the core insight, tip, or transformation (2-4 sentences)
+4. CTA beat — a specific, direct call to action (1 sentence)
+
+Also provide:
+- filming_card: a compact director's note (what to show on camera, setting, energy)
+- caption: Instagram caption with hook, value, and hashtags
+- cta: the standalone CTA sentence
+
+Respond ONLY with a valid JSON object. No markdown, no explanation. Schema:
+{{
+  "hook_beat": "string",
+  "story_beat": "string",
+  "value_beat": "string",
+  "cta_beat": "string",
+  "script_body": "string (full concatenated script, numbered beats)",
+  "filming_card": "string",
+  "caption": "string",
+  "cta": "string",
+  "hook_framework": "string",
+  "hook_type": "string",
+  "recording_instructions": "string"
+}}"""
+
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config={'response_mime_type': 'application/json'},
+        )
+        raw = response.text.strip()
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError(f'Gemini returned unexpected structure: {raw[:200]}')
+
+        return {
+            'hook_framework': str(data.get('hook_framework', 'Hook-Story-Value-CTA')),
+            'hook_type': str(data.get('hook_type', 'Scripted Hook')),
+            'content_type': content_type,
+            'hook': hook,
+            'hook_beat': str(data.get('hook_beat', '')),
+            'story_beat': str(data.get('story_beat', '')),
+            'value_beat': str(data.get('value_beat', '')),
+            'cta_beat': str(data.get('cta_beat', '')),
+            'script_body': str(data.get('script_body', '')),
+            'filming_card': str(data.get('filming_card', '')),
+            'caption': str(data.get('caption', '')),
+            'cta': str(data.get('cta', '')),
+            'recording_instructions': str(data.get('recording_instructions', '')),
+            'raw_data': {'source': 'gemini', 'topic': topic},
+        }
 
     def _build_hooks(self, topic: str, seed: str, content_type: str, count: int) -> list[dict[str, Any]]:
         frameworks = [

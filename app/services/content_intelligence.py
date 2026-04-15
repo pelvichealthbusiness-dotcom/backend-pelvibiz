@@ -431,6 +431,85 @@ class ContentIntelligenceService:
 
         return '\n'.join(lines)
 
+    def get_competitor_gaps(self, user_id: str, competitor_handle: str) -> dict[str, Any]:
+        """
+        Return structured gap data for the given competitor handle.
+        Reads from competitor_analyses cache (max 24h). Returns empty arrays if not found.
+        """
+        from datetime import timedelta
+
+        empty: dict[str, Any] = {'hook_gaps': [], 'topic_gaps': [], 'white_space': []}
+        handle = competitor_handle.lstrip('@')
+
+        competitor_account = (
+            self.supabase.table('content_accounts')
+            .select('id')
+            .eq('user_id', user_id)
+            .eq('handle', handle)
+            .eq('account_type', 'competitor')
+            .maybe_single()
+            .execute()
+        )
+        if not competitor_account.data:
+            return empty
+
+        own_account = (
+            self.supabase.table('content_accounts')
+            .select('id')
+            .eq('user_id', user_id)
+            .eq('account_type', 'own')
+            .maybe_single()
+            .execute()
+        )
+        if not own_account.data:
+            return empty
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        cached = (
+            self.supabase.table('competitor_analyses')
+            .select('hook_gaps, topic_gaps, white_space')
+            .eq('user_id', user_id)
+            .eq('own_account_id', own_account.data['id'])
+            .eq('competitor_account_id', competitor_account.data['id'])
+            .gte('updated_at', cutoff)
+            .order('updated_at', desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not cached.data:
+            return empty
+
+        analysis = cached.data[0]
+        hook_gaps = analysis.get('hook_gaps') or []
+        topic_gaps = analysis.get('topic_gaps') or []
+        white_space = analysis.get('white_space') or []
+
+        # Normalise to plain string lists for frontend consumption
+        def _hook_str(h: Any) -> str:
+            if isinstance(h, dict):
+                freq = h.get('competitor_frequency', '')
+                text = h.get('hook_structure') or h.get('hook_text') or str(h)
+                return f"{text} ({freq}x)" if freq else text
+            return str(h)
+
+        def _topic_str(t: Any) -> str:
+            if isinstance(t, dict):
+                freq = t.get('competitor_frequency', '')
+                text = t.get('topic') or str(t)
+                return f"{text} ({freq}x)" if freq else text
+            return str(t)
+
+        def _space_str(w: Any) -> str:
+            if isinstance(w, dict):
+                return w.get('topic') or w.get('angle') or str(w)
+            return str(w)
+
+        return {
+            'hook_gaps': [_hook_str(h) for h in hook_gaps],
+            'topic_gaps': [_topic_str(t) for t in topic_gaps],
+            'white_space': [_space_str(w) for w in white_space],
+        }
+
     async def get_optional_studio_context(
         self,
         *,

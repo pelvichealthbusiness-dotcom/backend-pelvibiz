@@ -1,20 +1,6 @@
 import logging
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
-
-# Configure file logging
-LOG_DIR = Path("/root/pelvibiz-agent-api/logs")
-LOG_DIR.mkdir(exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_DIR / "app.log"),
-        logging.StreamHandler(),
-    ],
-)
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -24,7 +10,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.middleware.request_id import RequestIdMiddleware, request_id_var
 from app.routers import health, carousel, user, onboarding, wizard, ai_carousel, video, chat, analyzer, content, auth_router, video_trim
-from app.routers import user_preferences, content_generator, conversations, content_v2, competitors, research, ideation, scripting, social_intelligence
+from app.routers import user_preferences, content_generator, conversations, content_v2, competitors, research, ideation, scripting, social_intelligence as social_intelligence_router
 from app.routers import instagram as instagram_router
 from app.routers import chat_test_stream
 from app.routers import chat_stream, upload, admin
@@ -117,7 +103,6 @@ def create_app() -> FastAPI:
     app.include_router(research.router, prefix="/api/v1")
     app.include_router(ideation.router, prefix="/api/v1")
     app.include_router(scripting.router, prefix="/api/v1")
-    app.include_router(social_intelligence.router, prefix="/api/v1")
     app.include_router(auth_router.router, prefix="/api/v1")
     app.include_router(conversations.router, prefix="/api/v1")
     app.include_router(chat_test_stream.router, prefix="/api/v1")
@@ -128,6 +113,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_stream.router, prefix="/api/v1")
     app.include_router(post_generator.router, prefix="/api/v1")
     app.include_router(brand_stories_router, prefix="/api/v1")
+    app.include_router(social_intelligence_router.router, prefix="/api/v1")
 
     return app
 

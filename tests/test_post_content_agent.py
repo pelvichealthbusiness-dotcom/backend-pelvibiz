@@ -7,12 +7,14 @@ Tests cover:
 - chat_stream validator accepts generate_content + ai-post-generator
 """
 
+import json
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.agents.router import get_agent
 from app.agents.post_content import PostContentAgent, _build_fields_spec, _TEMPLATE_FIELDS
-from app.routers.chat_stream import ChatStreamRequest
+from app.routers.chat_stream import ChatStreamRequest, extract_text_from_chunks
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +101,18 @@ class TestChatStreamRequestValidation:
                 message="test",
                 wizard_mode="invalid_mode",
             )
+
+
+class TestChatStreamTextExtraction:
+    def test_extract_text_from_chunks_decodes_unicode_escapes(self):
+        chunks = [
+            f'0:{json.dumps("canción fácil ")}\n',
+            f'0:{json.dumps("con más tildes: acción")}\n',
+        ]
+
+        full_text = extract_text_from_chunks(chunks)
+
+        assert full_text == "canción fácil con más tildes: acción"
 
 
 # ---------------------------------------------------------------------------

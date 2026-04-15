@@ -6,6 +6,7 @@ from app.core.auth import UserContext, get_current_user
 from app.core.responses import success
 from app.models.competitors import CompareRequest, CompetitorAccountCreate
 from app.services.competitors import CompetitorService
+from app.services.content_intelligence import ContentIntelligenceService
 
 
 router = APIRouter(prefix='/competitors', tags=['competitors'])
@@ -54,3 +55,11 @@ async def compare_competitors(
 async def compare_competitor(handle: str, user: UserContext = Depends(get_current_user)):
     service = CompetitorService()
     return await service.compare_user_vs_competitor(user_id=user.user_id, handle=handle)
+
+
+@router.get('/{handle}/gaps')
+async def get_competitor_gaps(handle: str, user: UserContext = Depends(get_current_user)):
+    """Return structured hook_gaps, topic_gaps, white_space for a competitor. Uses 24h cache."""
+    service = ContentIntelligenceService()
+    gaps = service.get_competitor_gaps(user_id=user.user_id, competitor_handle=handle)
+    return success(gaps)

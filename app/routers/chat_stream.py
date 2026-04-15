@@ -10,6 +10,7 @@ Updated: wizard_mode "generate" skips conversation/message persistence.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Optional
 
@@ -83,18 +84,10 @@ def extract_text_from_chunks(chunks: list[str]) -> str:
     text_parts: list[str] = []
     for chunk in chunks:
         if chunk.startswith("0:"):
-            # Remove prefix — content is a JSON-encoded string
-            content = chunk[2:].strip()
-            if content.startswith('"') and content.endswith('"'):
-                content = content[1:-1]
-            # Unescape JSON string escapes
-            content = (
-                content
-                .replace("\\n", "\n")
-                .replace('\\"', '"')
-                .replace("\\\\\\\\", "\\\\")
-            )
-            text_parts.append(content)
+            # Remove prefix and decode the JSON string so unicode survives intact.
+            content = json.loads(chunk[2:].strip())
+            if isinstance(content, str):
+                text_parts.append(content)
     return "".join(text_parts)
 
 
