@@ -23,12 +23,47 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/instagram", tags=["instagram"])
 
 
-def _build_provider():
-    """Instantiate InstaloaderProvider (no session store needed for public scraping)."""
-    from app.services.instaloader_provider import InstaloaderProvider
-    from app.services.session_store import NullSessionStore
+def _build_scraper():
+    """Instantiate InstagramScraper (PrivateAPI → Apify → RapidAPI chain)."""
+    from app.services.instagram_scraper import InstagramScraper
 
-    return InstaloaderProvider(session_store=NullSessionStore())
+    return InstagramScraper()
+
+
+def _normalize_posts(posts: list[dict]) -> list[dict]:
+    """Convert InstagramScraper post format to ContentIntelligence format."""
+    from datetime import datetime, timezone
+
+    normalized = []
+    for p in posts:
+        # Convert epoch timestamp → ISO string
+        ts = p.get("timestamp", 0) or p.get("taken_at", 0)
+        posted_at: str | None = None
+        if ts:
+            try:
+                posted_at = datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+            except (ValueError, OSError):
+                pass
+
+        # Map numeric media_type / is_carousel → content_type string
+        if p.get("is_carousel"):
+            content_type = "carousel"
+        elif int(p.get("media_type", 1) or 1) == 2:
+            content_type = "reel"
+        else:
+            content_type = "photo"
+
+        normalized.append({
+            "source_post_id": str(p.get("id") or p.get("source_post_id") or ""),
+            "caption": p.get("caption") or "",
+            "posted_at": posted_at or p.get("posted_at"),
+            "likes": int(p.get("likes", 0) or 0),
+            "comments": int(p.get("comments", 0) or 0),
+            "views": int(p.get("views", 0) or 0),
+            "content_type": content_type,
+            "raw_data": p,
+        })
+    return normalized
 
 
 def _compute_avg_engagement(posts: list[dict]) -> float:
@@ -61,24 +96,12 @@ async def connect_instagram(
     body: ConnectRequest,
     user: UserContext = Depends(get_current_user),
 ):
-    from app.services.instaloader_provider import InstagramScraperError
-
     user_id = user.user_id
     username = body.username.strip().lstrip("@").lower()
 
-    provider = _build_provider()
-
-    try:
-        profile, posts = await provider.scrape_public(username, max_posts=30)
-    except InstagramScraperError as exc:
-        _raise_from_scraper_error(exc)
-
-    if not profile:
-        raise AgentAPIError(
-            message=f"No se pudo obtener el perfil de @{username}.",
-            code="SCRAPE_FAILED",
-            status_code=502,
-        )
+    scraper = _build_scraper()
+    profile, raw_posts = await scraper.scrape(username, max_posts=30)
+    posts = _normalize_posts(raw_posts)
 
     handle = profile.get("username", username)
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -199,8 +222,6 @@ async def sync_instagram(
     force: bool = Query(default=False),
     user: UserContext = Depends(get_current_user),
 ):
-    from app.services.instaloader_provider import InstagramScraperError
-
     user_id = user.user_id
     settings = get_settings()
     supabase = get_supabase_admin()
@@ -220,8 +241,6 @@ async def sync_instagram(
 
     is_own = own_handle and own_handle.lower() == handle
 
-    provider = _build_provider()
-
     # Enforce resync cooldown for own account
     if is_own and ig_last_sync_at and not force:
         try:
@@ -240,10 +259,9 @@ async def sync_instagram(
             pass
 
     account_type = "own" if is_own else "competitor"
-    try:
-        profile, posts = await provider.scrape_public(handle, max_posts=30)
-    except InstagramScraperError as exc:
-        _raise_from_scraper_error(exc)
+    scraper = _build_scraper()
+    profile, raw_posts = await scraper.scrape(handle, max_posts=30)
+    posts = _normalize_posts(raw_posts)
 
     # Count existing posts before upsert
     accounts_row = (
@@ -309,22 +327,3 @@ async def sync_instagram(
         account_type=account_type,
     )
 
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _raise_from_scraper_error(exc) -> None:
-    """Map InstagramScraperError codes to HTTP AgentAPIError. Never returns."""
-    code_map = {
-        "PRIVATE_PROFILE": 422,
-        "RATE_LIMITED": 429,
-        "PROFILE_NOT_FOUND": 404,
-    }
-    status_code = code_map.get(exc.code, 502)
-    raise AgentAPIError(
-        message=exc.message,
-        code=exc.code,
-        status_code=status_code,
-    ) from exc
