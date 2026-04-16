@@ -19,8 +19,42 @@ MAX_IMAGE_SIZE = 10 * 1024 * 1024    # 10 MB
 MAX_VIDEO_SIZE = 200 * 1024 * 1024   # 200 MB
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-m4v", "video/mpeg", "video/x-msvideo"}
+ALLOWED_VIDEO_TYPES = {
+    "video/mp4", "video/quicktime", "video/webm", "video/x-m4v",
+    "video/mpeg", "video/x-msvideo", "video/x-matroska",
+}
 ALLOWED_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_VIDEO_TYPES
+
+# Extension → canonical MIME type (used when browser sends application/octet-stream)
+_EXT_TO_MIME: dict[str, str] = {
+    "mp4": "video/mp4",
+    "mov": "video/quicktime",
+    "webm": "video/webm",
+    "m4v": "video/x-m4v",
+    "mpg": "video/mpeg",
+    "mpeg": "video/mpeg",
+    "avi": "video/x-msvideo",
+    "mkv": "video/x-matroska",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+}
+
+
+def _resolve_content_type(declared: str | None, filename: str | None) -> str:
+    """
+    Resolve the actual content type.
+    Falls back to extension-based detection when the browser sends a
+    generic type (application/octet-stream or empty).
+    """
+    if declared and declared not in ("application/octet-stream", "binary/octet-stream"):
+        return declared
+    if filename and "." in filename:
+        ext = filename.rsplit(".", 1)[-1].lower()
+        if ext in _EXT_TO_MIME:
+            return _EXT_TO_MIME[ext]
+    return declared or "application/octet-stream"
 
 
 def _get_max_size(content_type: str) -> int:
@@ -33,22 +67,16 @@ def _get_extension(filename: str | None, content_type: str) -> str:
     """Extract extension from filename, fallback to content_type mapping."""
     if filename and "." in filename:
         return filename.rsplit(".", 1)[-1].lower()
-    # Fallback mapping
-    mapping = {
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/webp": "webp",
-        "video/mp4": "mp4",
-    }
-    return mapping.get(content_type, "bin")
+    reverse = {v: k for k, v in _EXT_TO_MIME.items()}
+    return reverse.get(content_type, "bin")
 
 
 async def validate_upload(file: UploadFile) -> tuple[bytes, str]:
     """
-    Validate file type and size. Returns (content_bytes, content_type).
+    Validate file type and size. Returns (content_bytes, resolved_content_type).
     Raises ValueError on invalid input.
     """
-    content_type = file.content_type or "application/octet-stream"
+    content_type = _resolve_content_type(file.content_type, file.filename)
 
     if content_type not in ALLOWED_TYPES:
         raise ValueError(
