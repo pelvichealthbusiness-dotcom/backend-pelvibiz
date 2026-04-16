@@ -12,6 +12,7 @@ from urllib.parse import unquote, urlparse
 from xml.etree import ElementTree as ET
 
 import httpx
+from openai import AsyncOpenAI
 from supabase import Client
 
 from app.config import get_settings
@@ -120,6 +121,8 @@ class SocialIntelligenceService:
         self.supabase = supabase or get_supabase_admin()
         self.brand_service = BrandService(self.supabase)
         self.content_service = ContentIntelligenceService(self.supabase)
+        self._llm: AsyncOpenAI | None = None
+        self._llm_model: str = "openai/gpt-4.1-mini"
 
     async def run_research(
         self,
@@ -240,40 +243,81 @@ class SocialIntelligenceService:
 
         summary = self._build_summary(source_topic, research_items)
         keyword_bank = summary.get("keywords", [])[:10]
+        brand_profile = await self._load_brand_profile(user_id)
 
-        specs = [
-            ("Contrarian", "contrarian", "myth-busting", "Flip the obvious belief and open with tension."),
-            ("How To", "how-to", "educational", "People save clear steps; it feels actionable fast."),
-            ("Proof", "proof", "case-study", "Social proof lowers skepticism and increases trust."),
-            ("Checklist", "checklist", "carousel", "Checklists are easy to scan, save, and share."),
-            ("Story", "story", "reel", "A human story makes the topic feel real and memorable."),
-            ("Opportunity", "opportunity", "post", "Framing the upside gives the audience a reason to act now."),
-        ]
+        try:
+            llm_ideas = await self._generate_ideas_llm(
+                source_topic=source_topic,
+                research_items=research_items,
+                keyword_bank=keyword_bank,
+                brand_profile=brand_profile,
+                variations=variations,
+            )
+        except Exception as exc:
+            logger.warning("LLM ideation failed, falling back to templates: %s", exc)
+            llm_ideas = []
 
         variations_payload: list[dict[str, Any]] = []
-        for idx, (label, angle, content_type, reason) in enumerate(specs[:variations]):
-            hook = self._build_idea_hook(source_topic, angle, keyword_bank)
-            idea_keywords = self._idea_keywords(keyword_bank, label)
-            variations_payload.append({
-                "user_id": user_id,
-                "run_id": run_id,
-                "research_item_id": research_items[0].get("id") if research_items else None,
-                "source_topic": source_topic,
-                "title": f"{source_topic} - {label}",
-                "hook": hook,
-                "angle": angle,
-                "content_type": content_type,
-                "slides_suggestion": 6 if content_type == "carousel" else 5,
-                "score": round(0.96 - idx * 0.05, 2),
-                "why_it_works": f"{reason} Keywords: {', '.join(idea_keywords[:4]) if idea_keywords else source_topic}.",
-                "best_hooks": self._build_best_hooks(source_topic, hook, keyword_bank),
-                "raw_data": {
-                    "research_run_id": research_run_id,
-                    "research_item_ids": [row.get("id") for row in research_items[:6]],
-                    "keywords": idea_keywords,
-                    "signals": summary.get("signals", []),
-                },
-            })
+
+        if llm_ideas:
+            for idx, idea in enumerate(llm_ideas[:variations]):
+                hook = idea.get("hook", self._build_idea_hook(source_topic, idea.get("angle", "how-to"), keyword_bank))
+                content_type = idea.get("content_type", "educational")
+                idea_keywords = keyword_bank[:5]
+                variations_payload.append({
+                    "user_id": user_id,
+                    "run_id": run_id,
+                    "research_item_id": research_items[0].get("id") if research_items else None,
+                    "source_topic": source_topic,
+                    "title": idea.get("title", source_topic),
+                    "hook": hook,
+                    "angle": idea.get("angle", "creative"),
+                    "content_type": content_type,
+                    "slides_suggestion": 6 if content_type == "carousel" else 5,
+                    "score": round(idea.get("score", 0.96 - idx * 0.05), 2),
+                    "why_it_works": idea.get("why_it_works", ""),
+                    "best_hooks": idea.get("best_hooks") or self._build_best_hooks(source_topic, hook, keyword_bank),
+                    "raw_data": {
+                        "research_run_id": research_run_id,
+                        "research_item_ids": [row.get("id") for row in research_items[:6]],
+                        "keywords": idea_keywords,
+                        "signals": summary.get("signals", []),
+                        "llm_generated": True,
+                    },
+                })
+        else:
+            # Template fallback
+            specs = [
+                ("Contrarian", "contrarian", "myth-busting", "Flip the obvious belief and open with tension."),
+                ("How To", "how-to", "educational", "People save clear steps; it feels actionable fast."),
+                ("Proof", "proof", "case-study", "Social proof lowers skepticism and increases trust."),
+                ("Checklist", "checklist", "carousel", "Checklists are easy to scan, save, and share."),
+                ("Story", "story", "reel", "A human story makes the topic feel real and memorable."),
+                ("Opportunity", "opportunity", "post", "Framing the upside gives the audience a reason to act now."),
+            ]
+            for idx, (label, angle, content_type, reason) in enumerate(specs[:variations]):
+                hook = self._build_idea_hook(source_topic, angle, keyword_bank)
+                idea_keywords = self._idea_keywords(keyword_bank, label)
+                variations_payload.append({
+                    "user_id": user_id,
+                    "run_id": run_id,
+                    "research_item_id": research_items[0].get("id") if research_items else None,
+                    "source_topic": source_topic,
+                    "title": f"{source_topic} - {label}",
+                    "hook": hook,
+                    "angle": angle,
+                    "content_type": content_type,
+                    "slides_suggestion": 6 if content_type == "carousel" else 5,
+                    "score": round(0.96 - idx * 0.05, 2),
+                    "why_it_works": f"{reason} Keywords: {', '.join(idea_keywords[:4]) if idea_keywords else source_topic}.",
+                    "best_hooks": self._build_best_hooks(source_topic, hook, keyword_bank),
+                    "raw_data": {
+                        "research_run_id": research_run_id,
+                        "research_item_ids": [row.get("id") for row in research_items[:6]],
+                        "keywords": idea_keywords,
+                        "signals": summary.get("signals", []),
+                    },
+                })
 
         saved_variations: list[dict[str, Any]] = []
         for payload in variations_payload:
@@ -709,6 +753,108 @@ class SocialIntelligenceService:
         for item in variations:
             lines.append(f"- {item['hook']}")
         return "\n".join(lines)
+
+    async def _generate_ideas_llm(
+        self,
+        *,
+        source_topic: str,
+        research_items: list[dict[str, Any]],
+        keyword_bank: list[str],
+        brand_profile: dict[str, Any],
+        variations: int = 6,
+    ) -> list[dict[str, Any]]:
+        """Generate viral content ideas via LLM using research context + brand profile for style."""
+        brand_voice = brand_profile.get("brand_voice") or "educational and empowering"
+        brand_name = brand_profile.get("brand_name") or ""
+
+        research_context = ""
+        if research_items:
+            titles = [item.get("title", "") for item in research_items[:8] if item.get("title")]
+            summaries = [item.get("summary", "") for item in research_items[:4] if item.get("summary")]
+            research_context = "## What's trending on this topic right now\n"
+            research_context += "\n".join(f"- {t}" for t in titles)
+            if summaries:
+                research_context += "\n\n## Snippets from top results\n"
+                research_context += "\n".join(f"- {s[:200]}" for s in summaries)
+
+        keywords_str = ", ".join(keyword_bank[:8]) if keyword_bank else source_topic
+
+        system_prompt = f"""You are a viral content strategist for Instagram and TikTok creators.
+
+Your job: generate {variations} original, high-quality content ideas about "{source_topic}" based on what's trending and what drives engagement.
+The ideas are about the SEARCHED TOPIC — do not force a different subject.
+
+## Creator style{" (" + brand_name + ")" if brand_name else ""}
+- Brand voice: {brand_voice}
+
+{research_context}
+
+## Trending keywords
+{keywords_str}
+
+## What makes a great idea
+1. The TITLE is a specific, compelling hook — not a generic label like "Travel - Contrarian"
+2. It targets a real pain point, desire, or curiosity people have about this topic
+3. It has viral potential: saves, shares, or strong emotional response
+4. Vary the formats: some reels, some carousels, some story-driven
+
+## Output format
+Return a JSON object with an "ideas" array. Each idea:
+{{
+  "title": "The actual hook/title — specific and scroll-stopping",
+  "hook": "First sentence to open the video or carousel — grab attention immediately",
+  "angle": "one of: contrarian | how-to | proof | checklist | story | opportunity",
+  "content_type": "one of: reel | carousel | post | educational | myth-busting | case-study",
+  "score": 0.0 to 1.0 (viral potential estimate),
+  "why_it_works": "1-2 sentences: why this angle drives saves/shares/comments",
+  "best_hooks": ["3 alternative opening lines for this idea"]
+}}
+
+Generate exactly {variations} ideas. Every title must be specific and feel like something a real person would stop scrolling for."""
+
+        user_message = f'Generate {variations} viral content ideas about "{source_topic}".'
+
+        if self._llm is None:
+            settings = get_settings()
+            self._llm = AsyncOpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+            self._llm_model = settings.llm_model
+
+        response = await self._llm.chat.completions.create(
+            model=self._llm_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.8,
+            max_tokens=3000,
+            timeout=30,
+        )
+
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("LLM returned empty response for ideation")
+
+        data = json.loads(content)
+        ideas_list = data.get("ideas", data) if isinstance(data, dict) else data
+        if not isinstance(ideas_list, list):
+            raise ValueError(f"Unexpected LLM response shape: {type(ideas_list)}")
+
+        validated = []
+        for idea in ideas_list[:variations]:
+            if not isinstance(idea, dict):
+                continue
+            validated.append({
+                "title": str(idea.get("title") or source_topic).strip(),
+                "hook": str(idea.get("hook") or idea.get("title") or "").strip(),
+                "angle": str(idea.get("angle") or "creative").strip(),
+                "content_type": str(idea.get("content_type") or "educational").strip(),
+                "score": min(max(float(idea.get("score", 0.8)), 0.0), 1.0),
+                "why_it_works": str(idea.get("why_it_works") or "").strip(),
+                "best_hooks": idea.get("best_hooks") if isinstance(idea.get("best_hooks"), list) else [],
+            })
+
+        return validated
 
     def _build_idea_hook(self, topic: str, angle: str, keywords: list[str]) -> str:
         keyword = keywords[0] if keywords else topic

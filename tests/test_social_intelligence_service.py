@@ -110,7 +110,7 @@ def test_social_research_saves_runs_and_items():
     assert service.supabase.calls[1][0] == "social_research_items"
 
 
-def test_social_ideation_generates_six_variations():
+def test_social_ideation_falls_back_to_templates_when_llm_unavailable():
     client = _Client({
         "social_research_items": [
             {"id": "item-1", "title": "Pregnancy safety tips", "summary": "high engagement", "platform": "instagram", "viral_score": 0.9, "created_at": "2026-04-15T00:00:00Z"},
@@ -128,12 +128,86 @@ def test_social_ideation_generates_six_variations():
 
     service._load_brand_profile = load_brand  # type: ignore[method-assign]
 
+    async def llm_fail(**_kwargs):
+        raise RuntimeError("No LLM in test environment")
+
+    service._generate_ideas_llm = llm_fail  # type: ignore[method-assign]
+
     result = asyncio.run(service.generate_ideas(user_id="user-1", topic="embarazadas", variations=6))
 
     assert result["ready"] is True
     assert len(result["variations"]) == 6
+    # Fallback titles keep the old "topic - Label" format
+    assert any("embarazadas" in v["title"] for v in result["variations"])
     assert client.calls[0][0] == "social_idea_runs"
     assert client.calls[1][0] == "social_idea_variations"
+
+
+def test_social_ideation_uses_llm_ideas_when_available():
+    client = _Client({
+        "social_research_items": [
+            {"id": "item-1", "title": "Pelvic floor exercises going viral", "summary": "trending", "platform": "instagram", "viral_score": 0.95, "created_at": "2026-04-15T00:00:00Z"},
+        ]
+    })
+    service = _Service(client)
+
+    async def load_items(**_kwargs):
+        return client.datasets["social_research_items"]
+
+    service._load_research_items = load_items  # type: ignore[method-assign]
+
+    async def load_brand(_user_id):
+        return {
+            "brand_name": "PelviBiz",
+            "niche": "pelvic health",
+            "target_audience": "women postpartum",
+            "brand_voice": "warm and educational",
+        }
+
+    service._load_brand_profile = load_brand  # type: ignore[method-assign]
+
+    llm_ideas = [
+        {
+            "title": "The pelvic floor mistake every new mom makes after birth",
+            "hook": "Nobody tells you this in the hospital discharge paper",
+            "angle": "contrarian",
+            "content_type": "reel",
+            "score": 0.93,
+            "why_it_works": "Addresses a fear-based pain point specific to postpartum women",
+            "best_hooks": [
+                "Nobody tells you this in the hospital discharge paper",
+                "What your OB forgot to mention about recovery",
+                "The one thing postpartum docs skip",
+            ],
+        },
+        {
+            "title": "5 signs your core still isn't healed 6 months postpartum",
+            "hook": "If any of these feel familiar, keep watching",
+            "angle": "checklist",
+            "content_type": "carousel",
+            "score": 0.89,
+            "why_it_works": "Checklist format drives saves; specific timeline creates urgency",
+            "best_hooks": [
+                "If any of these feel familiar, keep watching",
+                "Still leaking at 6 months? Here's why",
+                "Your body is telling you something — learn what",
+            ],
+        },
+    ]
+
+    async def llm_succeed(**_kwargs):
+        return llm_ideas
+
+    service._generate_ideas_llm = llm_succeed  # type: ignore[method-assign]
+
+    result = asyncio.run(service.generate_ideas(user_id="user-1", variations=2))
+
+    assert result["ready"] is True
+    assert len(result["variations"]) == 2
+    assert result["variations"][0]["title"] == "The pelvic floor mistake every new mom makes after birth"
+    assert result["variations"][0]["raw_data"]["llm_generated"] is True
+    assert result["variations"][1]["title"] == "5 signs your core still isn't healed 6 months postpartum"
+    assert result["variations"][1]["slides_suggestion"] == 6  # carousel → 6
 
 
 def test_social_script_builds_hook_pack_and_script():
