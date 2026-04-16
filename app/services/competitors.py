@@ -242,10 +242,12 @@ class CompetitorService:
         """Main comparison. Caches results in competitor_analyses."""
         own_account = self._get_account_by_handle(user_id, own_handle, account_type='own')
         own_posts = self._get_posts_for_account(own_account['id'], window_days) if own_account else []
+        own_benchmarks = self._compute_benchmarks(own_posts, window_days) if own_posts else None
         own_summary = {
             'handle': own_handle,
             'account_id': own_account['id'] if own_account else None,
             'post_count': len(own_posts),
+            'benchmarks': own_benchmarks.model_dump() if own_benchmarks else None,
         }
 
         competitor_results: list[CompetitorResult] = []
@@ -302,7 +304,6 @@ class CompetitorService:
                 )
             else:
                 benchmarks = self._compute_benchmarks(comp_posts, window_days)
-                own_benchmarks = self._compute_benchmarks(own_posts, window_days) if own_posts else None
                 cadence_delta = None
                 if own_benchmarks is not None:
                     cadence_delta = round(benchmarks.posts_per_week - own_benchmarks.posts_per_week, 2)

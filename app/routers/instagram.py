@@ -151,45 +151,55 @@ async def instagram_status(
     settings = get_settings()
     supabase = get_supabase_admin()
 
-    profile_row = (
-        supabase.table("profiles")
-        .select("ig_username, ig_connected_at, ig_last_sync_at")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
+    _not_connected = InstagramStatus(
+        connected=False,
+        handle=None,
+        post_count=0,
+        last_sync_at=None,
+        can_sync_at=None,
     )
+
+    try:
+        profile_row = (
+            supabase.table("profiles")
+            .select("ig_username, ig_last_sync_at")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("instagram_status: profiles query failed: %s", exc)
+        return _not_connected
+
     profile_data = (profile_row.data if profile_row else None) or {}
     ig_username: str | None = profile_data.get("ig_username")
     ig_last_sync_at: str | None = profile_data.get("ig_last_sync_at")
 
     if not ig_username:
-        return InstagramStatus(
-            connected=False,
-            handle=None,
-            post_count=0,
-            last_sync_at=None,
-            can_sync_at=None,
-        )
+        return _not_connected
 
     # Count own-account posts via content_accounts join
-    accounts_row = (
-        supabase.table("content_accounts")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("account_type", "personal")
-        .maybe_single()
-        .execute()
-    )
     post_count = 0
-    if accounts_row and accounts_row.data:
-        account_id = accounts_row.data["id"]
-        count_row = (
-            supabase.table("content")
-            .select("id", count="exact")
-            .eq("account_id", account_id)
+    try:
+        accounts_row = (
+            supabase.table("content_accounts")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("account_type", "personal")
+            .maybe_single()
             .execute()
         )
-        post_count = count_row.count or 0
+        if accounts_row and accounts_row.data:
+            account_id = accounts_row.data["id"]
+            count_row = (
+                supabase.table("content")
+                .select("id", count="exact")
+                .eq("account_id", account_id)
+                .execute()
+            )
+            post_count = count_row.count or 0
+    except Exception as exc:
+        logger.warning("instagram_status: post count query failed: %s", exc)
 
     # Compute can_sync_at
     can_sync_at: str | None = None
