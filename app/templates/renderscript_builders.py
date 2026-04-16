@@ -854,17 +854,22 @@ def build_edu_steps(
 ) -> dict:
     clip_count = _resolve_clip_count(request, 4, 2)
     dur = _resolve_target_duration(request, 30.0)
+
+    videos = request.video_urls or []
+    # Cap clip_count to number of uploaded videos — prevents silent URL reuse
+    # when user uploads fewer videos than the template default (4 clips)
+    if videos:
+        clip_count = min(clip_count, len(videos))
+
     clip_dur = dur / clip_count
 
     source = _base_source(dur)
     els = source["elements"]
 
-    videos = request.video_urls or []
     for i in range(clip_count):
-        url = videos[i] if i < len(videos) else (videos[-1] if videos else "")
-        if url:
-            els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
-                                   round(i * clip_dur, 3), round(clip_dur, 3), volume="0%"))
+        url = videos[i]
+        els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
+                               round(i * clip_dur, 3), round(clip_dur, 3), volume="0%"))
 
     els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="48%"))
 
