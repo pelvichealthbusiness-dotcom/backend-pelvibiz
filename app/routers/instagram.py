@@ -337,3 +337,122 @@ async def sync_instagram(
         account_type=account_type,
     )
 
+
+# ---------------------------------------------------------------------------
+# GET /instagram/insights
+# ---------------------------------------------------------------------------
+
+
+@router.get("/insights")
+async def get_own_insights(
+    user: UserContext = Depends(get_current_user),
+):
+    """Return virality stats and top posts for the user's own Instagram account."""
+    from collections import Counter
+    user_id = user.user_id
+    supabase = get_supabase_admin()
+
+    # Resolve personal account
+    account_row = (
+        supabase.table("content_accounts")
+        .select("id, handle, metadata")
+        .eq("user_id", user_id)
+        .eq("account_type", "personal")
+        .maybe_single()
+        .execute()
+    )
+    if not account_row or not account_row.data:
+        return {
+            "profile": {},
+            "summary": {},
+            "top_posts": [],
+            "viral_posts": [],
+        }
+
+    account_id = account_row.data["id"]
+    handle = account_row.data.get("handle", "")
+    account_meta: dict = account_row.data.get("metadata") or {}
+
+    # Fetch posts
+    feed_row = (
+        supabase.table("content_with_scores")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("account_id", account_id)
+        .order("scraped_at", desc=True)
+        .limit(50)
+        .execute()
+    )
+    feed: list[dict] = feed_row.data or []
+
+    if not feed:
+        return {
+            "profile": account_meta,
+            "summary": {},
+            "top_posts": [],
+            "viral_posts": [],
+        }
+
+    n = len(feed)
+    views_list    = [int(r.get("views", 0) or 0) for r in feed]
+    likes_list    = [int(r.get("likes", 0) or 0) for r in feed]
+    comments_list = [int(r.get("comments", 0) or 0) for r in feed]
+    saves_list    = [int(r.get("saves", 0) or 0) for r in feed]
+    eng_list      = [float(r.get("engagement_rate", 0) or 0) for r in feed]
+
+    avg_views    = round(sum(views_list) / n, 0)
+    avg_likes    = round(sum(likes_list) / n, 0)
+    avg_comments = round(sum(comments_list) / n, 1)
+    avg_saves    = round(sum(saves_list) / n, 1)
+    avg_engagement = round(sum(eng_list) / n, 4) if any(eng_list) else None
+
+    posts_per_week: float | None = None
+    dates = [r.get("posted_at") or r.get("scraped_at") for r in feed if r.get("posted_at") or r.get("scraped_at")]
+    if len(dates) >= 2:
+        try:
+            from datetime import datetime as _dt
+            parsed = sorted([_dt.fromisoformat(d.replace("Z", "+00:00")) for d in dates])
+            span_days = max((parsed[-1] - parsed[0]).days, 1)
+            posts_per_week = round(n / (span_days / 7), 1)
+        except Exception:
+            pass
+
+    topics        = Counter(r.get("topic") for r in feed if r.get("topic"))
+    hooks         = Counter(r.get("hook_structure") for r in feed if r.get("hook_structure"))
+    content_types = Counter(r.get("content_type") for r in feed if r.get("content_type"))
+
+    top_posts = sorted(feed, key=lambda r: int(r.get("views", 0) or 0), reverse=True)[:5]
+    viral_posts = [
+        r for r in feed
+        if avg_views > 0 and int(r.get("views", 0) or 0) >= avg_views * 2
+    ]
+    viral_posts = sorted(viral_posts, key=lambda r: int(r.get("views", 0) or 0), reverse=True)[:5]
+
+    return {
+        "handle": handle,
+        "profile": {
+            "followers": account_meta.get("followers", 0),
+            "following": account_meta.get("following", 0),
+            "biography": account_meta.get("biography", ""),
+            "is_verified": account_meta.get("is_verified", False),
+            "full_name": account_meta.get("full_name", ""),
+        },
+        "competitor_summary": {
+            "total_posts": n,
+            "avg_views": avg_views,
+            "avg_likes": avg_likes,
+            "avg_comments": avg_comments,
+            "avg_saves": avg_saves,
+            "avg_engagement": avg_engagement,
+            "posts_per_week": posts_per_week,
+            "top_topics": dict(topics),
+            "top_hooks": dict(hooks),
+            "top_content_types": dict(content_types),
+        },
+        "gaps": [],
+        "shared_topics": [],
+        "top_competitor_posts": top_posts,
+        "viral_posts": viral_posts,
+        "user_summary": {},
+    }
+
