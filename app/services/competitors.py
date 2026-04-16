@@ -71,6 +71,14 @@ class CompetitorService:
         )
         return result.data or []
 
+    async def delete_competitor(self, *, user_id: str, handle: str) -> None:
+        self.supabase.table('content_accounts') \
+            .delete() \
+            .eq('user_id', user_id) \
+            .eq('handle', handle) \
+            .eq('account_type', 'competitor') \
+            .execute()
+
     async def get_competitor_feed(
         self,
         *,

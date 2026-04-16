@@ -66,3 +66,11 @@ async def get_competitor_gaps(handle: str, user: UserContext = Depends(get_curre
     service = ContentIntelligenceService()
     gaps = service.get_competitor_gaps(user_id=user.user_id, competitor_handle=handle)
     return success(gaps)
+
+
+@router.delete('/{handle}')
+async def delete_competitor(handle: str, user: UserContext = Depends(get_current_user)):
+    """Remove a competitor account and all its associated data."""
+    service = CompetitorService()
+    await service.delete_competitor(user_id=user.user_id, handle=handle)
+    return success({'deleted': True})
