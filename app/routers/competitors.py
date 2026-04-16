@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import UserContext, get_current_user
 from app.core.responses import success
+from app.dependencies import get_supabase_admin
 from app.models.competitors import CompareRequest, CompetitorAccountCreate
 from app.services.competitors import CompetitorService
 from app.services.content_intelligence import ContentIntelligenceService
 
-
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/competitors', tags=['competitors'])
 
 
@@ -61,6 +64,24 @@ async def compare_competitors(
         window_days=request.window_days,
         force_recompute=request.force_recompute,
     )
+
+    # Track competitors usage for credit counting
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("requests_log").insert({
+            "id": str(uuid.uuid4()),
+            "user_id": user.user_id,
+            "agent_type": "competitors",
+            "message": "",
+            "title": request.own_handle,
+            "reply": "",
+            "caption": "",
+            "media_urls": ["usage"],
+            "published": False,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Failed to track competitors usage: {e}")
+
     return success(result.model_dump())
 
 

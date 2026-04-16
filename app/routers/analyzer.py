@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from app.services.auth import get_current_user
@@ -160,6 +161,23 @@ Reply with EXACTLY 5 lines. Each line: one sentence starting with an action verb
             }).eq("id", scrape_id).execute()
         except Exception as e:
             logger.warning(f"Failed to persist analysis metadata: {e}")
+
+    # Track style-analyzer usage for credit counting
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("requests_log").insert({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "agent_type": "style-analyzer",
+            "message": "",
+            "title": request.username,
+            "reply": "",
+            "caption": "",
+            "media_urls": ["usage"],
+            "published": False,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Failed to track style-analyzer usage: {e}")
 
     return AnalyzeResponse(
         scrape_id=scrape_id,
