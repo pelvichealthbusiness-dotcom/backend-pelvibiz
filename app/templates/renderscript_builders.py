@@ -478,7 +478,7 @@ def _caption_elem(
         "font_family": CAPTION_FONT,   # Anton
         "font_weight": "900",
         "font_size": "8 vmin",
-        "letter_spacing": "2%",
+        "letter_spacing": "5%",
         "fill_color": "#FFFFFF",
         "stroke_color": "#000000",
         "stroke_width": "1.5 vmin",
