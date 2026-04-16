@@ -16,7 +16,7 @@ BUCKET = "chat-media"
 
 # Validation constants
 MAX_IMAGE_SIZE = 10 * 1024 * 1024    # 10 MB
-MAX_VIDEO_SIZE = 100 * 1024 * 1024   # 100 MB
+MAX_VIDEO_SIZE = 200 * 1024 * 1024   # 200 MB
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-m4v", "video/mpeg", "video/x-msvideo"}
