@@ -142,6 +142,25 @@ Reply with EXACTLY 5 lines. Each line: one sentence starting with an action verb
     account = saved.get('account', {})
     scrape_id = account.get('id', '')
 
+    # Persist analysis results so they can be retrieved without re-scraping
+    if scrape_id:
+        try:
+            supabase = get_supabase_admin()
+            supabase.table("content_accounts").update({
+                "metadata": {
+                    "followers": profile_data.get('followers', 0),
+                    "following": profile_data.get('following', 0),
+                    "is_verified": profile_data.get('is_verified', False),
+                    "post_count": len(posts),
+                    "style_metrics": metrics,
+                    "voice_summary": voice_summary,
+                    "ai_recommendations": ai_recommendations,
+                    "analyzed_at": datetime.now(timezone.utc).isoformat(),
+                }
+            }).eq("id", scrape_id).execute()
+        except Exception as e:
+            logger.warning(f"Failed to persist analysis metadata: {e}")
+
     return AnalyzeResponse(
         scrape_id=scrape_id,
         username=request.username,
@@ -197,6 +216,44 @@ async def apply_style(
         content_style_brief=style_brief.strip(),
         source_username=source_username,
     )
+
+
+@router.get("/accounts")
+async def list_analyzed_accounts(user: dict = Depends(get_current_user)):
+    """List all accounts that have been analyzed with the style analyzer for this user."""
+    supabase = get_supabase_admin()
+    result = (
+        supabase.table("content_accounts")
+        .select("id, handle, display_name, metadata, created_at")
+        .eq("user_id", user["id"])
+        .not_.is_("metadata->style_metrics", "null")
+        .order("created_at", desc=True)
+        .limit(10)
+        .execute()
+    )
+    return {"accounts": result.data or []}
+
+
+@router.delete("/accounts/{account_id}")
+async def delete_analyzed_account(account_id: str, user: dict = Depends(get_current_user)):
+    """Delete a style-analyzed account and all its scraped posts."""
+    supabase = get_supabase_admin()
+    # Verify ownership before deleting
+    check = (
+        supabase.table("content_accounts")
+        .select("id")
+        .eq("id", account_id)
+        .eq("user_id", user["id"])
+        .maybe_single()
+        .execute()
+    )
+    if not check.data:
+        from app.services.exceptions import AgentAPIError
+        raise AgentAPIError(message="Account not found", code="NOT_FOUND", status_code=404)
+
+    supabase.table("content_posts").delete().eq("account_id", account_id).execute()
+    supabase.table("content_accounts").delete().eq("id", account_id).eq("user_id", user["id"]).execute()
+    return {"deleted": True, "id": account_id}
 
 
 @router.get("/brief")
