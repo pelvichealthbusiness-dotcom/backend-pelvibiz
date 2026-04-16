@@ -20,6 +20,16 @@ async def list_competitors(user: UserContext = Depends(get_current_user)):
     return {'items': await service.list_competitors(user_id=user.user_id)}
 
 
+# NOTE: /stats must be declared BEFORE /{handle} routes to avoid routing conflicts.
+@router.get('/stats')
+async def list_competitor_stats(user: UserContext = Depends(get_current_user)):
+    """Return scraped stats for all competitor accounts (from account_stats view)."""
+    service = ContentIntelligenceService()
+    all_stats = await service.list_account_stats(user_id=user.user_id)
+    competitor_stats = [s for s in all_stats if s.get('account_type') == 'competitor']
+    return {'items': competitor_stats}
+
+
 @router.post('')
 async def add_competitor(body: CompetitorAccountCreate, user: UserContext = Depends(get_current_user)):
     service = CompetitorService()
