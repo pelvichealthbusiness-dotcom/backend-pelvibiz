@@ -458,7 +458,7 @@ def _caption_elem(
     """OpusClip-style caption element.
 
     Heavy font (Anton 900), white text, thick black stroke, drop shadow.
-    No background box — legibility comes from stroke + shadow.
+    Max _MAX_CAPTION_WORDS words per block — split by _split_phrase before calling.
     """
     return {
         "type": "text",
@@ -470,18 +470,49 @@ def _caption_elem(
         "x": "50%", "y": y,
         "x_anchor": "50%", "y_anchor": "50%",
         "x_alignment": "50%",
-        "width": "90%",
+        "width": "85%",
         "font_family": CAPTION_FONT,   # Anton
         "font_weight": "900",
-        "font_size": "6.5 vmin",
+        "font_size": "7.5 vmin",
         "fill_color": "#FFFFFF",
         "stroke_color": "#000000",
-        "stroke_width": "1.8 vmin",
-        "shadow_color": "rgba(0,0,0,0.8)",
-        "shadow_offset_x": "0.4 vmin",
-        "shadow_offset_y": "0.4 vmin",
-        "shadow_blur": "0.2 vmin",
+        "stroke_width": "2 vmin",
+        "shadow_color": "rgba(0,0,0,0.9)",
+        "shadow_offset_x": "0.3 vmin",
+        "shadow_offset_y": "0.3 vmin",
+        "shadow_blur": "0.5 vmin",
     }
+
+
+_MAX_CAPTION_WORDS = 5
+
+
+def _split_phrase(block: PhraseBlock, max_words: int = _MAX_CAPTION_WORDS) -> list[PhraseBlock]:
+    """Split a long PhraseBlock into shorter sub-blocks of ≤ max_words.
+
+    Time is distributed proportionally by word count so each sub-block
+    gets a duration proportional to how many words it contains.
+    """
+    words = block.text.split()
+    if len(words) <= max_words:
+        return [block]
+
+    total_dur = block.end - block.start
+    chunks: list[list[str]] = []
+    for i in range(0, len(words), max_words):
+        chunks.append(words[i : i + max_words])
+
+    result: list[PhraseBlock] = []
+    cursor = block.start
+    for chunk in chunks:
+        chunk_dur = total_dur * len(chunk) / len(words)
+        result.append(PhraseBlock(
+            text=" ".join(chunk),
+            start=round(cursor, 3),
+            end=round(cursor + chunk_dur, 3),
+        ))
+        cursor += chunk_dur
+    return result
 
 
 def _append_captions(
@@ -490,16 +521,23 @@ def _append_captions(
     y: str = "78%",
     base_track: int = 500,
 ) -> None:
-    """Append OpusClip-style caption elements to `elements` in-place."""
-    for i, block in enumerate(phrase_blocks):
-        duration = block.end - block.start
-        elements.append(_caption_elem(
-            track=base_track + i,
-            text=block.text,
-            time=block.start,
-            duration=duration,
-            y=y,
-        ))
+    """Append OpusClip-style caption elements to `elements` in-place.
+
+    Long phrase blocks are automatically split so no caption shows
+    more than _MAX_CAPTION_WORDS words at once.
+    """
+    track = base_track
+    for block in phrase_blocks:
+        for sub in _split_phrase(block):
+            duration = sub.end - sub.start
+            elements.append(_caption_elem(
+                track=track,
+                text=sub.text,
+                time=sub.start,
+                duration=duration,
+                y=y,
+            ))
+            track += 1
 
 
 # ── Talking Head ──────────────────────────────────────────────────────────
