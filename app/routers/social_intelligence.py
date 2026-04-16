@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import UserContext, get_current_user
 from app.dependencies import get_supabase_admin
@@ -41,7 +41,11 @@ def _track_usage(user_id: str, feature: str) -> None:
 @router.post("/research")
 async def research(body: SocialResearchRequest, user: UserContext = Depends(get_current_user)):
     service = SocialIntelligenceService()
-    result = await service.run_research(user_id=user.user_id, topic=body.topic, platforms=body.platforms, limit=body.limit, language=body.language)
+    try:
+        result = await service.run_research(user_id=user.user_id, topic=body.topic, platforms=body.platforms, limit=body.limit, language=body.language)
+    except RuntimeError as exc:
+        logger.error("Social research failed for user %s topic=%r: %s", user.user_id, body.topic, exc)
+        raise HTTPException(status_code=503, detail="Search sources are currently unavailable. Please try again in a moment.") from exc
     _track_usage(user.user_id, "content-studio")
     return result
 

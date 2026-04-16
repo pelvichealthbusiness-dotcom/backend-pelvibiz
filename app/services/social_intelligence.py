@@ -581,7 +581,7 @@ class SocialIntelligenceService:
                 "url": url,
                 "author": _guess_author_from_url(url),
                 "summary": _normalize_text(r.get("description") or ""),
-                "published_at": r.get("age"),
+                "published_at": self._parse_brave_age(r.get("age")),
                 "rank": idx,
                 "query": query,
             })
@@ -1020,3 +1020,26 @@ Generate exactly {variations} ideas. Every title must be specific and feel like 
             return dt.astimezone(timezone.utc).isoformat()
         except Exception:
             return None
+
+    def _parse_brave_age(self, age: str | None) -> str | None:
+        """Convert Brave Search relative age string (e.g. '3 weeks ago') to ISO timestamp."""
+        if not age:
+            return None
+        import re
+        now = datetime.now(tz=timezone.utc)
+        match = re.match(r"(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago", age, re.IGNORECASE)
+        if not match:
+            return None
+        value, unit = int(match.group(1)), match.group(2).lower()
+        deltas = {
+            "second": {"seconds": value},
+            "minute": {"minutes": value},
+            "hour": {"hours": value},
+            "day": {"days": value},
+            "week": {"weeks": value},
+            "month": {"days": value * 30},
+            "year": {"days": value * 365},
+        }
+        from datetime import timedelta
+        delta = timedelta(**deltas.get(unit, {"days": 0}))
+        return (now - delta).isoformat()
