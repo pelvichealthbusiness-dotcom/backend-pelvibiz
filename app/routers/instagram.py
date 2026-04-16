@@ -263,6 +263,15 @@ async def sync_instagram(
     profile, raw_posts = await scraper.scrape(handle, max_posts=30)
     posts = _normalize_posts(raw_posts)
 
+    # Build profile metadata to persist alongside scraped posts
+    profile_metadata = {
+        'followers': int(profile.get('followers', 0) or 0),
+        'following': int(profile.get('following', 0) or 0),
+        'biography': profile.get('biography') or profile.get('bio') or '',
+        'is_verified': bool(profile.get('is_verified', False)),
+        'full_name': profile.get('full_name') or profile.get('name') or '',
+    }
+
     # Count existing posts before upsert
     accounts_row = (
         supabase.table("content_accounts")
@@ -288,6 +297,7 @@ async def sync_instagram(
         handle=handle,
         posts=posts,
         account_type=account_type,
+        metadata=profile_metadata,
     )
 
     # Recount after upsert

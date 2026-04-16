@@ -119,17 +119,57 @@ class CompetitorService:
         user_summary = brief.get('summary', {})
         competitor_feed = await self.get_competitor_feed(user_id=user_id, handle=handle)
 
+        # Fetch stored profile metadata (followers, biography, etc.)
+        account_row = (
+            self.supabase.table('content_accounts')
+            .select('metadata, display_name')
+            .eq('user_id', user_id)
+            .eq('handle', handle)
+            .maybe_single()
+            .execute()
+        )
+        account_meta: dict[str, Any] = {}
+        if account_row and account_row.data:
+            account_meta = account_row.data.get('metadata') or {}
+
         if not competitor_feed:
             return {
                 'user_summary': user_summary,
                 'competitor_summary': {},
-                'gaps': ['No competitor content found'],
+                'profile': account_meta,
+                'gaps': ['No competitor content found — try re-scanning this account.'],
                 'shared_topics': [],
                 'top_competitor_posts': [],
+                'viral_posts': [],
             }
 
-        topics = Counter(row.get('topic') for row in competitor_feed if row.get('topic'))
-        hooks = Counter(row.get('hook_structure') for row in competitor_feed if row.get('hook_structure'))
+        n = len(competitor_feed)
+        views_list  = [int(row.get('views', 0)  or 0) for row in competitor_feed]
+        likes_list  = [int(row.get('likes', 0)  or 0) for row in competitor_feed]
+        comments_list = [int(row.get('comments', 0) or 0) for row in competitor_feed]
+        saves_list  = [int(row.get('saves', 0)  or 0) for row in competitor_feed]
+        engagement_list = [float(row.get('engagement_rate', 0) or 0) for row in competitor_feed]
+
+        avg_views    = round(sum(views_list)    / n, 0)
+        avg_likes    = round(sum(likes_list)    / n, 0)
+        avg_comments = round(sum(comments_list) / n, 1)
+        avg_saves    = round(sum(saves_list)    / n, 1)
+        avg_engagement = round(sum(engagement_list) / n, 4) if any(engagement_list) else None
+
+        # Posts per week from date range
+        posts_per_week: float | None = None
+        dates = [row.get('posted_at') or row.get('scraped_at') for row in competitor_feed if row.get('posted_at') or row.get('scraped_at')]
+        if len(dates) >= 2:
+            try:
+                from datetime import datetime as _dt
+                parsed = sorted([_dt.fromisoformat(d.replace('Z', '+00:00')) for d in dates])
+                span_days = max((parsed[-1] - parsed[0]).days, 1)
+                posts_per_week = round(n / (span_days / 7), 1)
+            except Exception:
+                pass
+
+        topics       = Counter(row.get('topic') for row in competitor_feed if row.get('topic'))
+        hooks        = Counter(row.get('hook_structure') for row in competitor_feed if row.get('hook_structure'))
         content_types = Counter(row.get('content_type') for row in competitor_feed if row.get('content_type'))
 
         user_topics = set(user_summary.get('topics', {}).keys())
@@ -140,7 +180,7 @@ class CompetitorService:
         if hooks:
             top_hook = hooks.most_common(1)[0][0]
             if top_hook and top_hook not in user_summary.get('hook_structures', {}):
-                gaps.append(f'Competitor uses {top_hook} hooks more than you do')
+                gaps.append(f'Competitor uses "{top_hook}" hooks more than you do')
         if content_types:
             top_type = content_types.most_common(1)[0][0]
             if top_type and top_type not in user_summary.get('content_types', {}):
@@ -148,20 +188,43 @@ class CompetitorService:
         if competitor_topics:
             top_topic = topics.most_common(1)[0][0]
             if top_topic and top_topic not in user_topics:
-                gaps.append(f'Competitor owns topic "{top_topic}" more strongly')
+                gaps.append(f'Competitor dominates topic "{top_topic}" — you haven\'t covered it yet')
+
+        # Top posts sorted by views desc
+        top_posts = sorted(competitor_feed, key=lambda r: int(r.get('views', 0) or 0), reverse=True)[:5]
+
+        # Viral outliers: posts with views > 2× avg_views (min 2× threshold)
+        viral_posts = [
+            row for row in competitor_feed
+            if avg_views > 0 and int(row.get('views', 0) or 0) >= avg_views * 2
+        ]
+        viral_posts = sorted(viral_posts, key=lambda r: int(r.get('views', 0) or 0), reverse=True)[:5]
 
         return {
             'user_summary': user_summary,
+            'profile': {
+                'followers': account_meta.get('followers', 0),
+                'following': account_meta.get('following', 0),
+                'biography': account_meta.get('biography', ''),
+                'is_verified': account_meta.get('is_verified', False),
+                'full_name': account_meta.get('full_name', ''),
+            },
             'competitor_summary': {
-                'total_posts': len(competitor_feed),
-                'avg_views': round(sum(int(row.get('views', 0) or 0) for row in competitor_feed) / len(competitor_feed), 2),
+                'total_posts': n,
+                'avg_views': avg_views,
+                'avg_likes': avg_likes,
+                'avg_comments': avg_comments,
+                'avg_saves': avg_saves,
+                'avg_engagement': avg_engagement,
+                'posts_per_week': posts_per_week,
                 'top_topics': dict(topics),
                 'top_hooks': dict(hooks),
                 'top_content_types': dict(content_types),
             },
             'gaps': gaps,
             'shared_topics': shared_topics,
-            'top_competitor_posts': competitor_feed[:5],
+            'top_competitor_posts': top_posts,
+            'viral_posts': viral_posts,
         }
 
     # ------------------------------------------------------------------
