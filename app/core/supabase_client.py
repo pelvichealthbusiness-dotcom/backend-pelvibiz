@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from app.config import get_settings
 
 # Module-level singleton
 _service_client: Client | None = None
+
+# Allow up to 5 min for large video uploads to Supabase Storage
+_STORAGE_TIMEOUT = 300
 
 
 def get_service_client() -> Client:
@@ -21,6 +24,7 @@ def get_service_client() -> Client:
         _service_client = create_client(
             settings.supabase_url,
             settings.supabase_service_role_key,
+            options=ClientOptions(storage_client_timeout=_STORAGE_TIMEOUT),
         )
     return _service_client
 
