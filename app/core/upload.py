@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
@@ -106,18 +107,25 @@ async def upload_to_storage(
 
     Path format: manual/{user_id}/{agent_type}/{uuid}.{ext}
     Returns dict with url, path, content_type, size.
+
+    The Supabase storage client is synchronous (httpx under the hood).
+    We run it in a thread pool to avoid blocking the async event loop,
+    which is critical for large video files that take minutes to upload.
     """
     ext = _get_extension(filename, content_type)
     storage_path = f"manual/{user_id}/{agent_type}/{uuid.uuid4()}.{ext}"
 
     client = get_service_client()
 
-    try:
+    def _do_upload() -> None:
         client.storage.from_(BUCKET).upload(
             path=storage_path,
             file=content,
             file_options={"content-type": content_type, "upsert": "true"},
         )
+
+    try:
+        await asyncio.to_thread(_do_upload)
     except Exception as e:
         logger.error("Storage upload failed for %s: %s", storage_path, e)
         raise RuntimeError(f"Storage upload failed: {e}") from e
