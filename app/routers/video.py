@@ -146,9 +146,9 @@ async def generate_video(
     phrase_blocks = []
     needs_analysis = config.get("needs_analysis", False)
 
-    if request.enable_captions and effective_video_urls:
+    # Only transcribe for Talking Head — B-roll templates must not caption their own audio
+    if request.enable_captions and effective_video_urls and template_enum == VideoTemplate.TALKING_HEAD:
         # OpusClip subtitle pipeline: transcribe speech → phrase blocks
-        # For TALKING_HEAD this replaces the legacy Gemini analysis path
         phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
 
     if needs_analysis and effective_video_urls:
@@ -329,7 +329,8 @@ async def generate_video_stream(
             phrase_blocks = []
             needs_analysis = config.get("needs_analysis", False)
 
-            if request.enable_captions and effective_video_urls:
+            # Only transcribe for Talking Head — B-roll templates must not caption their own audio
+            if request.enable_captions and effective_video_urls and template_enum == VideoTemplate.TALKING_HEAD:
                 yield f'data: {json.dumps({"type": "progress", "phase": "transcribing", "message": "Transcribing audio for captions..."})}\n\n'
                 phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
                 logger.info("generate-stream: transcription returned %d phrase blocks for template %s", len(phrase_blocks), request.template)
@@ -355,6 +356,10 @@ async def generate_video_stream(
             render_id = None
             theme = resolve_theme(profile, getattr(request, 'music_track', None),
                                   music_volume=getattr(request, 'music_volume', 40.0) or 40.0)
+            logger.info(
+                "generate-stream: template=%s music_track=%r music_url=%r",
+                request.template, getattr(request, 'music_track', None), theme.music_url,
+            )
             # Load brand info into request for mappers
             request.logo_url = profile.get("logo_url")
             request.brand_settings = {
