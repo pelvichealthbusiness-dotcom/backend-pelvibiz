@@ -416,10 +416,14 @@ def _caption_elements(
     start_track: int,
     theme: BrandTheme,
     y: str = "72%",
-    font_size: str = "5.5 vmin",
+    font_size: str = "8 vmin",
     chunk_size: int = 3,
 ) -> list[dict]:
-    """Split a caption into timed word-group elements for word-by-word animation."""
+    """Split a caption into timed word-group elements for word-by-word animation.
+
+    Always uses CAPTION_FONT (Anton) regardless of brand theme — captions must be
+    legible over any video background.
+    """
     chunks = _word_chunks(text, chunk_size)
     chunk_dur = dur / len(chunks)
     elements = []
@@ -434,16 +438,16 @@ def _caption_elements(
             "x": "50%", "y": y,
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
-            "width": "88%",
-            "font_family": theme.font_family,
-            "font_weight": "700",
+            "width": "85%",
+            "font_family": CAPTION_FONT,   # Anton — always, never brand font
+            "font_weight": "900",
             "font_size": font_size,
             "fill_color": "#FFFFFF",
             "stroke_color": "#000000",
-            "stroke_width": "1.2 vmin",
-            "background_color": "rgba(0,0,0,0.65)",
-            "background_x_padding": "6%",
-            "background_y_padding": "4%",
+            "stroke_width": "1.5 vmin",
+            "background_color": "rgba(0,0,0,0.75)",
+            "background_x_padding": "5%",
+            "background_y_padding": "3%",
         })
     return elements
 
@@ -457,7 +461,7 @@ def _caption_elem(
 ) -> dict:
     """OpusClip-style caption element.
 
-    Heavy font (Anton 900), white text, thick black stroke, drop shadow.
+    Heavy font (Anton 900), white text, thick black stroke, dark pill background.
     Max _MAX_CAPTION_WORDS words per block — split by _split_phrase before calling.
     """
     return {
@@ -473,18 +477,17 @@ def _caption_elem(
         "width": "85%",
         "font_family": CAPTION_FONT,   # Anton
         "font_weight": "900",
-        "font_size": "7.5 vmin",
+        "font_size": "8 vmin",
         "fill_color": "#FFFFFF",
         "stroke_color": "#000000",
-        "stroke_width": "2 vmin",
-        "shadow_color": "rgba(0,0,0,0.9)",
-        "shadow_offset_x": "0.3 vmin",
-        "shadow_offset_y": "0.3 vmin",
-        "shadow_blur": "0.5 vmin",
+        "stroke_width": "1.5 vmin",
+        "background_color": "rgba(0,0,0,0.75)",
+        "background_x_padding": "5%",
+        "background_y_padding": "3%",
     }
 
 
-_MAX_CAPTION_WORDS = 5
+_MAX_CAPTION_WORDS = 3
 
 
 def _split_phrase(block: PhraseBlock, max_words: int = _MAX_CAPTION_WORDS) -> list[PhraseBlock]:
