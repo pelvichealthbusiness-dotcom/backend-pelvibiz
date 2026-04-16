@@ -9,6 +9,25 @@ from __future__ import annotations
 import random
 from typing import Any
 
+
+def _blend_with_white(hex_color: str, opacity: float) -> str:
+    """Return hex color as if hex_color was painted at `opacity` over white.
+
+    Example: _blend_with_white("#000000", 0.80) → "#333333"
+    Avoids passing "at X% opacity" phrases to Gemini, which renders them as
+    literal text in the generated image.
+    """
+    c = hex_color.lstrip("#")
+    if len(c) != 6:
+        return hex_color
+    r = int(c[0:2], 16)
+    g = int(c[2:4], 16)
+    b = int(c[4:6], 16)
+    r2 = int(r * opacity + 255 * (1 - opacity))
+    g2 = int(g * opacity + 255 * (1 - opacity))
+    b2 = int(b * opacity + 255 * (1 - opacity))
+    return f"#{r2:02X}{g2:02X}{b2:02X}"
+
 # ---------------------------------------------------------------------------
 # Template visual categories
 # ---------------------------------------------------------------------------
@@ -213,7 +232,7 @@ TEXT OVERLAY (MANDATORY — must appear on top of the scene):
 Add a clean text overlay card over the lower 40% of the image.
 
 Text box:
-- Background: {color_secondary} at 90% opacity
+- Background: {_blend_with_white(color_secondary, 0.90)}
 - Padding: 20px horizontal, 14px vertical
 - Width: 85% of image width, centered
 - Rounded corners (~12px)
@@ -345,6 +364,9 @@ def _build_promo_prompt(
         ),
     }.get(template_key, "Clean professional card layout.")
 
+    body_color = _blend_with_white(color_primary, 0.80)
+    divider_color = _blend_with_white(color_primary, 0.40)
+
     return f"""NO FOOTER WATERMARK. Do NOT add logo footer area.
 
 Generate a professional branded {template_key} Instagram post (1080x1350px).
@@ -363,9 +385,9 @@ LAYOUT:
 TYPOGRAPHY:
 - Font family: {font_prompt}, style: {font_style}
 - Headlines: {color_primary}, size: {font_size} or larger
-- Body text: {color_primary} at 80% opacity, smaller size
+- Body text: {body_color}, smaller size
 - CTA elements: filled with {color_primary}, text {color_secondary}
-- Accent dividers: thin horizontal rule in {color_primary} at 40% opacity
+- Accent dividers: thin horizontal rule in {divider_color}
 
 TEXT CONTENT (render each line as a distinct visual element, splitting on newlines):
 {overlay_text}
