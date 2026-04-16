@@ -148,9 +148,11 @@ class SocialIntelligenceService:
 
         gathered = await asyncio.gather(*(task for _, task in collectors), return_exceptions=True)
         raw_items: list[dict[str, Any]] = []
+        failed_labels: list[str] = []
         for (label, _), result in zip(collectors, gathered, strict=False):
             if isinstance(result, Exception):
                 logger.warning("Social research collector failed [%s]: %s", label, result)
+                failed_labels.append(label)
                 continue
             raw_items.extend(result)
 
@@ -158,13 +160,20 @@ class SocialIntelligenceService:
         top_items = scored[:limit]
 
         if not top_items:
+            all_failed = len(failed_labels) == len(collectors)
+            if all_failed:
+                error_detail = "; ".join(str(e) for e in gathered if isinstance(e, Exception))
+                raise RuntimeError(
+                    f"All search sources failed for topic '{topic}'. "
+                    f"Failures: {error_detail or 'unknown error'}"
+                )
             return {
                 "ready": False,
                 "run_id": run_id,
                 "topic": topic,
                 "platforms": platforms,
                 "items": [],
-                "brief_markdown": "Not enough signal yet.",
+                "brief_markdown": f"No results found for '{topic}'. Try a different topic or broader keywords.",
                 "summary": {},
             }
 
