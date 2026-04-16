@@ -1,5 +1,6 @@
 """P3 Real Video — generation endpoint."""
 
+import asyncio
 import logging
 import time
 import uuid
@@ -64,6 +65,36 @@ def _validate_video_urls(template_enum: VideoTemplate, video_urls: list[str]) ->
         )
 
 router = APIRouter(prefix="/video", tags=["video"])
+
+_STREAM_TIMEOUT = httpx.Timeout(connect=30.0, read=300.0, write=300.0, pool=30.0)
+
+
+async def _stream_video_to_storage(
+    video_url: str,
+    upload_url: str,
+    service_key: str,
+) -> None:
+    """Stream video from Creatomate CDN directly to Supabase — no full-file buffering."""
+    async with httpx.AsyncClient(timeout=_STREAM_TIMEOUT) as dl_client:
+        async with dl_client.stream("GET", video_url) as dl_resp:
+            dl_resp.raise_for_status()
+            upload_headers: dict[str, str] = {
+                "Authorization": f"Bearer {service_key}",
+                "apikey": service_key,
+                "Content-Type": "video/mp4",
+                "x-upsert": "true",
+            }
+            content_length = dl_resp.headers.get("content-length")
+            if content_length:
+                upload_headers["Content-Length"] = content_length
+
+            async with httpx.AsyncClient(timeout=_STREAM_TIMEOUT) as ul_client:
+                upload_response = await ul_client.post(
+                    upload_url,
+                    content=dl_resp.aiter_bytes(),
+                    headers=upload_headers,
+                )
+                upload_response.raise_for_status()
 
 
 @router.post("/generate", response_model=GenerateVideoResponse)
@@ -192,9 +223,7 @@ async def generate_video(
             status_code=502,
         )
 
-    video_bytes = await creatomate.download_video(video_url)
-
-    # ---- Upload to Supabase Storage ---------------------------------------
+    # ---- Upload to Supabase Storage (stream — no full-file buffering) --------
     storage = StorageService()
     storage_path = (
         f"generated/{user_id}/{int(time.time())}-{uuid.uuid4().hex[:8]}.mp4"
@@ -204,18 +233,7 @@ async def generate_video(
         f"{storage.bucket}/{storage_path}"
     )
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        upload_response = await client.post(
-            upload_url,
-            content=video_bytes,
-            headers={
-                "Authorization": f"Bearer {storage.service_key}",
-                "apikey": storage.service_key,
-                "Content-Type": "video/mp4",
-                "x-upsert": "true",
-            },
-        )
-        upload_response.raise_for_status()
+    await _stream_video_to_storage(video_url, upload_url, storage.service_key)
 
     public_url = (
         f"{storage.supabase_url}/storage/v1/object/public/"
@@ -266,7 +284,6 @@ async def generate_video(
 # SSE streaming endpoint
 # ---------------------------------------------------------------------------
 
-import asyncio
 import json
 from fastapi.responses import StreamingResponse
 
@@ -419,15 +436,12 @@ async def generate_video_stream(
             # ---- Emit: uploading -------------------------------------------
             yield f'data: {json.dumps({"type": "progress", "phase": "uploading", "message": "Uploading your video..."})}\n\n'
 
-            # ---- Download rendered video -----------------------------------
+            # ---- Build storage path ----------------------------------------
             video_url = final_status.get("url")
             if not video_url:
                 yield f'data: {json.dumps({"type": "error", "message": "Render succeeded but no URL returned", "code": "RENDER_FAILED"})}\n\n'
                 return
 
-            video_bytes = await creatomate.download_video(video_url)
-
-            # ---- Upload to Supabase Storage --------------------------------
             storage = StorageService()
             storage_path = (
                 f"generated/{user_id}/{int(time.time())}-{uuid.uuid4().hex[:8]}.mp4"
@@ -437,18 +451,19 @@ async def generate_video_stream(
                 f"{storage.bucket}/{storage_path}"
             )
 
-            async with httpx.AsyncClient(timeout=60) as client:
-                upload_response = await client.post(
-                    upload_url,
-                    content=video_bytes,
-                    headers={
-                        "Authorization": f"Bearer {storage.service_key}",
-                        "apikey": storage.service_key,
-                        "Content-Type": "video/mp4",
-                        "x-upsert": "true",
-                    },
-                )
-                upload_response.raise_for_status()
+            # ---- Stream Creatomate → Supabase (keepalive SSE while uploading) --
+            # asyncio.create_task lets us emit progress events while the transfer runs.
+            upload_task = asyncio.create_task(
+                _stream_video_to_storage(video_url, upload_url, storage.service_key)
+            )
+            elapsed_upload = 0
+            while not upload_task.done():
+                await asyncio.sleep(5)
+                elapsed_upload += 5
+                yield f'data: {json.dumps({"type": "progress", "phase": "uploading", "elapsed_seconds": elapsed_upload, "message": f"Uploading video... ({elapsed_upload}s)"})}\n\n'
+
+            # Re-raises if the task threw (timeout, HTTP error, etc.)
+            await upload_task
 
             public_url = (
                 f"{storage.supabase_url}/storage/v1/object/public/"

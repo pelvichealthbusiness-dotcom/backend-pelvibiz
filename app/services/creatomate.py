@@ -189,8 +189,12 @@ class CreatomateService:
     # ------------------------------------------------------------------
 
     async def download_video(self, url: str) -> bytes:
-        """Download rendered video from Creatomate URL."""
-        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+        """Download rendered video from Creatomate URL into memory.
+
+        Prefer _stream_video_to_storage in video.py for production use —
+        this method buffers the entire file in RAM.
+        """
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
             response = await client.get(url)
             response.raise_for_status()
             return response.content
