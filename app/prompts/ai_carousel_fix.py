@@ -13,6 +13,7 @@ def build_ai_fix_generic_prompt(
     color_secondary: str,
     topic: str = "",
     carousel_context: str = "",
+    preserve_visual: bool = False,
 ) -> str:
     if new_text:
         text_rule = f'Use this NEW text: "{new_text}"'
@@ -42,14 +43,30 @@ MATCH RULES:
 - Keep the composition full-bleed edge-to-edge.
 """
 
-    return f"""Regenerate this Instagram carousel slide with improvements.
+    mode_block = ""
+    if preserve_visual:
+        mode_block = """
+MODE: TEXT UPDATE ONLY
+You are given the ORIGINAL slide as a reference image.
+CRITICAL: Keep the EXACT same background, composition, color palette, lighting, and visual style.
+Do NOT change the photograph or background. ONLY update the text overlay.
+"""
+
+    visual_instruction = (
+        "Preserve the EXACT visual style of the reference image — same background, same composition. Do NOT reinvent the scene."
+        if preserve_visual
+        else "Generate a FRESH version of this scene — same publication style, similar concept, but not an identical copy"
+    )
+
+    return f"""Recreate this Instagram carousel slide.
+{mode_block}
 {topic_block}
 {context_block}
 ORIGINAL SCENE CONCEPT:
 {original_prompt}
 
 INSTRUCTIONS:
-- Generate a FRESH version of this scene — same publication style, similar concept, but not an identical copy
+- {visual_instruction}
 - Make it look like a professional photograph
 - 1080x1350 pixels, 4:5 portrait format
 - Preserve the slide's visual language across the carousel

@@ -130,6 +130,10 @@ class WizardFixAgent:
 
             yield text_chunk(f"Regenerating slide {slide_number}...\n")
 
+            # Use original slide URL as visual reference when available (preserves style)
+            original_photo_url = fix_data.get("photo_url", "")
+            preserve_visual = bool(original_photo_url and slide_type != SlideType.FACE)
+
             # Build prompt based on slide type
             if slide_type == SlideType.CARD:
                 prompt = build_ai_fix_card_prompt(
@@ -151,14 +155,19 @@ class WizardFixAgent:
                     color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
                     topic=topic,
                     carousel_context=carousel_context,
+                    preserve_visual=preserve_visual,
                 )
 
             image_gen = ImageGeneratorService()
 
-            # Face mode: send face photo as reference
+            # Face mode: face photo as reference
+            # Non-face with original slide URL: pass it as visual reference to preserve style
             if slide_type == SlideType.FACE and face_photo_url:
                 face_base64 = await image_gen.download_image_as_base64(face_photo_url)
                 generated_base64 = await image_gen.generate_slide(prompt, face_base64)
+            elif preserve_visual:
+                original_base64 = await image_gen.download_image_as_base64(original_photo_url)
+                generated_base64 = await image_gen.generate_slide(prompt, original_base64)
             else:
                 generated_base64 = await image_gen.generate_from_prompt(prompt)
 
