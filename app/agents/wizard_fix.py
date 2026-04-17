@@ -107,9 +107,9 @@ class WizardFixAgent:
                 return
 
             metadata = result.data.get("metadata") or {}
-            texts = metadata.get("texts") if isinstance(metadata, dict) else []
-            positions = metadata.get("positions") if isinstance(metadata, dict) else []
-            slide_prompts = metadata.get("prompts") if isinstance(metadata, dict) else []
+            texts = (metadata.get("texts") or []) if isinstance(metadata, dict) else []
+            positions = (metadata.get("positions") or []) if isinstance(metadata, dict) else []
+            slide_prompts = (metadata.get("prompts") or []) if isinstance(metadata, dict) else []
 
             carousel_context_lines: list[str] = []
             for i, text in enumerate(texts[:10], 1):
