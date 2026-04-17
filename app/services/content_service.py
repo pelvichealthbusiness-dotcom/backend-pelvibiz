@@ -136,9 +136,12 @@ class ContentService:
         from datetime import datetime, timezone
         try:
             dt = datetime.fromisoformat(scheduled_date.replace("Z", "+00:00"))
+            # Make naive datetimes UTC-aware so comparison never raises TypeError
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
             if dt <= datetime.now(timezone.utc):
                 raise AgentAPIError(message="Scheduled date must be in the future", code="INVALID_DATE", status_code=400)
-        except ValueError:
+        except (ValueError, TypeError):
             raise AgentAPIError(message="Invalid date format. Use ISO 8601.", code="INVALID_DATE", status_code=400)
         
         update_data = {"published": False, "scheduled_date": scheduled_date}

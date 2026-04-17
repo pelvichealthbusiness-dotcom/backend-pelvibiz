@@ -35,3 +35,4 @@ class PublishRequest(BaseModel):
 class ScheduleRequest(BaseModel):
     scheduled_date: str  # ISO datetime
     caption: Optional[str] = None
+    timezone: Optional[str] = None  # client timezone hint (used for display only)
