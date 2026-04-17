@@ -8,6 +8,26 @@ import httpx
 
 BLOTATO_BASE_URL = "https://backend.blotato.com/v2"
 
+# Mapping from agent_type to Blotato media_type.
+# Carousels and static images → IMAGE; video reels → REEL.
+_AGENT_TYPE_MEDIA_TYPE: dict[str, str] = {
+    "real-carousel": "IMAGE",
+    "ai-carousel": "IMAGE",
+    "reels-edited-by-ai": "REEL",
+    "ai-video-reels": "REEL",
+    "ai-post-generator": "IMAGE",
+}
+
+
+def agent_type_to_media_type(agent_type: str | None) -> str:
+    """Return the Blotato media_type for a given agent_type.
+
+    Defaults to 'IMAGE' for unknown or missing types — never raises.
+    """
+    if not agent_type:
+        return "IMAGE"
+    return _AGENT_TYPE_MEDIA_TYPE.get(agent_type, "IMAGE")
+
 
 def build_blotato_connections(profile: dict | None = None) -> dict | None:
     """Return structured Blotato connections, falling back to legacy IDs."""

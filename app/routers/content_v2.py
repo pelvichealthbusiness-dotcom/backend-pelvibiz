@@ -17,7 +17,7 @@ from app.core.pagination import PaginationParams, pagination_params
 from app.core.responses import success, paginated
 from app.core.exceptions import ValidationError
 from app.core.supabase_client import get_service_client
-from app.services.blotato import build_blotato_connections
+from app.services.blotato import build_blotato_connections, agent_type_to_media_type
 from app.services.content_crud import ContentCRUD
 import asyncio
 import os
@@ -199,6 +199,10 @@ async def schedule_content(
     profile = profile_result.data or {}
     blotato_connections = build_blotato_connections(profile)
 
+    # Derive Blotato media_type from the content's agent_type
+    content_agent_type = content.get("agent_type", "")
+    media_type = agent_type_to_media_type(content_agent_type)
+
     # Build n8n payload (same format as Vercel Edge Function)
     n8n_payload = {
         "client_id": user.user_id,
@@ -208,6 +212,8 @@ async def schedule_content(
         "caption": body.caption or content.get("reply", ""),
         "action": "schedule_post",
         "blotato_connections": blotato_connections,
+        "agent_type": content_agent_type,
+        "media_type": media_type,
     }
 
     # Call n8n webhook with retry
