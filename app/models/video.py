@@ -281,6 +281,10 @@ class VideoAnalysisResult(BaseModel):
     # Each item: {"text": "phrase", "start": 0.0, "end": 1.2}
     transcript_segments: Optional[list[dict]] = None
 
+    # Word-level timestamps for karaoke captions (preferred over transcript_segments)
+    # Each item: {"word": "Hello", "start": 0.3, "end": 0.6}
+    word_timestamps: Optional[list[dict]] = None
+
 
 class CreatomateRenderStatus(BaseModel):
     """Status from Creatomate polling."""

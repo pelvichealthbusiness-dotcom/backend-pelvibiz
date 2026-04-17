@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 # Hard limits per spec
 _MAX_CHARS_PER_BLOCK = 150
-_MIN_BLOCK_DURATION = 0.6  # seconds
+_MIN_BLOCK_DURATION = 0.5  # seconds
 _SENTENCE_ENDINGS = {".", "?", "!"}
+_KARAOKE_WORDS_PER_BLOCK = 2  # words per caption card for karaoke display
 
 
 class TranscriptionService:
@@ -27,19 +28,32 @@ class TranscriptionService:
         self._analysis = VideoAnalysisService()
 
     async def transcribe(self, video_url: str) -> list[PhraseBlock]:
-        """Transcribe speech and return grouped PhraseBlocks.
+        """Transcribe speech and return PhraseBlocks for caption rendering.
 
-        Returns:
-            List of PhraseBlock objects (empty list if no speech or on failure).
+        Prefers word-level timestamps (karaoke-accurate, 2 words per block).
+        Falls back to phrase grouping when word timestamps unavailable.
+        Returns empty list if no speech detected or on failure.
         """
         try:
             logger.info("TranscriptionService: transcribing %s", video_url)
             result = await self._analysis.analyze_for_talking_head(video_url)
+
+            # Prefer word-level timestamps — precise karaoke timing
+            if result.word_timestamps:
+                logger.info(
+                    "TranscriptionService: word-level path — %d words detected",
+                    len(result.word_timestamps),
+                )
+                blocks = _group_words_into_karaoke_blocks(result.word_timestamps)
+                logger.info("TranscriptionService: produced %d karaoke blocks", len(blocks))
+                return blocks
+
+            # Fallback: phrase-level grouping
             segments = result.transcript_segments or []
             if not segments:
                 logger.info("TranscriptionService: no speech detected in %s", video_url)
                 return []
-            logger.info("TranscriptionService: got %d segments → grouping into phrase blocks", len(segments))
+            logger.info("TranscriptionService: phrase-level path — %d segments", len(segments))
             blocks = _group_into_phrase_blocks(segments)
             logger.info("TranscriptionService: produced %d phrase blocks", len(blocks))
             return blocks
@@ -111,4 +125,26 @@ def _group_into_phrase_blocks(
     # Flush any remaining text
     flush(buffer_end)
 
+    return blocks
+
+
+def _group_words_into_karaoke_blocks(
+    words: list[dict],
+    words_per_block: int = _KARAOKE_WORDS_PER_BLOCK,
+) -> list[PhraseBlock]:
+    """Group word-level timestamps into PhraseBlocks for karaoke display.
+
+    Each block contains N words with precise start/end from Gemini word timestamps,
+    so each caption card appears for exactly the right duration.
+    """
+    blocks: list[PhraseBlock] = []
+    for i in range(0, len(words), words_per_block):
+        chunk = words[i : i + words_per_block]
+        text = " ".join(str(w.get("word", "")).strip() for w in chunk if str(w.get("word", "")).strip())
+        if not text:
+            continue
+        start = float(chunk[0].get("start", 0))
+        end = float(chunk[-1].get("end", start + _MIN_BLOCK_DURATION))
+        duration = max(end - start, _MIN_BLOCK_DURATION)
+        blocks.append(PhraseBlock(text=text, start=round(start, 3), end=round(start + duration, 3)))
     return blocks

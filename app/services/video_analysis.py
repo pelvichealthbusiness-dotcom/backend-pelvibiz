@@ -57,31 +57,47 @@ class VideoAnalysisService:
     async def analyze_for_talking_head(self, video_url: str) -> VideoAnalysisResult:
         """Analyze video for Talking Head template.
 
-        Returns actual video duration and speech transcript split into
-        short phrase segments with start/end timestamps for auto-captions.
+        Returns actual video duration and word-level speech timestamps for
+        karaoke-style captions. Falls back to phrase segments when words unavailable.
         """
         prompt = (
             "Analyze this video for a Talking Head auto-caption template.\n\n"
             "Tasks:\n"
             "1. Measure the total video duration in seconds (be precise).\n"
-            "2. Transcribe ALL speech in the video. Split the transcript into\n"
-            "   short phrases of 3-5 words each, with the approximate start and\n"
-            "   end time (in seconds) for each phrase.\n"
-            "   If there is no speech, return an empty segments array.\n\n"
+            "2. Transcribe ALL speech word by word. For each individual word, provide\n"
+            "   the exact start and end time in seconds when that word is spoken.\n"
+            "   If there is no speech, return empty arrays.\n\n"
             "Return ONLY valid JSON — no markdown, no explanation:\n"
-            '{"duration": 18.5, "segments": ['
-            '{"text": "Hello everyone", "start": 0.3, "end": 1.1}, '
-            '{"text": "today we are going", "start": 1.1, "end": 2.4}'
+            '{"duration": 18.5, "words": ['
+            '{"word": "Hello", "start": 0.3, "end": 0.6}, '
+            '{"word": "everyone", "start": 0.6, "end": 1.1}, '
+            '{"word": "today", "start": 1.1, "end": 1.4}'
             "]}"
         )
 
-        defaults: dict = {"duration": 30.0, "segments": []}
+        defaults: dict = {"duration": 30.0, "words": [], "segments": []}
         raw = await self._analyze(video_url, prompt, defaults)
 
-        segments = raw.get("segments") or []
-        # Sanitize: ensure each segment has required keys and numeric times
+        # Parse word-level timestamps (preferred — karaoke accuracy)
+        raw_words = raw.get("words") or []
+        clean_words = []
+        for w in raw_words:
+            try:
+                word = str(w.get("word", "")).strip()
+                if not word:
+                    continue
+                clean_words.append({
+                    "word": word,
+                    "start": float(w.get("start", 0)),
+                    "end": float(w.get("end", 0)),
+                })
+            except (TypeError, ValueError):
+                continue
+
+        # Parse phrase segments as fallback (legacy path)
+        raw_segments = raw.get("segments") or []
         clean_segments = []
-        for seg in segments:
+        for seg in raw_segments:
             try:
                 clean_segments.append({
                     "text": str(seg.get("text", "")).strip(),
@@ -91,8 +107,14 @@ class VideoAnalysisService:
             except (TypeError, ValueError):
                 continue
 
+        logger.info(
+            "analyze_for_talking_head: duration=%.1f words=%d segments=%d",
+            float(raw.get("duration") or 30.0), len(clean_words), len(clean_segments),
+        )
+
         return VideoAnalysisResult(
             duration_seconds=float(raw.get("duration") or 30.0),
+            word_timestamps=clean_words if clean_words else None,
             transcript_segments=clean_segments if clean_segments else None,
         )
 

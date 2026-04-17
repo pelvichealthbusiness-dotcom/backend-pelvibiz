@@ -490,7 +490,7 @@ def _caption_elem(
     }
 
 
-_MAX_CAPTION_WORDS = 3
+_MAX_CAPTION_WORDS = 2
 
 
 def _split_phrase(block: PhraseBlock, max_words: int = _MAX_CAPTION_WORDS) -> list[PhraseBlock]:
