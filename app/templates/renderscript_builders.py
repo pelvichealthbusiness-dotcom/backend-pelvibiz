@@ -426,12 +426,9 @@ def _caption_elements(
     y: str = "72%",
     font_size: str = "8 vmin",
     chunk_size: int = 3,
+    font_family: str | None = None,
 ) -> list[dict]:
-    """Split a caption into timed word-group elements for word-by-word animation.
-
-    Always uses CAPTION_FONT (Anton) regardless of brand theme — captions must be
-    legible over any video background.
-    """
+    """Split a caption into timed word-group elements for word-by-word animation."""
     chunks = _word_chunks(text, chunk_size)
     chunk_dur = dur / len(chunks)
     elements = []
@@ -447,7 +444,7 @@ def _caption_elements(
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
             "width": "85%",
-            "font_family": CAPTION_FONT,   # Anton — always, never brand font
+            "font_family": font_family or CAPTION_FONT,
             "font_weight": "900",
             "font_size": font_size,
             "fill_color": "#FFFFFF",
@@ -466,6 +463,8 @@ def _caption_elem(
     time: float,
     duration: float,
     y: str = "78%",
+    font_family: str | None = None,
+    fill_color: str = "#FFFFFF",
 ) -> dict:
     """OpusClip-style caption element.
 
@@ -473,21 +472,16 @@ def _caption_elem(
     Max _MAX_CAPTION_WORDS words per block — split by _split_phrase before calling.
     """
     return {
-        "type": "text",
-        "track": track,
-        "name": f"Sub-{track}",
-        "text": text,
-        "time": round(time, 3),
+        "type": "text", "track": track, "name": f"Sub-{track}",
+        "text": text, "time": round(time, 3),
         "duration": round(max(duration, 0.5), 3),
-        "x": "50%", "y": y,
-        "x_anchor": "50%", "y_anchor": "50%",
-        "x_alignment": "50%",
-        "width": "85%",
-        "font_family": CAPTION_FONT,   # Anton
+        "x": "50%", "y": y, "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%", "width": "85%",
+        "font_family": font_family or CAPTION_FONT,
         "font_weight": "900",
         "font_size": "8 vmin",
         "letter_spacing": "4%",
-        "fill_color": "#FFFFFF",
+        "fill_color": fill_color,
         "stroke_color": "#000000",
         "stroke_width": "1.5 vmin",
         "background_color": "rgba(0,0,0,0.75)",
@@ -532,6 +526,8 @@ def _append_captions(
     phrase_blocks: list[PhraseBlock],
     y: str = "78%",
     base_track: int = 500,
+    font_family: str | None = None,
+    highlight_color: str | None = None,
 ) -> None:
     """Append OpusClip-style caption elements to `elements` in-place.
 
@@ -542,13 +538,12 @@ def _append_captions(
     for block in phrase_blocks:
         for sub in _split_phrase(block):
             duration = sub.end - sub.start
-            elements.append(_caption_elem(
-                track=track,
-                text=sub.text,
-                time=sub.start,
-                duration=duration,
-                y=y,
-            ))
+            color = highlight_color if highlight_color else "#FFFFFF"
+            elem = _caption_elem(
+                track, sub.text, sub.start, duration,
+                y=y, font_family=font_family, fill_color=color,
+            )
+            elements.append(elem)
             track += 1
 
 
@@ -607,10 +602,16 @@ def build_talking_head(
     # CAPTIONS — bottom safe zone (70–90%), never overlaps hook at top
     # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
     caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
+    caption_font = getattr(request, 'caption_font', None) or CAPTION_FONT
 
     if phrase_blocks:
         # New pipeline: OpusClip-style phrase blocks from TranscriptionService
-        _append_captions(els, phrase_blocks, y=caption_y, base_track=300)
+        _append_captions(
+            els, phrase_blocks,
+            y="72%", base_track=500,
+            font_family=caption_font,
+            highlight_color=theme.primary_color,
+        )
     elif analysis and analysis.transcript_segments:
         # Legacy: raw Gemini segments (3-5 word chunks, no grouping)
         for i, seg in enumerate(analysis.transcript_segments):
@@ -626,6 +627,7 @@ def build_talking_head(
                 time=t_start,
                 duration=seg_dur,
                 y=caption_y,
+                font_family=caption_font,
             ))
     else:
         # Fallback: manual text_2 split into timed groups (no analysis available)
@@ -636,6 +638,7 @@ def build_talking_head(
                 caption_text, caption_dur,
                 start_track=30, theme=theme,
                 y=caption_y, font_size="5.5 vmin", chunk_size=3,
+                font_family=caption_font,
             ))
 
     if theme.music_url:

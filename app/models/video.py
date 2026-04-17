@@ -232,6 +232,8 @@ class GenerateVideoRequest(BaseModel):
     brand_settings: Optional[dict] = Field(None, description="Dynamic brand settings (colors, fonts, etc.)")
 
     # Brand fields (enriched by frontend generate.ts or loaded from profile)
+    caption_font: Optional[str] = Field(None, max_length=50, description="Creatomate font name for captions. Defaults to Anton.")
+
     brand_name: Optional[str] = None
     brand_color_primary: Optional[str] = None
     brand_color_secondary: Optional[str] = None
