@@ -213,9 +213,20 @@ async def fix_slide(
     image_gen = ImageGeneratorService()
     storage = StorageService()
 
-    image_base64 = await image_gen.download_image_as_base64(request.New_Image_Link)
-    generated_base64 = await image_gen.generate_slide(prompt, image_base64)
-    public_url = await storage.upload_image(generated_base64, user_id)
+    # Use replacement image if provided; otherwise use the original slide as base
+    base_image_url = request.New_Image_Link or original_urls[slide_idx]
+
+    try:
+        image_base64 = await image_gen.download_image_as_base64(base_image_url)
+        generated_base64 = await image_gen.generate_slide(prompt, image_base64)
+        public_url = await storage.upload_image(generated_base64, user_id)
+    except Exception as e:
+        logger.error("fix_slide generation failed for row %s slide %d: %s", request.Row_ID, request.Slide_Number, e)
+        raise AgentAPIError(
+            message="Slide generation failed. Please try again.",
+            code="GENERATION_FAILED",
+            status_code=500,
+        )
 
     # 5. Splice into array
     updated_urls = list(original_urls)

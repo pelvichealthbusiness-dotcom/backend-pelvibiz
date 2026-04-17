@@ -36,6 +36,6 @@ class FixSlideRequest(BaseModel):
     Slide_Number: int = Field(ge=1, le=10)
     New_Text_Content: Optional[str] = None
     New_Text_Position: Optional[str] = None
-    New_Image_Link: str
+    New_Image_Link: Optional[str] = None
     Row_ID: str
     message_id: str = Field(default_factory=lambda: str(uuid4()))

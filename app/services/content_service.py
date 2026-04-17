@@ -141,7 +141,7 @@ class ContentService:
         except ValueError:
             raise AgentAPIError(message="Invalid date format. Use ISO 8601.", code="INVALID_DATE", status_code=400)
         
-        update_data = {"published": True, "scheduled_date": scheduled_date}
+        update_data = {"published": False, "scheduled_date": scheduled_date}
         if caption is not None:
             update_data["caption"] = caption
         
