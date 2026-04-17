@@ -43,6 +43,10 @@ class HookGap(BaseModel):
     hook_structure: str
     competitor_frequency: int
     own_frequency: int
+    avg_views: float = 0.0
+    avg_likes: float = 0.0
+    avg_engagement_rate: float | None = None
+    performance_score: float | None = None
 
 
 class TopicGap(BaseModel):
@@ -60,6 +64,9 @@ class ContentTypeGap(BaseModel):
 class WhiteSpaceEntry(BaseModel):
     topic: str
     signal_source: str  # "trending" | "inferred"
+    demand_score: float | None = None
+    recommendation: str = ""
+    summary: str | None = None
 
 
 class CompetitorResult(BaseModel):

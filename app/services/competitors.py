@@ -369,8 +369,8 @@ class CompetitorService:
         )
 
     def _compute_hook_gaps(self, own_posts: list[dict], competitor_posts: list[dict]) -> list[HookGap]:
-        df_own = pd.DataFrame(own_posts)
-        df_comp = pd.DataFrame(competitor_posts)
+        df_own = pd.DataFrame(own_posts) if own_posts else pd.DataFrame()
+        df_comp = pd.DataFrame(competitor_posts) if competitor_posts else pd.DataFrame()
 
         own_freq = df_own['hook_structure'].dropna().value_counts() if 'hook_structure' in df_own else pd.Series(dtype=int)
         comp_freq = df_comp['hook_structure'].dropna().value_counts() if 'hook_structure' in df_comp else pd.Series(dtype=int)
@@ -378,10 +378,62 @@ class CompetitorService:
         merged = pd.DataFrame({'comp': comp_freq, 'own': own_freq}).fillna(0).astype(int)
         gaps_df = merged[merged['comp'] > merged['own']].sort_values('comp', ascending=False).head(10)
 
-        return [
-            HookGap(hook_structure=idx, competitor_frequency=int(row['comp']), own_frequency=int(row['own']))
-            for idx, row in gaps_df.iterrows()
-        ]
+        # Competitor-wide averages for normalising performance score
+        if not df_comp.empty:
+            comp_avg_views = pd.to_numeric(df_comp['views'], errors='coerce').fillna(0).mean() if 'views' in df_comp else 0.0
+            comp_avg_likes = pd.to_numeric(df_comp['likes'], errors='coerce').fillna(0).mean() if 'likes' in df_comp else 0.0
+            comp_avg_engagement = pd.to_numeric(df_comp['engagement_rate'], errors='coerce').mean() if 'engagement_rate' in df_comp else float('nan')
+        else:
+            comp_avg_views = 0.0
+            comp_avg_likes = 0.0
+            comp_avg_engagement = float('nan')
+
+        results: list[HookGap] = []
+        for idx, row in gaps_df.iterrows():
+            hook_posts = df_comp[df_comp['hook_structure'] == idx] if 'hook_structure' in df_comp else pd.DataFrame()
+
+            if len(hook_posts) < 2:
+                results.append(HookGap(
+                    hook_structure=idx,
+                    competitor_frequency=int(row['comp']),
+                    own_frequency=int(row['own']),
+                    avg_views=0.0,
+                    avg_likes=0.0,
+                    avg_engagement_rate=None,
+                    performance_score=None,
+                ))
+                continue
+
+            avg_views = float(pd.to_numeric(hook_posts['views'], errors='coerce').fillna(0).mean()) if 'views' in hook_posts else 0.0
+            avg_likes = float(pd.to_numeric(hook_posts['likes'], errors='coerce').fillna(0).mean()) if 'likes' in hook_posts else 0.0
+
+            eng_series = pd.to_numeric(hook_posts['engagement_rate'], errors='coerce') if 'engagement_rate' in hook_posts else pd.Series(dtype=float)
+            avg_engagement_rate: float | None = None
+            if not eng_series.dropna().empty:
+                avg_engagement_rate = float(eng_series.mean())
+
+            # Weighted composite performance score — guard every division
+            views_ratio = (avg_views / comp_avg_views) if comp_avg_views and comp_avg_views > 0 else 0.0
+            likes_ratio = (avg_likes / comp_avg_likes) if comp_avg_likes and comp_avg_likes > 0 else 0.0
+            eng_ratio = 0.0
+            if avg_engagement_rate is not None and not pd.isna(comp_avg_engagement) and comp_avg_engagement > 0:
+                eng_ratio = avg_engagement_rate / comp_avg_engagement
+
+            performance_score = round(0.4 * views_ratio + 0.4 * likes_ratio + 0.2 * eng_ratio, 4)
+
+            results.append(HookGap(
+                hook_structure=idx,
+                competitor_frequency=int(row['comp']),
+                own_frequency=int(row['own']),
+                avg_views=round(avg_views, 4),
+                avg_likes=round(avg_likes, 4),
+                avg_engagement_rate=round(avg_engagement_rate, 4) if avg_engagement_rate is not None else None,
+                performance_score=performance_score,
+            ))
+
+        # Sort by performance_score descending, None last
+        results.sort(key=lambda g: g.performance_score if g.performance_score is not None else float('-inf'), reverse=True)
+        return results
 
     def _compute_topic_gaps(self, own_posts: list[dict], competitor_posts: list[dict]) -> list[TopicGap]:
         df_own = pd.DataFrame(own_posts)
@@ -429,18 +481,35 @@ class CompetitorService:
         try:
             result = (
                 self._svc.table('research_topics')
-                .select('topic, source')
+                .select('topic, source, total_score, summary')
                 .eq('user_id', user_id)
                 .execute()
             )
             for row in (result.data or []):
                 topic = row.get('topic')
                 if topic and topic not in both_topics:
-                    entries.append(WhiteSpaceEntry(topic=topic, signal_source='trending'))
-                if len(entries) >= _WHITE_SPACE_LIMIT:
-                    break
+                    raw_score = row.get('total_score')
+                    demand_score: float | None = float(raw_score) if raw_score else None
+                    if demand_score == 0.0:
+                        demand_score = None
+                    entries.append(WhiteSpaceEntry(
+                        topic=topic,
+                        signal_source='trending',
+                        demand_score=demand_score,
+                        summary=row.get('summary') or None,
+                        recommendation=(
+                            'Create content on this topic to capture high-demand audience interest'
+                            ' that no one is covering yet.'
+                        ),
+                    ))
         except Exception:
             logger.debug('research_topics not available, falling back to inferred white space')
+
+        # Sort trending entries by demand_score descending (None treated as -inf)
+        entries.sort(
+            key=lambda e: e.demand_score if e.demand_score is not None else float('-inf'),
+            reverse=True,
+        )
 
         # Infer from topics that appear in one side but not the other
         if len(entries) < _WHITE_SPACE_LIMIT:
