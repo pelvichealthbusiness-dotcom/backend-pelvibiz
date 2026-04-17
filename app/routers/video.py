@@ -182,6 +182,10 @@ async def generate_video(
             # Duration trim: cut black tail frame at last phrase block end + 0.3s buffer
             if phrase_blocks and "duration" not in source_dict:
                 source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
+            logger.info("creatomate render source (truncated): template=%s audio_elements=%s",
+                request.template,
+                [e for e in source_dict.get('elements', []) if e.get('type') == 'audio']
+            )
             render_id = await creatomate.render_with_source(source_dict)
 
     # ---- Build modifications via template mappers (legacy fallback) -------
@@ -379,6 +383,10 @@ async def generate_video_stream(
                     source_dict = builder(request, theme, analysis_result, **_bkw)
                     if phrase_blocks and "duration" not in source_dict:
                         source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
+                    logger.info("creatomate render source (truncated): template=%s audio_elements=%s",
+                        request.template,
+                        [e for e in source_dict.get('elements', []) if e.get('type') == 'audio']
+                    )
                     render_id = await creatomate.render_with_source(source_dict)
 
             # ---- Build modifications via template mappers (legacy path) -------

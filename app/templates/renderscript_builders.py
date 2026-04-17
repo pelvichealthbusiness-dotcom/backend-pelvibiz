@@ -1,7 +1,10 @@
 from __future__ import annotations
+import logging
 from typing import Optional, Any
 from app.models.video import GenerateVideoRequest, VideoTemplate, PhraseBlock
 from app.templates.brand_theme import BrandTheme, CAPTION_FONT
+
+logger = logging.getLogger(__name__)
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -61,6 +64,7 @@ def _logo_elem(theme: BrandTheme, duration: float, track: int = 10) -> Optional[
             "fit": "contain"}
 
 def _audio_elem(theme: BrandTheme, duration: float, track: int = 11) -> Optional[dict]:
+    logger.info("_audio_elem: music_url=%r volume=%r dur=%r", theme.music_url, theme.music_volume, duration)
     if not theme.music_url:
         return None
     return {"type": "audio", "track": track, "name": "Background Music",
@@ -129,7 +133,6 @@ def build_myth_buster(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "x_anchor": "0%", "y_anchor": "0%",
         "font_family": theme.font_family, "font_weight": "800",
         "font_size": "4 vmin", "fill_color": "#FFFFFF",
-        "font_size_minimum": "2.5 vmin",
     })
 
     # ── Segment 2: THE TWIST (2.5-4.7s) ─────────────────────────────────
@@ -144,7 +147,6 @@ def build_myth_buster(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "x_anchor": "0%", "y_anchor": "0%",
         "font_family": theme.font_family, "font_weight": "700",
         "font_size": "3.8 vmin", "fill_color": theme.primary_color,
-        "font_size_minimum": "2.5 vmin",
     })
 
     # ── Segment 3: THE TRUTH (5.0-7.5s) ─────────────────────────────────
@@ -159,7 +161,6 @@ def build_myth_buster(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "x_anchor": "0%", "y_anchor": "0%",
         "font_family": theme.font_family, "font_weight": "700",
         "font_size": "3.8 vmin", "fill_color": "#FFFFFF",
-        "font_size_minimum": "2.5 vmin",
     })
 
     # ── CTA (7.8-9.5s) ───────────────────────────────────────────────────
@@ -174,7 +175,6 @@ def build_myth_buster(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "x_anchor": "0%", "y_anchor": "0%",
         "font_family": theme.font_family, "font_weight": "600",
         "font_size": "3.2 vmin", "fill_color": "#FFFFFF",
-        "font_size_minimum": "2 vmin",
     })
 
     # Logo — 13% width, top-right corner safe inside canvas
@@ -237,7 +237,11 @@ def build_bullet_sequence(request: GenerateVideoRequest, theme: BrandTheme, anal
 # ── T3 — Viral Reaction ───────────────────────────────────────────────────
 
 def build_viral_reaction(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
-    dur = float(getattr(analysis, "duration_seconds", None) or 30.0)
+    # Prefer analysis duration, then target_duration from request, then default 30s
+    _analysis_dur = float(getattr(analysis, 'duration_seconds', None) or 0)
+    _target_map = {'15s': 15.0, '30s': 30.0, '60s': 60.0, '90s': 90.0}
+    _target_dur = _target_map.get(getattr(request, 'target_duration', None) or '', 30.0)
+    dur = _analysis_dur if _analysis_dur > 0 else _target_dur
     trim = float(getattr(analysis, "start_time_seconds", None) or 0.0)
     hook_text = getattr(analysis, "generated_hook", None) or getattr(request, "text_1", None) or ""
 
@@ -260,7 +264,11 @@ def build_viral_reaction(request: GenerateVideoRequest, theme: BrandTheme, analy
 # ── T4 — Testimonial Story ────────────────────────────────────────────────
 
 def build_testimonial_story(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
-    dur = float(getattr(analysis, "duration_seconds", None) or 30.0)
+    # Prefer analysis duration, then target_duration from request, then default 30s
+    _analysis_dur = float(getattr(analysis, 'duration_seconds', None) or 0)
+    _target_map = {'15s': 15.0, '30s': 30.0, '60s': 60.0, '90s': 90.0}
+    _target_dur = _target_map.get(getattr(request, 'target_duration', None) or '', 30.0)
+    dur = _analysis_dur if _analysis_dur > 0 else _target_dur
     story_text = getattr(analysis, "generated_hook", None) or getattr(request, "text_1", None) or ""
 
     source = _base_source(dur)
