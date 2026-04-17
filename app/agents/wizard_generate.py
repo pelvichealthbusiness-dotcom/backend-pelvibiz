@@ -238,6 +238,16 @@ class WizardGenerateAgent:
         # ── 7. Save to requests_log ──────────────────────────────────
         try:
             supabase = get_supabase_admin()
+            slide_metadata = {
+                "texts": [
+                    s.get("body") or s.get("text") or s.get("title", "")
+                    for s in slides
+                ],
+                "positions": [
+                    s.get("position") or s.get("text_position", "")
+                    for s in slides
+                ],
+            }
             supabase.table("requests_log").upsert(
                 {
                     "id": message_id,
@@ -247,6 +257,7 @@ class WizardGenerateAgent:
                     "reply": f"Generated {len(media_urls)} carousel slides",
                     "caption": wizard_data.get("caption", ""),
                     "media_urls": media_urls,
+                    "metadata": slide_metadata,
                     "published": False,
                 },
                 on_conflict="id",
