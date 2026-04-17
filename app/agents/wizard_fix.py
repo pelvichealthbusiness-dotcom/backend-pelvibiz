@@ -6,14 +6,11 @@ and regenerates a single slide, streaming progress via SSE events.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import logging
-import uuid
 from typing import Any, AsyncGenerator
 
-from app.config import get_settings
 from app.core.streaming import (
     finish_event,
     error_event,
@@ -22,7 +19,6 @@ from app.core.streaming import (
 )
 from app.dependencies import get_supabase_admin
 from app.prompts.ai_carousel_fix import build_ai_fix_generic_prompt, build_ai_fix_card_prompt
-from app.prompts.ai_carousel_generate import build_generic_slide_prompt, build_card_slide_prompt
 from app.services.brand import BrandService
 from app.services.image_generator import ImageGeneratorService
 from app.services.storage import StorageService
@@ -130,9 +126,15 @@ class WizardFixAgent:
 
             yield text_chunk(f"Regenerating slide {slide_number}...\n")
 
-            # Use original slide URL as visual reference when available (preserves style)
+            # Use original slide URL as visual reference ONLY for text-only fixes
+            # Type changes (generic<->card) and full regenerations must generate from scratch
             original_photo_url = fix_data.get("photo_url", "")
-            preserve_visual = bool(original_photo_url and slide_type != SlideType.FACE)
+            fix_mode = fix_data.get("fix_mode", "regenerate")
+            preserve_visual = bool(
+                original_photo_url
+                and slide_type != SlideType.FACE
+                and fix_mode == "change_text"
+            )
 
             # Build prompt based on slide type
             if slide_type == SlideType.CARD:
