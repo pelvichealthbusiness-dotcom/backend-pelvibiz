@@ -474,19 +474,20 @@ def _caption_elem(
     return {
         "type": "text", "track": track, "name": f"Sub-{track}",
         "text": text, "time": round(time, 3),
-        "duration": round(max(duration, 0.5), 3),
+        # No minimum padding — karaoke words must end exactly when they end to avoid overlap
+        "duration": round(max(duration, 0.1), 3),
         "x": "50%", "y": y, "x_anchor": "50%", "y_anchor": "50%",
         "x_alignment": "50%", "width": "85%",
         "font_family": font_family or CAPTION_FONT,
         "font_weight": "900",
-        "font_size": "8 vmin",
-        "letter_spacing": "4%",
+        "font_size": "9 vmin",
+        "letter_spacing": "8%",
         "fill_color": fill_color,
         "stroke_color": "#000000",
-        "stroke_width": "1.5 vmin",
-        "background_color": "rgba(0,0,0,0.75)",
-        "background_x_padding": "5%",
-        "background_y_padding": "3%",
+        "stroke_width": "1.8 vmin",
+        "background_color": "rgba(0,0,0,0.80)",
+        "background_x_padding": "6%",
+        "background_y_padding": "4%",
     }
 
 
@@ -606,11 +607,13 @@ def build_talking_head(
 
     if phrase_blocks:
         # New pipeline: OpusClip-style phrase blocks from TranscriptionService
+        # Use bright yellow (#FFE600) — guaranteed legible on any background,
+        # gives the "karaoke highlight" effect regardless of brand primary color
         _append_captions(
             els, phrase_blocks,
-            y="72%", base_track=500,
+            y="75%", base_track=500,
             font_family=caption_font,
-            highlight_color=theme.primary_color,
+            highlight_color="#FFE600",
         )
     elif analysis and analysis.transcript_segments:
         # Legacy: raw Gemini segments (3-5 word chunks, no grouping)

@@ -173,9 +173,9 @@ class TestCaptionElem:
         assert el["y"] == "65%"
 
     def test_minimum_duration_enforced(self):
-        # duration=0 should be clamped to minimum 0.5
+        # Very short duration should be clamped to 0.1 (avoid zero-duration elements)
         el = _caption_elem(track=500, text="Hi", time=0.0, duration=0.0)
-        assert el["duration"] >= 0.5
+        assert el["duration"] >= 0.1
 
     def test_correct_track(self):
         el = _caption_elem(track=42, text="Test", time=0.0, duration=1.0)
@@ -316,7 +316,6 @@ class TestBuilderCaptionIntegration:
 
         # _MAX_CAPTION_WORDS=2 may split multi-word blocks → at least one element per block
         assert len(captions) >= len(blocks), "At least one caption element per phrase block"
-        assert all(el["fill_color"] == "#FFFFFF" for el in captions)
         assert all(el["font_weight"] == "900" for el in captions)
 
     def test_bullet_reel_with_captions_shows_only_hook_text(self):
@@ -592,7 +591,7 @@ class TestBuilderCaptionIntegration:
 # ── Karaoke word-level pipeline ───────────────────────────────────────────
 
 class TestGroupWordsIntoKaraokeBlocks:
-    def test_groups_into_two_word_blocks(self):
+    def test_one_word_per_block(self):
         words = [
             {"word": "Hello", "start": 0.0, "end": 0.3},
             {"word": "everyone", "start": 0.3, "end": 0.7},
@@ -600,19 +599,11 @@ class TestGroupWordsIntoKaraokeBlocks:
             {"word": "we", "start": 1.0, "end": 1.2},
         ]
         blocks = _group_words_into_karaoke_blocks(words)
-        assert len(blocks) == 2
-        assert blocks[0].text == "Hello everyone"
-        assert blocks[1].text == "today we"
-
-    def test_odd_word_count_last_block_has_one_word(self):
-        words = [
-            {"word": "one", "start": 0.0, "end": 0.3},
-            {"word": "two", "start": 0.3, "end": 0.6},
-            {"word": "three", "start": 0.6, "end": 0.9},
-        ]
-        blocks = _group_words_into_karaoke_blocks(words)
-        assert len(blocks) == 2
-        assert blocks[-1].text == "three"
+        assert len(blocks) == 4
+        assert blocks[0].text == "Hello"
+        assert blocks[1].text == "everyone"
+        assert blocks[2].text == "today"
+        assert blocks[3].text == "we"
 
     def test_timestamps_come_from_words(self):
         words = [
@@ -620,8 +611,11 @@ class TestGroupWordsIntoKaraokeBlocks:
             {"word": "here", "start": 2.9, "end": 3.4},
         ]
         blocks = _group_words_into_karaoke_blocks(words)
+        # 1 word per block → 2 blocks
         assert blocks[0].start == pytest.approx(2.5, abs=0.01)
-        assert blocks[0].end == pytest.approx(3.4, abs=0.1)
+        assert blocks[0].end == pytest.approx(2.9, abs=0.1)
+        assert blocks[1].start == pytest.approx(2.9, abs=0.01)
+        assert blocks[1].end == pytest.approx(3.4, abs=0.1)
 
     def test_minimum_duration_enforced(self):
         # Two words with very short duration — should be clamped
@@ -648,7 +642,7 @@ class TestGroupWordsIntoKaraokeBlocks:
 class TestTranscriptionServiceKaraoke:
     @pytest.mark.asyncio
     async def test_prefers_word_timestamps_over_segments(self):
-        """When word_timestamps are present, karaoke path is used (2-word blocks)."""
+        """When word_timestamps are present, karaoke path is used (1-word blocks)."""
         mock_result = VideoAnalysisResult(
             duration_seconds=5.0,
             word_timestamps=[
@@ -669,10 +663,10 @@ class TestTranscriptionServiceKaraoke:
             service = TranscriptionService()
             blocks = await service.transcribe("https://example.com/video.mp4")
 
-        # Karaoke path → 2 words per block (4 words → 2 blocks)
-        assert len(blocks) == 2
-        assert blocks[0].text == "Hello everyone"
-        assert blocks[1].text == "welcome here"
+        # Karaoke path → 1 word per block (4 words → 4 blocks)
+        assert len(blocks) == 4
+        assert blocks[0].text == "Hello"
+        assert blocks[1].text == "everyone"
 
     @pytest.mark.asyncio
     async def test_falls_back_to_segments_when_no_words(self):
@@ -717,10 +711,12 @@ class TestTranscriptionServiceKaraoke:
             service = TranscriptionService()
             blocks = await service.transcribe("https://example.com/video.mp4")
 
+        # 4 words → 4 blocks (1 word each)
+        assert len(blocks) == 4
         assert blocks[0].start == pytest.approx(0.5, abs=0.01)
-        assert blocks[0].text == "Doctor explica"
-        assert blocks[1].start == pytest.approx(1.3, abs=0.01)
-        assert blocks[1].text == "cómo funciona"
+        assert blocks[0].text == "Doctor"
+        assert blocks[2].start == pytest.approx(1.3, abs=0.01)
+        assert blocks[2].text == "cómo"
 
 
 class TestTalkingHeadCaptionFont:

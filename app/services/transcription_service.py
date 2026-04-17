@@ -19,7 +19,7 @@ _MAX_CHARS_PER_BLOCK = 150
 _MIN_BLOCK_DURATION = 0.6    # seconds — minimum for phrase-level blocks
 _KARAOKE_MIN_DURATION = 0.3  # seconds — minimum for word-level karaoke blocks
 _SENTENCE_ENDINGS = {".", "?", "!"}
-_KARAOKE_WORDS_PER_BLOCK = 2  # words per caption card for karaoke display
+_KARAOKE_WORDS_PER_BLOCK = 1  # one word per card — true karaoke highlight effect
 
 
 class TranscriptionService:
