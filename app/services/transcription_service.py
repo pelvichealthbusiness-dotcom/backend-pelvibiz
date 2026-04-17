@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 # Hard limits per spec
 _MAX_CHARS_PER_BLOCK = 150
-_MIN_BLOCK_DURATION = 0.5  # seconds
+_MIN_BLOCK_DURATION = 0.6    # seconds — minimum for phrase-level blocks
+_KARAOKE_MIN_DURATION = 0.3  # seconds — minimum for word-level karaoke blocks
 _SENTENCE_ENDINGS = {".", "?", "!"}
 _KARAOKE_WORDS_PER_BLOCK = 2  # words per caption card for karaoke display
 
@@ -145,6 +146,6 @@ def _group_words_into_karaoke_blocks(
             continue
         start = float(chunk[0].get("start", 0))
         end = float(chunk[-1].get("end", start + _MIN_BLOCK_DURATION))
-        duration = max(end - start, _MIN_BLOCK_DURATION)
+        duration = max(end - start, _KARAOKE_MIN_DURATION)
         blocks.append(PhraseBlock(text=text, start=round(start, 3), end=round(start + duration, 3)))
     return blocks

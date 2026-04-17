@@ -15,6 +15,7 @@ from app.models.video import PhraseBlock, VideoAnalysisResult, GenerateVideoRequ
 from app.services.transcription_service import (
     TranscriptionService,
     _group_into_phrase_blocks,
+    _group_words_into_karaoke_blocks,
 )
 from app.templates.brand_theme import BrandTheme
 from app.templates.renderscript_builders import (
@@ -158,15 +159,10 @@ class TestCaptionElem:
         stroke_vmin = float(el["stroke_width"].replace(" vmin", ""))
         assert stroke_vmin >= 1.5
 
-    def test_has_shadow(self):
+    def test_has_dark_pill_background(self):
         el = _caption_elem(track=500, text="Hello", time=0.0, duration=1.0)
-        assert "shadow_color" in el
-        assert "shadow_offset_x" in el
-        assert "shadow_offset_y" in el
-
-    def test_no_background_box(self):
-        el = _caption_elem(track=500, text="Hello", time=0.0, duration=1.0)
-        assert "background_color" not in el
+        assert "background_color" in el
+        assert "0,0,0" in el["background_color"]  # dark background for legibility
 
     def test_default_y_position(self):
         el = _caption_elem(track=500, text="Hello", time=0.0, duration=1.0)
@@ -318,7 +314,8 @@ class TestBuilderCaptionIntegration:
         source = build_bullet_reel(request, theme, phrase_blocks=blocks)
         captions = _get_caption_elements(source)
 
-        assert len(captions) == len(blocks), "One caption element per phrase block"
+        # _MAX_CAPTION_WORDS=2 may split multi-word blocks → at least one element per block
+        assert len(captions) >= len(blocks), "At least one caption element per phrase block"
         assert all(el["fill_color"] == "#FFFFFF" for el in captions)
         assert all(el["font_weight"] == "900" for el in captions)
 
@@ -361,7 +358,7 @@ class TestBuilderCaptionIntegration:
         source = build_talking_head(request, theme, phrase_blocks=blocks)
         captions = _get_caption_elements(source)
 
-        assert len(captions) == len(blocks)
+        assert len(captions) >= len(blocks)
 
     def test_talking_head_captions_at_bottom_safe_zone(self):
         request = _make_request(template="talking-head", clip_count=1)
@@ -401,7 +398,7 @@ class TestBuilderCaptionIntegration:
         source = build_hook_reveal(request, theme, phrase_blocks=blocks)
         captions = _get_caption_elements(source)
 
-        assert len(captions) == len(blocks)
+        assert len(captions) >= len(blocks)
 
     def test_hook_reveal_cta_moves_to_top_when_captions_present(self):
         """CTA band at y=83% would collide with captions at y=78%. Must move to top."""
@@ -455,7 +452,7 @@ class TestBuilderCaptionIntegration:
         source = build_edu_steps(request, theme, phrase_blocks=blocks)
         captions = _get_caption_elements(source)
 
-        assert len(captions) == len(blocks)
+        assert len(captions) >= len(blocks)
 
     def test_edu_steps_text_moves_up_when_captions_present(self):
         """Step text at y=55% and step# at y=36% shift up when captions occupy bottom."""
@@ -536,10 +533,14 @@ class TestBuilderCaptionIntegration:
         blocks = _make_phrase_blocks()
 
         source = build_bullet_reel(request, theme, phrase_blocks=blocks)
-        captions = _get_caption_elements(source)
+        captions = sorted(_get_caption_elements(source), key=lambda e: e["time"])
 
-        for block, el in zip(blocks, captions):
-            assert el["time"] == pytest.approx(block.start, abs=0.01)
+        # Every phrase block start time must appear as the start of at least one caption
+        caption_starts = {round(el["time"], 2) for el in captions}
+        for block in blocks:
+            assert round(block.start, 2) in caption_starts, (
+                f"No caption found starting at block.start={block.start}"
+            )
 
     def test_caption_tracks_dont_collide_with_template_tracks(self):
         """Caption elements use track 500+ so they don't collide with template elements."""
@@ -586,3 +587,198 @@ class TestBuilderCaptionIntegration:
             # Must not raise TypeError regardless of whether the builder supports captions
             source = builder(request, theme, None, **_bkw)
             assert "elements" in source, f"{builder.__name__} did not return a valid source dict"
+
+
+# ── Karaoke word-level pipeline ───────────────────────────────────────────
+
+class TestGroupWordsIntoKaraokeBlocks:
+    def test_groups_into_two_word_blocks(self):
+        words = [
+            {"word": "Hello", "start": 0.0, "end": 0.3},
+            {"word": "everyone", "start": 0.3, "end": 0.7},
+            {"word": "today", "start": 0.7, "end": 1.0},
+            {"word": "we", "start": 1.0, "end": 1.2},
+        ]
+        blocks = _group_words_into_karaoke_blocks(words)
+        assert len(blocks) == 2
+        assert blocks[0].text == "Hello everyone"
+        assert blocks[1].text == "today we"
+
+    def test_odd_word_count_last_block_has_one_word(self):
+        words = [
+            {"word": "one", "start": 0.0, "end": 0.3},
+            {"word": "two", "start": 0.3, "end": 0.6},
+            {"word": "three", "start": 0.6, "end": 0.9},
+        ]
+        blocks = _group_words_into_karaoke_blocks(words)
+        assert len(blocks) == 2
+        assert blocks[-1].text == "three"
+
+    def test_timestamps_come_from_words(self):
+        words = [
+            {"word": "Start", "start": 2.5, "end": 2.9},
+            {"word": "here", "start": 2.9, "end": 3.4},
+        ]
+        blocks = _group_words_into_karaoke_blocks(words)
+        assert blocks[0].start == pytest.approx(2.5, abs=0.01)
+        assert blocks[0].end == pytest.approx(3.4, abs=0.1)
+
+    def test_minimum_duration_enforced(self):
+        # Two words with very short duration — should be clamped
+        words = [
+            {"word": "fast", "start": 0.0, "end": 0.1},
+            {"word": "word", "start": 0.1, "end": 0.15},
+        ]
+        blocks = _group_words_into_karaoke_blocks(words)
+        assert blocks[0].end - blocks[0].start >= 0.3
+
+    def test_empty_words_returns_empty(self):
+        assert _group_words_into_karaoke_blocks([]) == []
+
+    def test_skips_empty_word_strings(self):
+        words = [
+            {"word": "", "start": 0.0, "end": 0.3},
+            {"word": "Hello", "start": 0.3, "end": 0.7},
+            {"word": "world", "start": 0.7, "end": 1.0},
+        ]
+        blocks = _group_words_into_karaoke_blocks(words)
+        assert all(b.text.strip() for b in blocks)
+
+
+class TestTranscriptionServiceKaraoke:
+    @pytest.mark.asyncio
+    async def test_prefers_word_timestamps_over_segments(self):
+        """When word_timestamps are present, karaoke path is used (2-word blocks)."""
+        mock_result = VideoAnalysisResult(
+            duration_seconds=5.0,
+            word_timestamps=[
+                {"word": "Hello", "start": 0.0, "end": 0.4},
+                {"word": "everyone", "start": 0.4, "end": 0.9},
+                {"word": "welcome", "start": 0.9, "end": 1.4},
+                {"word": "here", "start": 1.4, "end": 1.8},
+            ],
+            transcript_segments=[
+                {"text": "Hello everyone welcome here", "start": 0.0, "end": 1.8},
+            ],
+        )
+        with patch(
+            "app.services.transcription_service.VideoAnalysisService.analyze_for_talking_head",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            service = TranscriptionService()
+            blocks = await service.transcribe("https://example.com/video.mp4")
+
+        # Karaoke path → 2 words per block (4 words → 2 blocks)
+        assert len(blocks) == 2
+        assert blocks[0].text == "Hello everyone"
+        assert blocks[1].text == "welcome here"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_segments_when_no_words(self):
+        """When word_timestamps is None, falls back to phrase grouping."""
+        mock_result = VideoAnalysisResult(
+            duration_seconds=5.0,
+            word_timestamps=None,
+            transcript_segments=[
+                {"text": "Hello everyone.", "start": 0.0, "end": 1.0},
+                {"text": "Welcome here.", "start": 1.0, "end": 2.0},
+            ],
+        )
+        with patch(
+            "app.services.transcription_service.VideoAnalysisService.analyze_for_talking_head",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            service = TranscriptionService()
+            blocks = await service.transcribe("https://example.com/video.mp4")
+
+        assert len(blocks) >= 1
+        # Phrase path — blocks contain full sentences
+        assert all(len(b.text) > 2 for b in blocks)
+
+    @pytest.mark.asyncio
+    async def test_karaoke_blocks_have_accurate_timestamps(self):
+        """Each karaoke block's start/end should match the word timestamps from Gemini."""
+        mock_result = VideoAnalysisResult(
+            duration_seconds=3.0,
+            word_timestamps=[
+                {"word": "Doctor", "start": 0.5, "end": 0.9},
+                {"word": "explica", "start": 0.9, "end": 1.3},
+                {"word": "cómo", "start": 1.3, "end": 1.6},
+                {"word": "funciona", "start": 1.6, "end": 2.1},
+            ],
+        )
+        with patch(
+            "app.services.transcription_service.VideoAnalysisService.analyze_for_talking_head",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            service = TranscriptionService()
+            blocks = await service.transcribe("https://example.com/video.mp4")
+
+        assert blocks[0].start == pytest.approx(0.5, abs=0.01)
+        assert blocks[0].text == "Doctor explica"
+        assert blocks[1].start == pytest.approx(1.3, abs=0.01)
+        assert blocks[1].text == "cómo funciona"
+
+
+class TestTalkingHeadCaptionFont:
+    """Verify caption_font is applied in all three rendering paths."""
+
+    def test_phrase_blocks_path_applies_custom_font(self):
+        request = _make_request(template="talking-head", clip_count=1, caption_font="Oswald")
+        theme = _make_theme()
+        blocks = [PhraseBlock(text="Doctor explica cómo", start=0.0, end=1.5)]
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = [el for el in source["elements"] if el.get("type") == "text" and el.get("font_family") == "Oswald"]
+
+        assert len(captions) >= 1, "caption_font=Oswald not applied in phrase_blocks path"
+
+    def test_legacy_segments_path_applies_custom_font(self):
+        """Legacy Gemini segments path must also use caption_font."""
+        from unittest.mock import MagicMock
+        request = _make_request(template="talking-head", clip_count=1, caption_font="Bebas Neue")
+        theme = _make_theme()
+
+        analysis = MagicMock()
+        analysis.duration_seconds = 5.0
+        analysis.transcript_segments = [
+            {"text": "Hello world", "start": 0.0, "end": 1.0},
+            {"text": "testing now", "start": 1.0, "end": 2.0},
+        ]
+
+        source = build_talking_head(request, theme, analysis=analysis, phrase_blocks=None)
+        captions = [
+            el for el in source["elements"]
+            if el.get("type") == "text" and el.get("font_family") == "Bebas Neue"
+        ]
+
+        assert len(captions) >= 1, "caption_font=Bebas Neue not applied in legacy segments path"
+
+    def test_fallback_text2_path_applies_custom_font(self):
+        """Fallback text_2 path must also use caption_font."""
+        request = _make_request(
+            template="talking-head", clip_count=1,
+            caption_font="Kanit", text_2="This is my caption text for the video"
+        )
+        theme = _make_theme()
+
+        source = build_talking_head(request, theme, analysis=None, phrase_blocks=None)
+        captions = [
+            el for el in source["elements"]
+            if el.get("type") == "text" and el.get("font_family") == "Kanit"
+        ]
+
+        assert len(captions) >= 1, "caption_font=Kanit not applied in fallback text_2 path"
+
+    def test_defaults_to_anton_when_no_font_specified(self):
+        request = _make_request(template="talking-head", clip_count=1)
+        theme = _make_theme()
+        blocks = [PhraseBlock(text="Hello world", start=0.0, end=1.5)]
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = [el for el in source["elements"] if el.get("type") == "text" and el.get("font_family") == "Anton"]
+
+        assert len(captions) >= 1, "Should default to Anton when no caption_font specified"
