@@ -25,6 +25,16 @@ class UserContext:
     token: str         # Raw JWT — for forwarding to user-scoped Supabase client
 
 
+async def _get_role_from_profiles(user_id: str) -> str:
+    """Fetch role from profiles table — authoritative source when JWT app_metadata lacks it."""
+    try:
+        from app.core.supabase_client import get_service_client
+        result = get_service_client().from_("profiles").select("role").eq("id", user_id).single().execute()
+        return result.data.get("role", "client") if result.data else "client"
+    except Exception:
+        return "client"
+
+
 async def _decode_jwt_local(token: str) -> UserContext:
     """Decode Supabase JWT locally with PyJWT (fast, no network)."""
     settings = get_settings()
@@ -54,7 +64,7 @@ async def _decode_jwt_local(token: str) -> UserContext:
         )
 
     app_metadata = payload.get("app_metadata", {})
-    role = app_metadata.get("role", "client")
+    role = app_metadata.get("role") or await _get_role_from_profiles(user_id)
     email = payload.get("email", "")
 
     return UserContext(user_id=user_id, email=email, role=role, token=token)
@@ -75,7 +85,7 @@ async def _validate_via_supabase(token: str) -> UserContext:
         user = result.user
         # Try to get role from app_metadata
         app_metadata = user.app_metadata or {}
-        role = app_metadata.get("role", "client")
+        role = app_metadata.get("role") or await _get_role_from_profiles(user.id)
         return UserContext(
             user_id=user.id,
             email=user.email or "",
