@@ -60,7 +60,7 @@ _AGENT_MAP: dict[str, str] = {
     "real-carousel": "CarouselP1Agent",
     "ai-carousel": "CarouselP2Agent",
     "reels-edited-by-ai": "VideoP3Agent",
-    "pelvibiz-ai": "PelvibizAiAgent",
+    "pelvibiz-ai": "OpenClawAgent",
 }
 
 _WIZARD_MAP: dict[str, str] = {
@@ -123,9 +123,9 @@ def _resolve_agent_type(agent_type: str) -> Type[BaseStreamingAgent]:
     elif class_name == "VideoP3Agent":
         from app.agents.video_p3 import VideoP3Agent
         return VideoP3Agent
-    elif class_name == "PelvibizAiAgent":
-        from app.agents.pelvibiz_ai_agent import PelvibizAiAgent
-        return PelvibizAiAgent
+    elif class_name == "OpenClawAgent":
+        from app.agents.openclaw_agent import OpenClawAgent
+        return OpenClawAgent
     else:
         from app.agents.general_chat import GeneralChatAgent
         return GeneralChatAgent

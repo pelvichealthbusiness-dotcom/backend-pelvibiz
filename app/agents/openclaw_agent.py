@@ -16,10 +16,48 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_OPENCLAW_URL = "http://localhost:18789/v1/chat/completions"
-_OPENCLAW_TOKEN = "c172820421a634220f606d737806ef2ee001072549f9fec4"
 _API_BASE = "http://localhost:8100/api/v1"
 _MAX_TOOL_ROUNDS = 5
+
+_TOOL_LABELS: dict[str, str] = {
+    "get_workspace_context": "Loading your workspace...",
+    "get_brand_profile": "Checking your brand profile...",
+    "update_brand_profile": "Updating brand profile...",
+    "refresh_blotato_connections": "Connecting to Blotato...",
+    "get_user_preferences": "Checking your preferences...",
+    "update_user_preferences": "Updating preferences...",
+    "list_content_library": "Browsing your content library...",
+    "get_content_detail": "Loading content...",
+    "publish_content": "Publishing content...",
+    "schedule_content": "Scheduling post...",
+    "unpublish_content": "Unpublishing content...",
+    "generate_research": "Researching topics...",
+    "latest_research": "Loading recent research...",
+    "generate_ideation": "Generating ideas...",
+    "latest_ideas": "Loading latest ideas...",
+    "generate_hooks": "Crafting hooks...",
+    "generate_script": "Writing script...",
+    "latest_hooks": "Loading recent hooks...",
+    "latest_scripts": "Loading recent scripts...",
+    "compare_competitors": "Analyzing competitors...",
+    "get_competitor_gaps": "Finding content gaps...",
+    "get_brand_stories": "Loading brand stories...",
+    "create_brand_story": "Saving brand story...",
+    "list_conversations": "Loading conversations...",
+    "get_conversation": "Loading conversation...",
+    "get_conversation_messages": "Loading messages...",
+    "generate_carousel": "Generating carousel...",
+    "fix_carousel_slide": "Fixing slide...",
+    "generate_ai_carousel": "Generating AI carousel...",
+    "fix_ai_carousel_slide": "Fixing AI slide...",
+    "generate_post": "Generating post...",
+    "generate_video": "Generating video...",
+    "trim_video": "Trimming video...",
+    "social_research": "Researching social media...",
+    "social_ideate": "Brainstorming viral ideas...",
+    "social_script": "Writing social script...",
+    "compare_social_accounts": "Comparing social accounts...",
+}
 
 OPENCLAW_AGENT_PROMPT = """You are PelviBiz AI, the fast concierge for this app.
 
@@ -777,29 +815,38 @@ class OpenClawAgent(BaseStreamingAgent):
                 messages.extend(history)
             messages.append({"role": "user", "content": message})
 
-            # ── Agentic loop: tool calling rounds ─────────────────────────
             for _round in range(_MAX_TOOL_ROUNDS):
-                response = await _call_openclaw(messages, stream=False)
-                choice = (response.get("choices") or [{}])[0]
-                msg = choice.get("message") or {}
-                tool_calls = msg.get("tool_calls") or []
+                tool_calls_acc: dict[int, dict] = {}
+                msg_content = ""
+                got_tool_calls = False
 
-                if not tool_calls:
-                    # No tools needed — stream the final response
-                    final_content = msg.get("content") or ""
-                    if final_content:
-                        # Simulate streaming by yielding the full text
-                        yield text_chunk(final_content)
+                async for event_type, event_data in _stream_openclaw(messages):
+                    if event_type == "text":
+                        msg_content += event_data
+                        yield text_chunk(event_data)
+                    elif event_type == "tool_calls":
+                        got_tool_calls = True
+                        tool_calls_acc = event_data
+
+                if not got_tool_calls:
                     break
 
-                # Append assistant's tool call message
-                messages.append({"role": "assistant", "content": msg.get("content"), "tool_calls": tool_calls})
+                # Rebuild tool_calls list sorted by index
+                tool_calls_list = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
+                messages.append({
+                    "role": "assistant",
+                    "content": msg_content or None,
+                    "tool_calls": tool_calls_list,
+                })
 
-                # Execute each tool call and append results
-                for tc in tool_calls:
+                for tc in tool_calls_list:
                     tc_id = tc.get("id") or "call_0"
                     tc_name = tc.get("function", {}).get("name", "")
                     tc_args_raw = tc.get("function", {}).get("arguments", "{}")
+
+                    label = _TOOL_LABELS.get(tc_name, f"Using {tc_name.replace('_', ' ')}...")
+                    yield text_chunk(f"\n_{label}_\n\n")
+
                     try:
                         tc_args = json.loads(tc_args_raw)
                     except json.JSONDecodeError:
@@ -814,8 +861,7 @@ class OpenClawAgent(BaseStreamingAgent):
                         "content": result_str,
                     })
             else:
-                # Exceeded max rounds — stream whatever we have
-                yield text_chunk("I ran too many steps. Please try again.")
+                yield text_chunk("\n\nDemasiados pasos. Por favor intentá de nuevo.")
 
             yield finish_event("stop")
 
@@ -826,13 +872,26 @@ class OpenClawAgent(BaseStreamingAgent):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _call_openclaw(messages: list[dict], stream: bool = False) -> dict:
-    """Make a single call to the OpenClaw gateway."""
+async def _stream_openclaw(
+    messages: list[dict],
+) -> AsyncGenerator[tuple[str, Any], None]:
+    """Stream from the OpenClaw gateway, yielding (type, data) tuples.
+
+    Yields:
+        ("text", str) — text delta to forward to the client
+        ("tool_calls", dict[int, dict]) — accumulated tool call map when the
+            model decides to invoke tools instead of producing text
+    """
+    settings = get_settings()
+    tool_calls_acc: dict[int, dict] = {}
+    has_tool_calls = False
+
     async with httpx.AsyncClient() as http:
-        r = await http.post(
-            _OPENCLAW_URL,
+        async with http.stream(
+            "POST",
+            settings.openclaw_url,
             headers={
-                "Authorization": f"Bearer {_OPENCLAW_TOKEN}",
+                "Authorization": f"Bearer {settings.openclaw_token}",
                 "Content-Type": "application/json",
             },
             json={
@@ -840,12 +899,48 @@ async def _call_openclaw(messages: list[dict], stream: bool = False) -> dict:
                 "messages": messages,
                 "tools": TOOLS,
                 "tool_choice": "auto",
-                "stream": stream,
+                "stream": True,
             },
             timeout=120.0,
-        )
-        r.raise_for_status()
-        return r.json()
+        ) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    data = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+
+                choice = (data.get("choices") or [{}])[0]
+                delta = choice.get("delta") or {}
+
+                content = delta.get("content")
+                if content:
+                    yield ("text", content)
+
+                for tc_delta in delta.get("tool_calls") or []:
+                    has_tool_calls = True
+                    idx = tc_delta.get("index", 0)
+                    if idx not in tool_calls_acc:
+                        tool_calls_acc[idx] = {
+                            "id": "",
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    if tc_delta.get("id"):
+                        tool_calls_acc[idx]["id"] = tc_delta["id"]
+                    fn = tc_delta.get("function") or {}
+                    if fn.get("name"):
+                        tool_calls_acc[idx]["function"]["name"] += fn["name"]
+                    if fn.get("arguments"):
+                        tool_calls_acc[idx]["function"]["arguments"] += fn["arguments"]
+
+    if has_tool_calls:
+        yield ("tool_calls", tool_calls_acc)
 
 
 def _build_system_context(profile: dict, user_id: str) -> str:

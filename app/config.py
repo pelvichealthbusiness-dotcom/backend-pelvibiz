@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     # Brave Search
     brave_search_api_key: str = ""
 
+    # OpenClaw gateway
+    openclaw_url: str = "http://localhost:18789/v1/chat/completions"
+    openclaw_token: str = ""
+
     # Blotato
     blotato_api_key: str = ""
 
