@@ -208,9 +208,11 @@ async def schedule_content(
     media_type = agent_type_to_media_type(content_agent_type)
 
     # Build n8n payload (same format as Vercel Edge Function)
+    # media_urls is explicitly included so n8n always gets the current (potentially fixed) URLs
     n8n_payload = {
         "client_id": user.user_id,
         "asset_id": content_id,
+        "media_urls": content.get("media_urls") or [],
         "scheduled_date": body.scheduled_date,
         "timezone": body.timezone,
         "caption": body.caption or content.get("reply", ""),
