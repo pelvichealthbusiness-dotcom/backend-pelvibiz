@@ -55,6 +55,10 @@ class ScheduleContentRequest(BaseModel):
     caption: Optional[str] = Field(None, max_length=5000)
 
 
+class RescheduleRequest(BaseModel):
+    scheduled_date: str = Field(..., description="New ISO datetime string")
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -251,4 +255,26 @@ async def schedule_content(
         updates["reply"] = body.caption
 
     updated = crud.update_content(content_id, user.user_id, updates)
+    return success(updated)
+
+
+@router.patch("/{content_id}/reschedule")
+async def reschedule_content(
+    content_id: str,
+    body: RescheduleRequest,
+    user: UserContext = Depends(get_current_user),
+):
+    """Update the scheduled_date of an already-scheduled post.
+
+    Only changes scheduled_date — does not touch published, caption, or media_urls.
+    """
+    crud = ContentCRUD()
+    # Verify ownership — raises 404/403 if not found or wrong user
+    crud.get_content(content_id, user.user_id)
+
+    updated = crud.update_content(
+        content_id,
+        user.user_id,
+        {"scheduled_date": body.scheduled_date},
+    )
     return success(updated)

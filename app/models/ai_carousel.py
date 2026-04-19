@@ -8,6 +8,7 @@ class SlideType(str, Enum):
     GENERIC = "generic"
     CARD = "card"
     FACE = "face"  # Treated as generic until KIE.ai is integrated
+    CUSTOM_PHOTO = "custom_photo"  # User-uploaded photo — bypasses image generation
 
 
 class AiSlideInput(BaseModel):

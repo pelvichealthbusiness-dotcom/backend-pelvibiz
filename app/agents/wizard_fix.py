@@ -18,7 +18,11 @@ from app.core.streaming import (
     text_chunk,
 )
 from app.dependencies import get_supabase_admin
-from app.prompts.ai_carousel_fix import build_ai_fix_generic_prompt, build_ai_fix_card_prompt
+from app.prompts.ai_carousel_generate import (
+    build_generic_slide_prompt,
+    build_card_slide_prompt,
+    build_per_slide_context,
+)
 from app.services.brand import BrandService
 from app.services.image_generator import ImageGeneratorService
 from app.services.storage import StorageService
@@ -105,7 +109,6 @@ class WizardFixAgent:
             metadata = result.data.get("metadata") or {}
             texts = (metadata.get("texts") or []) if isinstance(metadata, dict) else []
             positions = (metadata.get("positions") or []) if isinstance(metadata, dict) else []
-            slide_prompts = (metadata.get("prompts") or []) if isinstance(metadata, dict) else []
 
             carousel_context_lines: list[str] = []
             for i, text in enumerate(texts[:10], 1):
@@ -114,9 +117,6 @@ class WizardFixAgent:
                 carousel_context_lines.append(f"Slide {i}: {text}{suffix}")
 
             carousel_context = "\n".join(carousel_context_lines)
-            original_prompt = ""
-            if isinstance(slide_prompts, list) and slide_idx < len(slide_prompts):
-                original_prompt = str(slide_prompts[slide_idx] or "")
 
             # Determine slide type
             try:
@@ -125,6 +125,31 @@ class WizardFixAgent:
                 slide_type = SlideType.GENERIC
 
             yield text_chunk(f"Regenerating slide {slide_number}...\n")
+
+            # Custom photo: user uploaded their own image — skip generation entirely
+            if slide_type == SlideType.CUSTOM_PHOTO:
+                custom_photo_url = fix_data.get("photo_url", "")
+                if not custom_photo_url:
+                    yield error_event("No photo_url provided for custom_photo fix", "VALIDATION_ERROR")
+                    return
+
+                updated_urls = list(original_urls)
+                updated_urls[slide_idx] = custom_photo_url
+                try:
+                    supabase.table("requests_log").update(
+                        {"media_urls": updated_urls}
+                    ).eq("id", row_id).execute()
+                except Exception as e:
+                    logger.error("Failed to update requests_log: %s", e)
+
+                yield metadata_event({
+                    "type": "slide_fixed",
+                    "slide_number": slide_number,
+                    "url": custom_photo_url,
+                    "media_urls": updated_urls,
+                })
+                yield finish_event("done")
+                return
 
             # Use original slide URL as visual reference ONLY for text-only fixes
             # Type changes (generic<->card) and full regenerations must generate from scratch
@@ -136,28 +161,77 @@ class WizardFixAgent:
                 and fix_mode == "change_text"
             )
 
-            # Build prompt based on slide type
+            # The slide text to render: prefer user's new text, fallback to stored original
+            slide_text = new_text or (texts[slide_idx] if slide_idx < len(texts) else "") or topic
+
+            # Build visual context the same way as generation (brand environment + voice)
+            brand_environment = profile.get("visual_environment_setup", "") or ""
+            brand_voice = profile.get("brand_voice", "") or ""
+            visual_prompt = build_per_slide_context(
+                slide_topic=slide_text,
+                visual_prompt="",
+                brand_environment=brand_environment,
+                brand_voice=brand_voice,
+                slide_index=slide_idx,
+                total_slides=len(original_urls),
+                slide_type=slide_type_str,
+                topic=topic,
+            )
+
+            # Use stored text position; AI carousel slides default to Bottom Center
+            stored_position = positions[slide_idx] if slide_idx < len(positions) else ""
+
+            # Build prompt using the SAME builders as generation — same quality, same style
             if slide_type == SlideType.CARD:
-                prompt = build_ai_fix_card_prompt(
-                    new_text=new_text or None,
-                    font_prompt=profile.get("font_prompt", "Sans-serif"),
+                prompt = build_card_slide_prompt(
+                    text=slide_text,
+                    text_position=stored_position or "Center",
+                    font_prompt=profile.get("font_prompt", "Clean, bold, geometric sans-serif"),
                     font_style=profile.get("font_style", "bold"),
+                    font_size=profile.get("font_size", "38px"),
                     color_primary=profile.get("brand_color_primary", "#000000"),
                     color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
-                    topic=topic,
-                    carousel_context=carousel_context,
+                    color_background=profile.get("brand_color_background"),
+                    slide_index=slide_idx,
+                    font_prompt_secondary=profile.get("font_prompt_secondary"),
                 )
             else:
-                prompt = build_ai_fix_generic_prompt(
-                    original_prompt=original_prompt or topic,
-                    new_text=new_text or None,
-                    font_prompt=profile.get("font_prompt", "Sans-serif"),
+                subject_desc = (
+                    profile.get("visual_subject_outfit_face", "") or ""
+                    if slide_type == SlideType.FACE
+                    else profile.get("visual_subject_outfit_generic", "") or ""
+                )
+                prompt = build_generic_slide_prompt(
+                    visual_prompt=visual_prompt,
+                    text=slide_text,
+                    text_position=stored_position or "Bottom Center",
+                    font_prompt=profile.get("font_prompt", "Clean, bold, geometric sans-serif"),
                     font_style=profile.get("font_style", "bold"),
+                    font_size=profile.get("font_size", "38px"),
                     color_primary=profile.get("brand_color_primary", "#000000"),
                     color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
-                    topic=topic,
-                    carousel_context=carousel_context,
-                    preserve_visual=preserve_visual,
+                    subject_description=subject_desc,
+                    color_background=profile.get("brand_color_background"),
+                    slide_index=slide_idx,
+                    is_face_mode=(slide_type == SlideType.FACE),
+                    font_prompt_secondary=profile.get("font_prompt_secondary"),
+                )
+
+            # Prepend carousel context so the fix matches the other slides' style
+            if carousel_context:
+                prompt = (
+                    f"CAROUSEL CONTEXT — match the visual style of these slides:\n{carousel_context}\n---\n\n"
+                    + prompt
+                )
+
+            # For text-only fixes: instruct Gemini to preserve the original background
+            if preserve_visual:
+                prompt = (
+                    "MODE: TEXT UPDATE ONLY\n"
+                    "A reference image of the ORIGINAL slide is attached. "
+                    "Keep the EXACT same background, composition, color palette, and lighting. "
+                    "ONLY update the text overlay with the new text below.\n\n"
+                    + prompt
                 )
 
             image_gen = ImageGeneratorService()

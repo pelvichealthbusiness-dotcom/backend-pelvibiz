@@ -149,6 +149,7 @@ def build_per_slide_context(
     visual_subject_outfit_face: str = "",
     visual_subject_outfit_generic: str = "",
     story_context: str = "",
+    topic: str = "",
 ) -> str:
     """Build a rich per-slide visual context for Gemini image generation.
 
@@ -157,8 +158,12 @@ def build_per_slide_context(
     """
     parts: list[str] = []
 
-    # 0. PRIMARY VISUAL DIRECTIVE — evoke concept, don't force literal elements
-    parts.insert(0,
+    # 0. CAROUSEL TOPIC prefix — anchors all slides to the user's stated idea
+    if topic and topic.strip():
+        parts.append(f"The carousel is about: {topic.strip()}. This slide covers: {slide_topic}.")
+
+    # 1. PRIMARY VISUAL DIRECTIVE — evoke concept, don't force literal elements
+    parts.insert(0 if not topic else 1,
         f'VISUAL CONCEPT: The image should visually EVOKE and complement this idea: "{slide_topic}". '
         f'Choose a scene that feels connected to this concept — it does NOT need to show it literally. '
         f'A powerful, coherent, photorealistic scene is more important than forced literal representation. '
@@ -242,9 +247,11 @@ def build_generic_slide_prompt(
     slide_index: int = 0,
     is_face_mode: bool = False,
     font_prompt_secondary: str | None = None,
+    composition: str | None = None,
+    lighting: str | None = None,
 ) -> str:
-    composition = random.choice(COMPOSITION_VARIATIONS)
-    lighting = random.choice(LIGHTING_VARIATIONS)
+    composition = composition or random.choice(COMPOSITION_VARIATIONS)
+    lighting = lighting or random.choice(LIGHTING_VARIATIONS)
 
     subject_block = (
         f"\nSUBJECT/MODEL DESCRIPTION (use if the scene includes a person):\n{subject_description}\n"

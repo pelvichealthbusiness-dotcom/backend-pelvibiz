@@ -149,17 +149,18 @@ class WizardGenerateAgent:
 
         generated_urls: list[str] = []
         failed_slides: list[int] = []
+        generated_prompts: list[str] = []
 
         if self.agent_type == "ai-carousel":
             # Use a queue for real-time slide-by-slide streaming
             progress_queue: asyncio.Queue = asyncio.Queue()
 
             async def run_generation():
-                urls, fails = await self._generate_ai_slides(
+                urls, fails, prompts = await self._generate_ai_slides(
                     slides, wizard_data, effective_profile, progress_queue,
                     story_context=story_context,
                 )
-                await progress_queue.put(("DONE", urls, fails))
+                await progress_queue.put(("DONE", urls, fails, prompts))
 
             gen_task = asyncio.create_task(run_generation())
 
@@ -169,6 +170,7 @@ class WizardGenerateAgent:
                 if item[0] == "DONE":
                     generated_urls = list(item[1])
                     failed_slides = list(item[2])
+                    generated_prompts = list(item[3])
                     break
                 elif item[0] == "slide_complete":
                     idx, url = item[1], item[2]
@@ -247,6 +249,7 @@ class WizardGenerateAgent:
                     s.get("position") or s.get("text_position", "")
                     for s in slides
                 ],
+                "prompts": generated_prompts,
             }
             supabase.table("requests_log").upsert(
                 {
@@ -492,15 +495,22 @@ class WizardGenerateAgent:
         profile: dict,
         progress_queue: asyncio.Queue,
         story_context: str = "",
-    ) -> tuple[list[str | None], list[int]]:
-        """Generate P2 AI slides concurrently. Returns (urls, failed)."""
+    ) -> tuple[list[str | None], list[int], list[str]]:
+        """Generate P2 AI slides concurrently. Returns (urls, failed, prompts)."""
         settings = get_settings()
         image_gen = ImageGeneratorService()
         watermark_service = WatermarkService()
         storage = StorageService()
         semaphore = asyncio.Semaphore(settings.p2_gemini_concurrency)
 
-        async def generate_single(i: int, slide: dict) -> tuple[int, str | None]:
+        # Pre-select one composition + lighting for ALL slides — visual coherence
+        from app.prompts.ai_carousel_generate import COMPOSITION_VARIATIONS, LIGHTING_VARIATIONS
+        import random as _random
+        carousel_composition = _random.choice(COMPOSITION_VARIATIONS)
+        carousel_lighting = _random.choice(LIGHTING_VARIATIONS)
+        carousel_topic = wizard_data.get("topic", "")
+
+        async def generate_single(i: int, slide: dict) -> tuple[int, str | None, str]:
             async with semaphore:
                 try:
                     slide_text = slide.get("body") or slide.get("text") or slide.get("title", f"Slide {i + 1}")
@@ -527,6 +537,7 @@ class WizardGenerateAgent:
                         visual_subject_outfit_face=profile.get("visual_subject_outfit_face") or "",
                         visual_subject_outfit_generic=profile.get("visual_subject_outfit_generic") or "",
                         story_context=story_context,
+                        topic=carousel_topic,
                     )
 
                     if slide_type == "card":
@@ -562,6 +573,8 @@ class WizardGenerateAgent:
                             slide_index=i,
                             is_face_mode=(slide_type == "face" and bool(wizard_data.get("face_photo_url"))),
                             font_prompt_secondary=profile.get("font_prompt_secondary"),
+                            composition=carousel_composition,
+                            lighting=carousel_lighting,
                         )
 
                     # Face mode: send face photo as reference image to Gemini
@@ -637,12 +650,12 @@ class WizardGenerateAgent:
                     public_url = await storage.upload_image(upload_base64, self.user_id)
 
                     await progress_queue.put(("slide_complete", i, public_url))
-                    return (i, public_url)
+                    return (i, public_url, prompt)
 
                 except Exception as e:
                     logger.error("AI slide %d failed: %s", i + 1, e)
                     await progress_queue.put(("slide_failed", i, str(e)))
-                    return (i, None)
+                    return (i, None, "")
 
         tasks = [generate_single(i, slide) for i, slide in enumerate(slides)]
         results = await asyncio.gather(*tasks)
@@ -651,8 +664,9 @@ class WizardGenerateAgent:
         sorted_results = sorted(results, key=lambda x: x[0])
         generated_urls: list[str | None] = [r[1] for r in sorted_results]
         failed_slides: list[int] = [r[0] + 1 for r in sorted_results if r[1] is None]
+        slide_prompts: list[str] = [r[2] for r in sorted_results]
 
-        return generated_urls, failed_slides
+        return generated_urls, failed_slides, slide_prompts
 
     # ------------------------------------------------------------------
     # Face Image Download (with retry)

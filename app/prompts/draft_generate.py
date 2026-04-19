@@ -132,8 +132,8 @@ The caption is a DIRECT EXTENSION of the carousel — not a summary, not a rewri
    - If social proof: "Tag someone who needs to hear this"
 
 5. **HASHTAGS** (last line of the caption text — always included inside the caption):
-   - Exactly 5 hashtags — no more, no less
-   - All 5 must be directly relevant to THIS specific post topic
+   - Exactly 3 hashtags — no more, no less
+   - All 3 must be directly relevant to THIS specific post topic
    - NO generic hashtags (#motivation #success #mindset #entrepreneur #health)
    - CRITICAL: Hashtags are part of the caption string. NEVER omit them.
 
@@ -172,13 +172,13 @@ Patients drop off after 3 visits'
 - NEVER use emojis in slide text. In captions, max 4-5 total, only at start of list items or before CTA.
 - Format:
 
-{{"slides": [{{"number": 1, "text": "Slide text here"}},{{"number": 2, "text": "Slide text here"}}], "caption": "Hook line.\n\nBody insight text here.\n\nCTA sentence here.\n\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"}}
+{{"slides": [{{"number": 1, "text": "Slide text here"}},{{"number": 2, "text": "Slide text here"}}], "caption": "Hook line.\n\nBody insight text here.\n\nCTA sentence here.\n\n#hashtag1 #hashtag2 #hashtag3"}}
 
 - "slides" array MUST contain EXACTLY {slide_count} items — no more, no less
 - Each slide must have "number" (integer starting at 1) and "text" (the slide copy)
 - "caption" MUST be 120-180 words following the Caption Architecture above
-- "caption" MUST include a CTA and exactly 5 relevant hashtags at the very end (on the last line)
-- NEVER return a caption without 5 hashtags — a caption without hashtags is INVALID
+- "caption" MUST include a CTA and exactly 3 relevant hashtags at the very end (on the last line)
+- NEVER return a caption without 3 hashtags — a caption without hashtags is INVALID
 - Use \\n (the literal two characters backslash + n) for line breaks within the caption. NEVER use an actual newline character inside a JSON string value — that produces invalid JSON."""
 
 
@@ -397,5 +397,23 @@ Structure: Hook -> Insight -> CTA -> Hashtags
 
 - "texts" object must contain exactly the keys listed above
 - Each text value must respect its maximum character limit
-- "caption" MUST be 120-180 words with CTA and exactly 5 hashtags. NEVER use emojis.
+- "caption" MUST be 120-180 words with CTA and exactly 3 hashtags. NEVER use emojis.
 - Use \n for line breaks within the caption"""
+
+
+def strip_extra_hashtags(caption: str, max_hashtags: int = 3) -> str:
+    """Strip hashtags beyond max_hashtags from a caption string.
+
+    Keeps the first max_hashtags hashtags found; removes the rest (and trailing spaces).
+    """
+    import re
+    found = 0
+
+    def _replacer(m: re.Match) -> str:
+        nonlocal found
+        found += 1
+        return m.group(0) if found <= max_hashtags else ""
+
+    result = re.sub(r"#\w+", _replacer, caption)
+    result = re.sub(r"  +", " ", result).rstrip()
+    return result

@@ -5,7 +5,7 @@ from app.config import get_settings
 from app.services.brand import BrandService
 from app.services.brand_harmony import review_plan
 from app.services.learning import LearningService
-from app.prompts.draft_generate import build_draft_system_prompt, build_video_draft_system_prompt
+from app.prompts.draft_generate import build_draft_system_prompt, build_video_draft_system_prompt, strip_extra_hashtags
 from app.prompts.ideas_generate import build_learning_section
 
 logger = logging.getLogger(__name__)
@@ -200,7 +200,7 @@ class DraftEngine:
 
                 return {
                     "slides": reviewed_slides,
-                    "caption": reviewed["caption"],
+                    "caption": strip_extra_hashtags(reviewed["caption"]),
                 }
             except json.JSONDecodeError:
                 if attempt == 1:
