@@ -1,8 +1,9 @@
 import json
 import logging
-from openai import AsyncOpenAI
+from google.genai import types
 from pydantic import BaseModel
 from app.config import get_settings
+from app.core.gemini_client import get_gemini_client
 from app.services.brand_harmony import review_plan
 
 logger = logging.getLogger(__name__)
@@ -22,11 +23,8 @@ class ContentPlan(BaseModel):
 class ContentStrategyService:
     def __init__(self):
         settings = get_settings()
-        self.client = AsyncOpenAI(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
-        )
-        self.model = settings.llm_model
+        self.client = get_gemini_client()
+        self.model = settings.gemini_model_text
 
     async def plan(self, message: str, brand_profile: dict, slides_count: int) -> ContentPlan:
         """Use LLM to create intelligent content plan based on brand context."""
@@ -39,24 +37,23 @@ class ContentStrategyService:
     async def _llm_plan(self, message: str, brand_profile: dict, slides_count: int) -> ContentPlan:
         system_prompt = self._build_system_prompt(brand_profile, slides_count)
         
-        response = await self.client.chat.completions.create(
+        response = await self.client.aio.models.generate_content(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            max_tokens=2000,
-            timeout=30,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.7,
+                max_output_tokens=2000,
+                response_mime_type="application/json",
+            ),
+            contents=message,
         )
 
-        content = response.choices[0].message.content
+        content = response.text
         if not content:
             raise ValueError("LLM returned empty response")
 
         data = json.loads(content)
-        
+
         # Validate and build ContentPlan
         slides = []
         for i, slide_data in enumerate(data.get("slides", [])[:slides_count], 1):
@@ -205,19 +202,18 @@ Return JSON with this EXACT structure:
 
         system_prompt = build_ai_strategy_prompt(brand_profile, slide_count, brand_stories=brand_stories)
 
-        response = await self.client.chat.completions.create(
+        response = await self.client.aio.models.generate_content(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            max_tokens=4096,
-            timeout=30,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.7,
+                max_output_tokens=4096,
+                response_mime_type="application/json",
+            ),
+            contents=message,
         )
 
-        content = response.choices[0].message.content
+        content = response.text
         if not content:
             raise ValueError("LLM returned empty response")
 

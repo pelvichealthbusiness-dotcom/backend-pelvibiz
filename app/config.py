@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     max_image_size_mb: int = 20
 
     # Gemini model tiers
+    gemini_model_text: str = "gemini-2.5-pro"
     gemini_model_default: str = "gemini-2.5-flash"
     gemini_model_lite: str = "gemini-2.5-flash-lite"
 

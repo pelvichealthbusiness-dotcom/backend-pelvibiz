@@ -1,6 +1,7 @@
 import json
 import logging
-from openai import AsyncOpenAI
+from google.genai import types
+from app.core.gemini_client import get_gemini_client
 from app.config import get_settings
 from app.services.brand import BrandService
 from app.services.brand_harmony import review_plan
@@ -52,11 +53,8 @@ class DraftEngine:
 
     def __init__(self):
         settings = get_settings()
-        self.client = AsyncOpenAI(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
-        )
-        self.model = settings.llm_model
+        self.client = get_gemini_client()
+        self.model = settings.gemini_model_text
         self.brand_service = BrandService()
         self.learning_service = LearningService()
 
@@ -154,22 +152,21 @@ class DraftEngine:
     async def _call_llm(
         self, system_prompt: str, user_message: str, slide_count: int, profile: dict
     ) -> dict:
-        """Call LLM with retry at lower temperature on parse failure."""
+        """Call Gemini with retry at lower temperature on parse failure."""
         print(f"DEBUG _call_llm called with slide_count={slide_count}", flush=True)
         for attempt, temp in enumerate([0.7, 0.5]):
             try:
-                response = await self.client.chat.completions.create(
+                response = await self.client.aio.models.generate_content(
                     model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_message},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=temp,
-                    max_tokens=4096,
-                    timeout=30,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=temp,
+                        max_output_tokens=4096,
+                        response_mime_type="application/json",
+                    ),
+                    contents=user_message,
                 )
-                content = response.choices[0].message.content
+                content = response.text
                 if not content:
                     raise ValueError("Empty response")
 
@@ -213,21 +210,20 @@ class DraftEngine:
     async def _call_llm_video(
         self, system_prompt: str, user_message: str, text_fields: list[dict], profile: dict
     ) -> dict:
-        """Call LLM for video draft with retry."""
+        """Call Gemini for video draft with retry."""
         for attempt, temp in enumerate([0.7, 0.5]):
             try:
-                response = await self.client.chat.completions.create(
+                response = await self.client.aio.models.generate_content(
                     model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_message},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=temp,
-                    max_tokens=4096,
-                    timeout=30,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=temp,
+                        max_output_tokens=4096,
+                        response_mime_type="application/json",
+                    ),
+                    contents=user_message,
                 )
-                content = response.choices[0].message.content
+                content = response.text
                 if not content:
                     raise ValueError("Empty response")
                 # Use raw_decode to parse only the first valid JSON object,
