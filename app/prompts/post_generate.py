@@ -427,9 +427,34 @@ def build_post_image_prompt(
     str
         Full prompt string ready for ImageGeneratorService.generate_from_prompt().
     """
-    if template_key in _PHOTO_TEMPLATES:
+    if template_key == "hero-title":
+        return _build_hero_title_background_prompt(brand)
+    elif template_key in _PHOTO_TEMPLATES:
         return _build_photo_prompt(template_key, text_fields, topic, brand)
     elif template_key in _CARD_TEMPLATES:
         return _build_card_prompt(template_key, text_fields, topic, brand)
     else:
         return _build_promo_prompt(template_key, text_fields, topic, brand)
+
+
+def _build_hero_title_background_prompt(brand: dict) -> str:
+    """Background-only scene for the hero-title template.
+
+    No text, no overlays — Pillow adds them programmatically.
+    """
+    visual_env = brand.get("visual_environment_setup") or "a modern, professional health and wellness environment"
+    visual_identity = brand.get("visual_identity") or "clean, professional, health-focused aesthetic"
+    brand_color = brand.get("brand_color_primary") or "#1A9E8F"
+    subject = brand.get("visual_subject_outfit_generic") or "a professional healthcare setting"
+
+    return (
+        f"Professional full-bleed social media background photograph for a health and wellness brand. "
+        f"Scene: {visual_env}. Subject context: {subject}. "
+        f"Visual style: {visual_identity}. "
+        f"Color temperature that complements the brand color {brand_color}. "
+        "Composition: vertical 4:5 ratio, cinematic, editorial quality. "
+        "Slight shallow depth of field — foreground slightly blurred to give depth. "
+        "The image will have text overlaid programmatically so keep the center-left area visually calm with minimal busy detail. "
+        "NO text, NO overlays, NO watermarks, NO borders, NO typography of any kind. "
+        "Fill the entire 1080x1350 canvas. Photorealistic. High production quality."
+    )

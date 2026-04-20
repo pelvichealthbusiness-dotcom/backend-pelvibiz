@@ -22,8 +22,11 @@ class PostGenerateRequest(BaseModel):
     message_id: str = Field(..., description="UUID for idempotency / requests_log row ID")
     conversation_id: str = Field(default="")
 
-    # Optional reference image uploaded by user
+    # Optional reference image uploaded by user (used as background for hero-title)
     reference_image_url: Optional[str] = None
+
+    # Brand logo URL (Supabase Storage public URL)
+    logo_url: Optional[str] = None
 
     # Brand identity (sent from client; backend re-fetches from profile but
     # uses these as fallback if the DB field is empty)
