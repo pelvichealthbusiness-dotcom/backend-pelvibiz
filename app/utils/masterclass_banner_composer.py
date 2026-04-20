@@ -303,47 +303,46 @@ async def compose(
             font_lbl_it = get_montserrat_sync("bold", LABEL_SIZE)
             y = _draw_wrapped(draw, event_label.upper(), font_lbl_it,
                               text_x, y, (*accent_rgb, 210), TEXT_MAX_W, line_gap=4)
-            y += 12
+            y += 20
 
         # ── 7. Title — massive white ───────────────────────────────────────────
         if title:
             font_title, title_lines = _auto_fit_title(draw, title, TEXT_MAX_W)
             y = _draw_lines(draw, title_lines, font_title,
-                            text_x, y, (255, 255, 255, 255), line_gap=6)
-            y += 16
+                            text_x, y, (255, 255, 255, 255), line_gap=8)
+            y += 28
 
         # ── 8. Subtitle — split at \n: first part white, last part accent ─────
         if subtitle:
             parts = subtitle.split("\n", 1)
             if len(parts) == 2:
-                # First line: regular white
                 y = _draw_wrapped(draw, parts[0], font_subtitle,
-                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=6)
-                # Second line: bold accent (larger)
+                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=8)
+                y += 6
                 y = _draw_wrapped(draw, parts[1], font_sub_acc,
-                                  text_x, y, (*accent_rgb, 255), TEXT_MAX_W, line_gap=6)
+                                  text_x, y, (*accent_rgb, 255), TEXT_MAX_W, line_gap=8)
             else:
-                # No split: render all in white
                 y = _draw_wrapped(draw, subtitle, font_subtitle,
-                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=6)
-            y += 24
+                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=8)
+            y += 32
 
         # ── 9. Date badge — bordered rounded rect ────────────────────────────
         if date_time:
             y = _draw_date_badge(draw, date_time, font_date,
                                  text_x, y, accent_rgb, (255, 255, 255, 245), TEXT_MAX_W)
+            y += 8
 
         # ── 10. venue ─────────────────────────────────────────────────────────
         if venue:
             y = _draw_wrapped(draw, venue, font_meta,
                               text_x, y, (255, 255, 255, 180), TEXT_MAX_W)
-            y += 6
+            y += 14
 
         # ── 11. via — small caps accent ───────────────────────────────────────
         if via:
             y = _draw_wrapped(draw, via.upper(), font_meta,
                               text_x, y, (*accent_rgb, 200), TEXT_MAX_W)
-            y += 16
+            y += 24
 
         # ── 12. CTA — bold text, no button background ─────────────────────────
         if cta:
