@@ -103,9 +103,16 @@ Generate a rich batch of content ideas based on what the user asks. For each ide
 - Mix at least 3 different content types across the ideas
 - Each title must pass the specificity test: would this work for ANY brand? If yes, rewrite it.
 
-## Format
-Present ideas as a clean bullet list with no numbering. Be conversational but professional.
-Write in the same language as the user message."""
+## Output Format — CRITICAL
+Respond ONLY with valid JSON. No markdown. No code fences. Use this exact structure:
+{{"ideas": [
+  {{
+    "title": "Punchy topic title (under 60 chars, never starting with a number)",
+    "hook": "Scroll-stopping opening line for this carousel (under 100 chars)",
+    "why": "One sentence: why this topic resonates with the audience",
+    "angle": "pain-point | aspiration | myth-bust | authority | transformation | social-proof"
+  }}
+]}}"""
 
         if stories_block:
             self._cached_prompt += "\n\n" + stories_block

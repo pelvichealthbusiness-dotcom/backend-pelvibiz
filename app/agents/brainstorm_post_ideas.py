@@ -51,10 +51,10 @@ _ANGLE_SEEDS = [
 
 
 class BrainstormPostIdeasAgent(BaseStreamingAgent):
-    """Generates 4-5 post idea suggestions as a JSON array.
+    """Generates 5 rich post idea suggestions as a JSON object.
 
-    Called via wizard_mode='brainstorm_post_ideas'. Returns a JSON array:
-        ["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"]
+    Called via wizard_mode='brainstorm_post_ideas'. Returns:
+        {"ideas": [{"title", "hook", "why", "angle"}, ...]}
     """
 
     def __init__(self, user_id: str, agent_type: str) -> None:
@@ -71,7 +71,7 @@ class BrainstormPostIdeasAgent(BaseStreamingAgent):
 
     @property
     def max_tokens(self) -> int:
-        return 512
+        return 2048
 
     @property
     def system_prompt(self) -> str:
@@ -137,15 +137,23 @@ POST FORMAT: {template_description}{hero_extra}
 CREATIVE DIRECTION FOR THIS BATCH: {angle}
 
 OUTPUT FORMAT — CRITICAL:
-Respond ONLY with a valid JSON array. No markdown. No code fences. Start directly with [.
-["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"]
+Respond ONLY with valid JSON. No markdown. No code fences. Use this exact structure:
+{{"ideas": [
+  {{
+    "title": "The topic idea (6-14 words, specific and provocative)",
+    "hook": "The scroll-stopping opening line for this post (under 100 chars)",
+    "why": "One sentence: why this resonates deeply with the audience",
+    "angle": "pain-point | aspiration | myth-bust | authority | transformation | social-proof"
+  }}
+]}}
 
 RULES:
-1. Each idea: 6-14 words, specific and provocative — not generic
-2. NEVER use phrases like "you didn't go to school", "burnout", or "work-life balance"
-3. Each of the 5 ideas must explore a DIFFERENT angle — no repetition
-4. Ideas must feel fresh, specific to {brand_name}'s audience
-5. Make them scroll-stopping: provocative, counterintuitive, or deeply relatable"""
+1. Each title: 6-14 words, specific and provocative — not generic
+2. Each hook: the actual first sentence someone would read — make them stop scrolling
+3. NEVER use phrases like "burnout", "work-life balance", or "hustle culture"
+4. Each of the 5 ideas must explore a DIFFERENT angle — no repetition
+5. Ideas must feel fresh and specific to {brand_name}'s audience
+6. The "why" must explain the emotional or strategic reason this topic works"""
 
         user_message = f"Template: {template_key}. Brand: {brand_name}. Services: {services}."
 
