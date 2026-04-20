@@ -499,6 +499,303 @@ _TOOLS = [
                     required=["render_id"],
                 ),
             ),
+            # ── Real Carousel ─────────────────────────────────────────────────
+            types.FunctionDeclaration(
+                name="generate_real_carousel",
+                description=(
+                    "Generate a branded carousel using the user's own photos. "
+                    "Renders text overlays with brand colors/fonts on top of the provided images. "
+                    "Use when user provides their own photos/images and wants a carousel."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "topic": types.Schema(type="STRING", description="Topic or message for the carousel"),
+                        "image_urls": types.Schema(
+                            type="ARRAY",
+                            items=types.Schema(type="STRING"),
+                            description="Public URLs of the user's photos (one per slide)",
+                        ),
+                        "slide_count": types.Schema(
+                            type="INTEGER",
+                            description="Number of slides (defaults to number of images provided)",
+                        ),
+                        "caption": types.Schema(type="STRING", description="Instagram caption (auto-generated if omitted)"),
+                    },
+                    required=["topic", "image_urls"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="fix_carousel_slide",
+                description=(
+                    "Fix a single slide in an existing carousel — change the text or replace the image. "
+                    "Use when user wants to edit one slide without regenerating the whole carousel."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "content_id": types.Schema(type="STRING", description="ID of the carousel to fix"),
+                        "slide_number": types.Schema(type="INTEGER", description="1-based slide index to replace"),
+                        "new_text": types.Schema(type="STRING", description="New text for the slide"),
+                        "new_image_url": types.Schema(type="STRING", description="New image URL (optional — keeps original if omitted)"),
+                    },
+                    required=["content_id", "slide_number", "new_text"],
+                ),
+            ),
+            # ── Video Trim ────────────────────────────────────────────────────
+            types.FunctionDeclaration(
+                name="trim_video",
+                description=(
+                    "Trim a video clip to a specific start and end time. "
+                    "Use when user wants to cut a video, extract a segment, or shorten footage."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "source_url": types.Schema(type="STRING", description="Public URL of the source video"),
+                        "start_seconds": types.Schema(type="NUMBER", description="Start time in seconds (e.g. 5.0)"),
+                        "end_seconds": types.Schema(type="NUMBER", description="End time in seconds (e.g. 30.0)"),
+                    },
+                    required=["source_url", "start_seconds", "end_seconds"],
+                ),
+            ),
+            # ── Competitors ───────────────────────────────────────────────────
+            types.FunctionDeclaration(
+                name="list_competitors",
+                description="List all competitor Instagram accounts the user is tracking.",
+                parameters=types.Schema(type="OBJECT", properties={}),
+            ),
+            types.FunctionDeclaration(
+                name="add_competitor",
+                description=(
+                    "Add an Instagram account as a competitor to track. "
+                    "Use when user wants to monitor or benchmark against another account."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "handle": types.Schema(type="STRING", description="Instagram username (without @)"),
+                        "display_name": types.Schema(type="STRING", description="Optional friendly name for this competitor"),
+                    },
+                    required=["handle"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="compare_with_competitor",
+                description=(
+                    "Compare the user's content performance against a specific competitor. "
+                    "Returns gaps, shared topics, viral posts, and strategic insights."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "handle": types.Schema(type="STRING", description="Competitor Instagram handle (without @)"),
+                    },
+                    required=["handle"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="get_competitor_gaps",
+                description=(
+                    "Get specific content gaps vs a competitor — what topics, hooks, and "
+                    "content types the user is missing compared to them."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "handle": types.Schema(type="STRING", description="Competitor Instagram handle"),
+                    },
+                    required=["handle"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="delete_competitor",
+                description="Remove a competitor from the tracking list.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "handle": types.Schema(type="STRING", description="Competitor Instagram handle"),
+                    },
+                    required=["handle"],
+                ),
+            ),
+            # ── Style Analyzer ────────────────────────────────────────────────
+            types.FunctionDeclaration(
+                name="analyze_account_style",
+                description=(
+                    "Run a full style analysis on any Instagram account — hooks, captions, "
+                    "hashtags, posting patterns, engagement, and AI recommendations. "
+                    "Saves the analysis so it can be applied to the user's brand profile."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "username": types.Schema(type="STRING", description="Instagram username to analyze (without @)"),
+                        "max_posts": types.Schema(type="INTEGER", description="Max posts to analyze (default 30)"),
+                        "account_type": types.Schema(
+                            type="STRING",
+                            description="Type of account: competitor, inspiration, own",
+                            enum=["competitor", "inspiration", "own"],
+                        ),
+                    },
+                    required=["username"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="apply_account_style",
+                description=(
+                    "Apply the content style from a previously analyzed account to the user's brand profile. "
+                    "Updates content_style_brief with insights from the analysis. "
+                    "Call after analyze_account_style — use the scrape_id from that result."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "scrape_id": types.Schema(type="STRING", description="The account ID returned from analyze_account_style"),
+                    },
+                    required=["scrape_id"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="list_analyzed_accounts",
+                description="List all Instagram accounts that have been previously analyzed.",
+                parameters=types.Schema(type="OBJECT", properties={}),
+            ),
+            types.FunctionDeclaration(
+                name="get_content_brief",
+                description=(
+                    "Get the content strategy brief generated from an analyzed account. "
+                    "Returns posting patterns, hook styles, and content recommendations."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "account_id": types.Schema(type="STRING", description="Account ID from list_analyzed_accounts (optional — uses most recent if omitted)"),
+                    },
+                ),
+            ),
+            # ── Social Intelligence Full Flow ──────────────────────────────────
+            types.FunctionDeclaration(
+                name="social_generate_ideas",
+                description=(
+                    "Generate content ideas from a social research run. "
+                    "Use after social_research to turn research findings into actionable post ideas."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "topic": types.Schema(type="STRING", description="Topic to generate ideas for"),
+                        "research_run_id": types.Schema(type="STRING", description="Run ID from a previous social_research call (optional)"),
+                        "variations": types.Schema(type="INTEGER", description="Number of idea variations (default 6)"),
+                    },
+                    required=["topic"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="social_generate_script",
+                description=(
+                    "Generate a full video script + filming card from a topic or idea. "
+                    "More complete than generate_script — includes caption, CTA, and recording instructions."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "topic": types.Schema(type="STRING", description="Topic for the script"),
+                        "idea_variation_id": types.Schema(type="STRING", description="Specific idea ID from social_generate_ideas (optional)"),
+                        "selected_hook": types.Schema(type="STRING", description="Opening hook to use (optional)"),
+                    },
+                    required=["topic"],
+                ),
+            ),
+            # ── Brand Profile Full Management ──────────────────────────────────
+            types.FunctionDeclaration(
+                name="generate_brand_profile",
+                description=(
+                    "Generate a complete brand profile from scratch using AI. "
+                    "Use when user wants to set up or completely redo their brand identity."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "brand_name": types.Schema(type="STRING", description="Name of the brand"),
+                        "niche": types.Schema(type="STRING", description="The niche or industry (e.g. pelvic floor therapy)"),
+                        "services_description": types.Schema(type="STRING", description="What services the brand offers"),
+                        "content_goals": types.Schema(type="STRING", description="What the brand wants to achieve with content"),
+                        "target_audience": types.Schema(type="STRING", description="Who the content is for"),
+                    },
+                    required=["brand_name", "niche"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="regenerate_profile_field",
+                description=(
+                    "Regenerate any brand profile field with a specific instruction. "
+                    "More fields available than update_profile_field — includes visual identity, "
+                    "outfit descriptions, font style, and brand playbook."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "field_name": types.Schema(
+                            type="STRING",
+                            description="Field to regenerate",
+                            enum=[
+                                "brand_voice", "target_audience", "services_offered",
+                                "visual_identity", "keywords", "cta", "content_style_brief",
+                                "visual_environment_setup", "visual_subject_outfit_face",
+                                "visual_subject_outfit_generic", "font_style", "font_prompt",
+                            ],
+                        ),
+                        "instruction": types.Schema(type="STRING", description="What to change or improve"),
+                    },
+                    required=["field_name", "instruction"],
+                ),
+            ),
+            # ── Content Library v2 ────────────────────────────────────────────
+            types.FunctionDeclaration(
+                name="list_content_paginated",
+                description=(
+                    "List content library with pagination and filters. "
+                    "More powerful than check_content_library — supports paging through large libraries."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "page": types.Schema(type="INTEGER", description="Page number (default 1)"),
+                        "limit": types.Schema(type="INTEGER", description="Items per page (default 20, max 50)"),
+                        "content_type": types.Schema(
+                            type="STRING",
+                            description="Filter by type: real-carousel, ai-carousel, reels-edited-by-ai",
+                            enum=["real-carousel", "ai-carousel", "reels-edited-by-ai"],
+                        ),
+                        "published": types.Schema(type="BOOLEAN", description="Filter by published status (omit for all)"),
+                    },
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="get_content_detail",
+                description="Get full details of a specific content item including all slides, caption, and metadata.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "content_id": types.Schema(type="STRING", description="ID of the content item"),
+                    },
+                    required=["content_id"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="update_content_metadata",
+                description="Update the title and/or caption of a content item.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "content_id": types.Schema(type="STRING", description="ID of the content item"),
+                        "title": types.Schema(type="STRING", description="New title"),
+                        "caption": types.Schema(type="STRING", description="New Instagram caption"),
+                    },
+                    required=["content_id"],
+                ),
+            ),
         ]
     )
 ]
@@ -669,6 +966,32 @@ class PelvibizAiAgent(BaseStreamingAgent):
             "creatomate_render_template": lambda: self._tool_creatomate_render_template(args, user_id),
             "creatomate_render_with_voice": lambda: self._tool_creatomate_render_with_voice(args, user_id),
             "creatomate_get_render_status": lambda: self._tool_creatomate_get_render_status(args, user_id),
+            # Real carousel
+            "generate_real_carousel": lambda: self._tool_generate_real_carousel(args, user_id, profile),
+            "fix_carousel_slide": lambda: self._tool_fix_carousel_slide(args, user_id, profile),
+            # Video trim
+            "trim_video": lambda: self._tool_trim_video(args, user_id),
+            # Competitors
+            "list_competitors": lambda: self._tool_list_competitors(user_id),
+            "add_competitor": lambda: self._tool_add_competitor(args, user_id),
+            "compare_with_competitor": lambda: self._tool_compare_with_competitor(args, user_id),
+            "get_competitor_gaps": lambda: self._tool_get_competitor_gaps(args, user_id),
+            "delete_competitor": lambda: self._tool_delete_competitor(args, user_id),
+            # Style analyzer
+            "analyze_account_style": lambda: self._tool_analyze_account_style(args, user_id),
+            "apply_account_style": lambda: self._tool_apply_account_style(args, user_id),
+            "list_analyzed_accounts": lambda: self._tool_list_analyzed_accounts(user_id),
+            "get_content_brief": lambda: self._tool_get_content_brief(args, user_id),
+            # Social intelligence
+            "social_generate_ideas": lambda: self._tool_social_generate_ideas(args, user_id),
+            "social_generate_script": lambda: self._tool_social_generate_script(args, user_id),
+            # Brand profile
+            "generate_brand_profile": lambda: self._tool_generate_brand_profile(args, user_id),
+            "regenerate_profile_field": lambda: self._tool_regenerate_profile_field(args, user_id, profile),
+            # Content v2
+            "list_content_paginated": lambda: self._tool_list_content_paginated(args, user_id),
+            "get_content_detail": lambda: self._tool_get_content_detail(args, user_id),
+            "update_content_metadata": lambda: self._tool_update_content_metadata(args, user_id),
         }
 
         handler = dispatch.get(name)
@@ -1307,6 +1630,487 @@ class PelvibizAiAgent(BaseStreamingAgent):
         toolkit = CreatomateToolkit()
         return await toolkit.get_render_status(render_id)
 
+    # ── Real Carousel ────────────────────────────────────────────────────────
+
+    async def _tool_generate_real_carousel(
+        self, args: dict, user_id: str, profile: dict
+    ) -> dict:
+        from app.services.slide_renderer import SlideRenderer
+
+        image_urls: list[str] = args.get("image_urls") or []
+        if not image_urls:
+            return {"error": "image_urls is required — provide at least one photo URL"}
+
+        topic = args.get("topic", "")
+        slide_count = int(args.get("slide_count") or len(image_urls))
+
+        credits = CreditsService()
+        await credits.check_credits(user_id)
+
+        strategy = ContentStrategyService()
+        plan = await strategy.plan(topic, profile, slide_count)
+
+        renderer = SlideRenderer()
+        storage = StorageService()
+        supabase = get_supabase_admin()
+        media_urls: list[str] = []
+        failed = 0
+
+        slides = plan.slides if hasattr(plan, "slides") else []
+        for i, img_url in enumerate(image_urls[:slide_count]):
+            try:
+                text = slides[i].text if i < len(slides) else ""
+                position = slides[i].text_position if i < len(slides) else "Center"
+                img_bytes = await renderer.download_image(img_url)
+                rendered = renderer.render_slide(
+                    image_bytes=img_bytes,
+                    text=text,
+                    position=position,
+                    font_style=profile.get("font_style", "bold"),
+                    color_primary=profile.get("brand_color_primary", "#000000"),
+                    color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
+                    color_background=profile.get("brand_color_background", "#FFFFFF"),
+                    slide_index=i,
+                )
+                url = await storage.upload_image(
+                    base64.b64encode(rendered).decode(), user_id
+                )
+                media_urls.append(url)
+            except Exception as exc:
+                logger.error("Real carousel slide %d failed: %s", i, exc)
+                failed += 1
+
+        if not media_urls:
+            return {"error": "All slides failed to render. Check that image URLs are publicly accessible."}
+
+        msg_id = str(uuid4())
+        caption = args.get("caption") or getattr(plan, "caption", "")
+        try:
+            supabase.table("requests_log").upsert(
+                {
+                    "id": msg_id,
+                    "user_id": user_id,
+                    "agent_type": "real-carousel",
+                    "title": topic[:100],
+                    "reply": getattr(plan, "reply", ""),
+                    "caption": caption,
+                    "media_urls": media_urls,
+                    "published": False,
+                },
+                on_conflict="id",
+            ).execute()
+        except Exception as exc:
+            logger.warning("Failed to save real carousel: %s", exc)
+
+        try:
+            await credits.increment_credits(user_id)
+        except Exception:
+            pass
+
+        return {
+            "content_id": msg_id,
+            "media_urls": media_urls,
+            "caption": caption,
+            "slides": len(media_urls),
+            "failed_slides": failed,
+        }
+
+    async def _tool_fix_carousel_slide(
+        self, args: dict, user_id: str, profile: dict
+    ) -> dict:
+        from app.services.slide_renderer import SlideRenderer
+
+        content_id = args.get("content_id", "")
+        slide_number = int(args.get("slide_number", 1))
+        new_text = args.get("new_text", "")
+        new_image_url = args.get("new_image_url")
+
+        supabase = get_supabase_admin()
+        check = (
+            supabase.table("requests_log")
+            .select("id, media_urls, agent_type")
+            .eq("id", content_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not check.data:
+            return {"error": "Content not found or access denied"}
+
+        row = check.data[0]
+        media_urls: list[str] = list(row.get("media_urls") or [])
+        idx = slide_number - 1
+
+        if idx < 0 or idx >= len(media_urls):
+            return {"error": f"Slide {slide_number} does not exist. Carousel has {len(media_urls)} slides."}
+
+        source_url = new_image_url or media_urls[idx]
+        renderer = SlideRenderer()
+        storage = StorageService()
+
+        try:
+            img_bytes = await renderer.download_image(source_url)
+            rendered = renderer.render_slide(
+                image_bytes=img_bytes,
+                text=new_text,
+                position="Center",
+                font_style=profile.get("font_style", "bold"),
+                color_primary=profile.get("brand_color_primary", "#000000"),
+                color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
+                color_background=profile.get("brand_color_background", "#FFFFFF"),
+                slide_index=idx,
+            )
+            new_url = await storage.upload_image(
+                base64.b64encode(rendered).decode(), user_id
+            )
+        except Exception as exc:
+            return {"error": f"Failed to render slide: {exc}"}
+
+        media_urls[idx] = new_url
+        supabase.table("requests_log").update({"media_urls": media_urls}).eq("id", content_id).execute()
+
+        return {
+            "content_id": content_id,
+            "slide_number": slide_number,
+            "new_url": new_url,
+            "media_urls": media_urls,
+            "success": True,
+        }
+
+    # ── Video Trim ───────────────────────────────────────────────────────────
+
+    async def _tool_trim_video(self, args: dict, user_id: str) -> dict:
+        from app.services.video_trim_service import VideoTrimService
+
+        source_url = args.get("source_url", "")
+        start = float(args.get("start_seconds", 0))
+        end = float(args.get("end_seconds", 0))
+
+        if not source_url:
+            return {"error": "source_url is required"}
+        if end <= start:
+            return {"error": "end_seconds must be greater than start_seconds"}
+
+        service = VideoTrimService()
+        try:
+            trimmed_url = await service.trim_and_store(
+                source_url=source_url,
+                user_id=user_id,
+                start_seconds=start,
+                end_seconds=end,
+            )
+        except Exception as exc:
+            return {"error": f"Trim failed: {exc}"}
+
+        return {
+            "trimmed_url": trimmed_url,
+            "start_seconds": start,
+            "end_seconds": end,
+            "duration_seconds": round(end - start, 2),
+        }
+
+    # ── Competitors ──────────────────────────────────────────────────────────
+
+    async def _tool_list_competitors(self, user_id: str) -> dict:
+        from app.services.competitors import CompetitorService
+        service = CompetitorService()
+        competitors = await service.list_competitors(user_id)
+        return {"competitors": competitors, "total": len(competitors)}
+
+    async def _tool_add_competitor(self, args: dict, user_id: str) -> dict:
+        from app.services.competitors import CompetitorService
+        service = CompetitorService()
+        handle = args.get("handle", "").lstrip("@")
+        if not handle:
+            return {"error": "handle is required"}
+        result = await service.add_competitor(
+            user_id=user_id,
+            handle=handle,
+            display_name=args.get("display_name"),
+        )
+        return {"competitor": result, "success": True}
+
+    async def _tool_compare_with_competitor(self, args: dict, user_id: str) -> dict:
+        from app.services.competitors import CompetitorService
+        service = CompetitorService()
+        handle = args.get("handle", "").lstrip("@")
+        if not handle:
+            return {"error": "handle is required"}
+        result = await service.compare_user_vs_competitor(user_id=user_id, handle=handle)
+        return result
+
+    async def _tool_get_competitor_gaps(self, args: dict, user_id: str) -> dict:
+        from app.services.content_intelligence import ContentIntelligenceService
+        service = ContentIntelligenceService()
+        handle = args.get("handle", "").lstrip("@")
+        if not handle:
+            return {"error": "handle is required"}
+        result = await service.get_competitor_gaps(user_id=user_id, competitor_handle=handle)
+        return result
+
+    async def _tool_delete_competitor(self, args: dict, user_id: str) -> dict:
+        from app.services.competitors import CompetitorService
+        service = CompetitorService()
+        handle = args.get("handle", "").lstrip("@")
+        if not handle:
+            return {"error": "handle is required"}
+        await service.delete_competitor(user_id=user_id, handle=handle)
+        return {"handle": handle, "deleted": True, "success": True}
+
+    # ── Style Analyzer ───────────────────────────────────────────────────────
+
+    async def _tool_analyze_account_style(self, args: dict, user_id: str) -> dict:
+        from app.services.content_intelligence import ContentIntelligenceService
+        username = args.get("username", "").lstrip("@")
+        max_posts = int(args.get("max_posts", 30))
+        account_type = args.get("account_type", "inspiration")
+
+        if not username:
+            return {"error": "username is required"}
+
+        scraper = InstagramScraper()
+        analyzer = StyleAnalyzer()
+        content_intel = ContentIntelligenceService()
+
+        profile_data, posts = await scraper.scrape(username, max_posts, user_id)
+        if not posts:
+            return {"error": f"No posts found for @{username}. Account may be private or not exist."}
+
+        metrics = analyzer.analyze(posts, profile_data)
+
+        saved = await content_intel.store_scrape(
+            user_id=user_id,
+            handle=username,
+            account_type=account_type,
+            display_name=profile_data.get("full_name", username),
+            metadata={
+                "followers": profile_data.get("followers", 0),
+                "style_metrics": metrics,
+            },
+            posts=posts,
+        )
+        scrape_id = saved.get("account", {}).get("id", "")
+
+        return {
+            "scrape_id": scrape_id,
+            "username": username,
+            "followers": profile_data.get("followers", 0),
+            "post_count": len(posts),
+            "engagement_rate": metrics.get("engagement_rate", 0),
+            "best_content_type": metrics.get("best_content_type"),
+            "hook_types": metrics.get("hook_types", {}),
+            "content_categories": metrics.get("content_categories", {}),
+            "top_keywords": [k["word"] for k in metrics.get("top_keywords", [])[:10]],
+            "posts_per_week": metrics.get("posts_per_week", 0),
+            "optimal_caption_length": metrics.get("optimal_caption_length"),
+            "optimal_hashtag_count": metrics.get("optimal_hashtag_count"),
+            "consistency_score": metrics.get("consistency_score"),
+            "note": "Analysis saved. Call apply_account_style with scrape_id to apply this style to your brand profile.",
+        }
+
+    async def _tool_apply_account_style(self, args: dict, user_id: str) -> dict:
+        from app.services.content_intelligence import ContentIntelligenceService
+        scrape_id = args.get("scrape_id", "")
+        if not scrape_id:
+            return {"error": "scrape_id is required — call analyze_account_style first"}
+
+        content_intel = ContentIntelligenceService()
+        brief = await content_intel.generate_brief(user_id=user_id, account_id=scrape_id)
+
+        if not brief.get("ready"):
+            return {"error": "Brief not ready. Try again in a moment."}
+
+        content_style_brief = brief.get("content_style_brief") or brief.get("brief", "")
+        supabase = get_supabase_admin()
+        supabase.table("profiles").update(
+            {"content_style_brief": content_style_brief}
+        ).eq("id", user_id).execute()
+        BrandService().invalidate_cache(user_id)
+
+        return {
+            "applied": True,
+            "content_style_brief": content_style_brief,
+            "scrape_id": scrape_id,
+        }
+
+    async def _tool_list_analyzed_accounts(self, user_id: str) -> dict:
+        supabase = get_supabase_admin()
+        result = (
+            supabase.table("content_accounts")
+            .select("id, handle, display_name, account_type, analyzed_at, metadata")
+            .eq("user_id", user_id)
+            .not_.is_("metadata", "null")
+            .order("analyzed_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        accounts = []
+        for row in result.data or []:
+            meta = row.get("metadata") or {}
+            accounts.append({
+                "id": row["id"],
+                "handle": row.get("handle"),
+                "display_name": row.get("display_name"),
+                "account_type": row.get("account_type"),
+                "followers": meta.get("followers", 0),
+                "analyzed_at": str(row.get("analyzed_at", "")),
+            })
+        return {"accounts": accounts, "total": len(accounts)}
+
+    async def _tool_get_content_brief(self, args: dict, user_id: str) -> dict:
+        from app.services.content_intelligence import ContentIntelligenceService
+        account_id = args.get("account_id")
+
+        if not account_id:
+            # Use most recently analyzed account
+            supabase = get_supabase_admin()
+            result = (
+                supabase.table("content_accounts")
+                .select("id")
+                .eq("user_id", user_id)
+                .not_.is_("metadata", "null")
+                .order("analyzed_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if not result.data:
+                return {"error": "No analyzed accounts found. Run analyze_account_style first."}
+            account_id = result.data[0]["id"]
+
+        content_intel = ContentIntelligenceService()
+        brief = await content_intel.generate_brief(user_id=user_id, account_id=account_id)
+        return brief
+
+    # ── Social Intelligence Full Flow ────────────────────────────────────────
+
+    async def _tool_social_generate_ideas(self, args: dict, user_id: str) -> dict:
+        from app.services.social_intelligence import SocialIntelligenceService
+        service = SocialIntelligenceService()
+        return await service.generate_ideas(
+            user_id=user_id,
+            topic=args.get("topic"),
+            research_run_id=args.get("research_run_id"),
+            variations=int(args.get("variations", 6)),
+        )
+
+    async def _tool_social_generate_script(self, args: dict, user_id: str) -> dict:
+        from app.services.social_intelligence import SocialIntelligenceService
+        service = SocialIntelligenceService()
+        return await service.generate_script(
+            user_id=user_id,
+            topic=args.get("topic"),
+            idea_variation_id=args.get("idea_variation_id"),
+            selected_hook=args.get("selected_hook"),
+        )
+
+    # ── Brand Profile Full Management ────────────────────────────────────────
+
+    async def _tool_generate_brand_profile(self, args: dict, user_id: str) -> dict:
+        engine = ProfileEngine()
+        input_data = {
+            "brand_name": args.get("brand_name", ""),
+            "niche": args.get("niche", ""),
+            "services_description": args.get("services_description", ""),
+            "content_goals": args.get("content_goals", ""),
+            "target_audience": args.get("target_audience", ""),
+        }
+        result = await engine.generate_profile(input_data)
+
+        save_data = {}
+        for field, value in result.items():
+            if isinstance(value, dict) and "value" in value:
+                save_data[field] = value["value"]
+            elif isinstance(value, str):
+                save_data[field] = value
+
+        if args.get("brand_name"):
+            save_data["brand_name"] = args["brand_name"]
+
+        supabase = get_supabase_admin()
+        supabase.table("profiles").upsert(
+            {"id": user_id, **save_data}, on_conflict="id"
+        ).execute()
+        BrandService().invalidate_cache(user_id)
+
+        return {"generated": save_data, "saved": True, "success": True}
+
+    async def _tool_regenerate_profile_field(
+        self, args: dict, user_id: str, profile: dict
+    ) -> dict:
+        engine = ProfileEngine()
+        field = args.get("field_name", "")
+        instruction = args.get("instruction", "")
+
+        if not field:
+            return {"error": "field_name is required"}
+
+        result = await engine.regenerate_field(
+            field_name=field,
+            current_profile=profile,
+            instruction=instruction,
+        )
+
+        supabase = get_supabase_admin()
+        supabase.table("profiles").update(
+            {field: result["new_value"]}
+        ).eq("id", user_id).execute()
+        BrandService().invalidate_cache(user_id)
+
+        return {
+            "field": field,
+            "old_value": result.get("old_value"),
+            "new_value": result.get("new_value"),
+            "reasoning": result.get("reasoning"),
+            "success": True,
+        }
+
+    # ── Content Library v2 ───────────────────────────────────────────────────
+
+    async def _tool_list_content_paginated(self, args: dict, user_id: str) -> dict:
+        from app.services.content_service import ContentService
+        service = ContentService()
+        page = int(args.get("page", 1))
+        limit = min(int(args.get("limit", 20)), 50)
+        content_type = args.get("content_type")
+        published = args.get("published")
+
+        result = await service.list_content(
+            user_id=user_id,
+            page=page,
+            limit=limit,
+            agent_type=content_type,
+            published=published,
+        )
+        return result
+
+    async def _tool_get_content_detail(self, args: dict, user_id: str) -> dict:
+        from app.services.content_service import ContentService
+        service = ContentService()
+        content_id = args.get("content_id", "")
+        if not content_id:
+            return {"error": "content_id is required"}
+        try:
+            result = await service.get_content(user_id=user_id, content_id=content_id)
+            return result
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    async def _tool_update_content_metadata(self, args: dict, user_id: str) -> dict:
+        from app.services.content_service import ContentService
+        service = ContentService()
+        content_id = args.get("content_id", "")
+        if not content_id:
+            return {"error": "content_id is required"}
+        try:
+            result = await service.update_content(
+                user_id=user_id,
+                content_id=content_id,
+                title=args.get("title"),
+                caption=args.get("caption"),
+            )
+            return {"updated": result, "success": True}
+        except Exception as exc:
+            return {"error": str(exc)}
+
 # ── System Prompt Builder ────────────────────────────────────────────────────
 
 def _build_system_prompt(profile: dict, learning_summary: str = "") -> str:
@@ -1324,69 +2128,97 @@ def _build_system_prompt(profile: dict, learning_summary: str = "") -> str:
     if learning_summary:
         learning_block = f"\n## Preferencias aprendidas del usuario\n{learning_summary}\n"
 
-    return f"""Eres PelviBiz AI — el asistente de creación de contenido de {brand_name}.
+    return f"""You are PelviBiz AI — the content creation assistant for {brand_name}.
 
-## Quién te escribe
-- **Nombre:** {display_name}
-- **Marca:** {brand_name}
-- **Voz & Tono:** {brand_voice}
-- **Audiencia objetivo:** {target_audience}
-- **Servicios:** {services}
+## Who you're talking to
+- **Brand:** {brand_name}
+- **Voice & Tone:** {brand_voice}
+- **Target Audience:** {target_audience}
+- **Services:** {services}
 - **CTA:** {cta}
-- **Créditos disponibles:** {credits_remaining} de {credits_limit}
+- **Credits available:** {credits_remaining} of {credits_limit}
 {learning_block}
-## Tu suite completa de herramientas
+## Your full tool suite
 
-### Creación de contenido
-- **`generate_ai_carousel`** — Carousel AI con imágenes generadas (sin fotos del usuario)
-- **`generate_draft`** — Texto de slides + caption para cualquier tema
-- **`suggest_ideas`** — Ideas creativas para carousels o videos
-- **`generate_video`** — Video corto con 6 plantillas (myth-buster, bullet-sequence, viral-reaction, testimonial-story, big-quote, deep-dive)
+### Content Creation
+- **`generate_ai_carousel`** — AI carousel with AI-generated images (no user photos needed)
+- **`generate_real_carousel`** — Carousel using the user's own photos with brand overlays
+- **`fix_carousel_slide`** — Replace text or image on a single carousel slide
+- **`generate_draft`** — Slide texts + caption for any topic
+- **`suggest_ideas`** — Creative ideas for carousels or videos
+- **`generate_video`** — Short video with 6 templates (myth-buster, bullet-sequence, viral-reaction, testimonial-story, big-quote, deep-dive)
+- **`trim_video`** — Trim a video clip to a specific start/end time
+- **`creatomate_list_templates`** — List all available Creatomate video templates
+- **`creatomate_render_template`** — Render any Creatomate template with custom content
+- **`creatomate_render_with_voice`** — Render a template with AI voiceover
+- **`creatomate_get_render_status`** — Check render progress
 
-### Investigación & Scripts
-- **`research_content`** — Investiga tendencias de un nicho (Reddit, noticias, YouTube)
-- **`social_research`** — Qué está funcionando en IG, TikTok, Facebook, Google
-- **`generate_hooks`** — Hooks que paran el scroll para cualquier tema
-- **`generate_script`** — Script completo para reel + guía de filmación
+### Research & Scripts
+- **`research_content`** — Research trending topics (Reddit, news, YouTube)
+- **`social_research`** — What's working on IG, TikTok, Facebook, Google
+- **`social_generate_ideas`** — Turn research results into content ideas
+- **`social_generate_script`** — Full video script + filming card + caption + CTA
+- **`generate_hooks`** — Scroll-stopping hooks for any topic
+- **`generate_script`** — Reel script + filming guide
 
-### Marca & Perfil
-- **`check_profile`** — Ver perfil completo de marca
-- **`update_profile_field`** — Actualizar voz, audiencia, CTA, servicios, identidad visual, keywords
-- **`get_brand_stories`** — Ver historias de marca guardadas
-- **`create_brand_story`** — Guardar una nueva historia personal
+### Competitors & Style Analysis
+- **`list_competitors`** — List all tracked competitor accounts
+- **`add_competitor`** — Add an Instagram account to track
+- **`compare_with_competitor`** — Full comparison vs a competitor (gaps, shared topics, viral posts)
+- **`get_competitor_gaps`** — Content gaps vs a specific competitor
+- **`delete_competitor`** — Remove a competitor from tracking
+- **`analyze_account_style`** — Full style analysis of any IG account (hooks, captions, hashtags, AI recommendations)
+- **`apply_account_style`** — Apply analyzed style to brand profile
+- **`list_analyzed_accounts`** — List previously analyzed accounts
+- **`get_content_brief`** — Content strategy brief from an analyzed account
 
-### Biblioteca de contenido
-- **`check_content_library`** — Ver carousels y videos recientes
-- **`schedule_content`** — Programar un post para una fecha futura
-- **`publish_content`** — Marcar contenido como publicado
-- **`unpublish_content`** — Revertir contenido publicado a borrador
-- **`delete_content`** — Eliminar contenido de la biblioteca
-- **`get_content_stats`** — Estadísticas de uso por tipo
+### Brand & Profile
+- **`generate_brand_profile`** — Generate a complete brand profile from scratch with AI
+- **`check_profile`** — View full brand profile
+- **`update_profile_field`** — Update brand voice, CTA, audience, services, keywords
+- **`regenerate_profile_field`** — Regenerate any profile field with specific instruction (more fields than update)
+- **`get_brand_stories`** — View saved brand stories
+- **`create_brand_story`** — Save a new personal story
 
-### Análisis & Insights
-- **`analyze_instagram`** — Analizar el estilo de cualquier cuenta de IG
-- **`get_learning_summary`** — Patrones aprendidos del contenido pasado
-- **`get_account_info`** — Créditos y detalles de cuenta
+### Content Library
+- **`list_content_paginated`** — Paginated content library with filters
+- **`check_content_library`** — Quick view of recent content
+- **`get_content_detail`** — Full details of a specific content item
+- **`update_content_metadata`** — Update title or caption of any content
+- **`schedule_content`** — Schedule a post for a future date
+- **`publish_content`** — Mark content as published
+- **`unpublish_content`** — Revert published content to draft
+- **`delete_content`** — Delete content from library
+- **`get_content_stats`** — Usage statistics by type
 
-## Reglas de comportamiento
+### Analytics & Insights
+- **`analyze_instagram`** — Quick Instagram account analysis
+- **`get_learning_summary`** — Patterns learned from past content
+- **`get_account_info`** — Credits and account details
 
-1. **EN EL PRIMER MENSAJE**: Saludá a {display_name} por su nombre. Mostrá UN resumen de qué podés hacer. Preguntá con qué quiere empezar HOY — y ofrecé 3 opciones concretas basadas en su perfil ({brand_name}, {services}).
+## Behavior rules
 
-2. **ACTÚA DE INMEDIATO**: Cuando el usuario diga "creá un carousel sobre X" → llamá `generate_ai_carousel` YA con ese tema. No pidas confirmación de estilo. Extraé slide_count del mensaje ('6 slides' = 6). Default: 5.
+1. **ON FIRST MESSAGE**: Greet {display_name} by name. Give ONE summary of what you can do. Ask what they want to start with TODAY — offer 3 concrete options based on their profile ({brand_name}, {services}).
 
-3. **GUÍA PASO A PASO**: Después de generar contenido, explicá qué puede hacer a continuación (publicar, programar, generar más). Siempre ofrecé el siguiente paso lógico.
+2. **ACT IMMEDIATELY**: When user says "create a carousel about X" → call `generate_ai_carousel` NOW. Don't ask for style confirmation. Extract slide_count from message ('6 slides' = 6). Default: 5.
 
-4. **NUNCA más de UNA pregunta** a la vez. Preferí usar defaults y generar.
+3. **GUIDE STEP BY STEP**: After generating content, explain what they can do next (publish, schedule, generate more). Always offer the logical next step.
 
-5. **Después de generar**: Confirmá qué se creó y mostrá el caption. Si hay `media_urls`, decile que el contenido está listo.
+4. **NEVER more than ONE question** at a time. Prefer using defaults and generating.
 
-6. **Respuestas CORTAS**: máximo 3-4 oraciones antes/después de las tool calls.
+5. **After generating**: Confirm what was created and show the caption. If there are `media_urls`, tell them the content is ready.
+
+6. **SHORT responses**: max 3-4 sentences before/after tool calls.
 
 7. **Language**: ALWAYS respond in English, regardless of what language the user writes in.
 
-8. **Flujo de trabajo recomendado** para usuarios nuevos:
-   - Paso 1: Investigar tendencias del nicho → `research_content` o `social_research`
-   - Paso 2: Generar ideas → `suggest_ideas`
-   - Paso 3: Crear el carousel o video → `generate_ai_carousel` o `generate_video`
-   - Paso 4: Programar publicación → `schedule_content`
+8. **Recommended workflow** for new users:
+   - Step 1: Research niche trends → `research_content` or `social_research`
+   - Step 2: Generate ideas → `social_generate_ideas` or `suggest_ideas`
+   - Step 3: Create carousel or video → `generate_ai_carousel` or `generate_video`
+   - Step 4: Schedule publishing → `schedule_content`
+
+9. **For competitors**: When user asks to analyze competition → `add_competitor` + `compare_with_competitor` + `get_competitor_gaps`.
+
+10. **For brand setup**: If profile seems incomplete → offer `generate_brand_profile` to set everything at once.
 """
