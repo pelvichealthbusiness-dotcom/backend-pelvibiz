@@ -25,6 +25,9 @@ class PostGenerateRequest(BaseModel):
     # Optional reference image uploaded by user (used as background for hero-title)
     reference_image_url: Optional[str] = None
 
+    # Second reference image for masterclass-banner (person/face photo)
+    person_image_url: Optional[str] = None
+
     # Brand logo URL (Supabase Storage public URL)
     logo_url: Optional[str] = None
 

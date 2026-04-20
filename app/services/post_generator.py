@@ -64,6 +64,10 @@ class PostGeneratorService:
         if request.template_key == "hero-title":
             return await self._generate_hero_title(request, user_id, brand)
 
+        # Masterclass-banner: Pillow-composited pipeline (background + person + logo)
+        if request.template_key == "masterclass-banner":
+            return await self._generate_masterclass_banner(request, user_id, brand)
+
         # 3. Build the image generation prompt
         prompt = build_post_image_prompt(
             template_key=request.template_key,
@@ -191,6 +195,83 @@ class PostGeneratorService:
 
         return image_url, request.caption
 
+    async def _generate_masterclass_banner(
+        self,
+        request: PostGenerateRequest,
+        user_id: str,
+        brand: dict,
+    ) -> tuple[str, str]:
+        """Masterclass-banner: background + person + logo → Pillow compositor."""
+        from app.utils.masterclass_banner_composer import compose as compose_masterclass
+        from app.prompts.post_generate import build_masterclass_background_prompt, build_masterclass_person_prompt
+
+        tf = request.text_fields
+        brand_color = brand.get("brand_color_primary") or "#1A9E8F"
+        brand_color_sec = brand.get("brand_color_secondary") or "#FFFFFF"
+
+        # ── Background ──────────────────────────────────────────────────────
+        if request.reference_image_url:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                resp = await client.get(request.reference_image_url)
+                resp.raise_for_status()
+                background_bytes = resp.content
+        else:
+            prompt = build_masterclass_background_prompt(tf, brand)
+            bg_b64 = await self._image_gen.generate_from_prompt(prompt)
+            background_bytes = base64.b64decode(bg_b64)
+
+        # ── Person image ─────────────────────────────────────────────────────
+        if request.person_image_url:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                resp = await client.get(request.person_image_url)
+                resp.raise_for_status()
+                person_bytes = resp.content
+        else:
+            person_prompt = build_masterclass_person_prompt(brand)
+            person_b64 = await self._image_gen.generate_from_prompt(person_prompt)
+            person_bytes = base64.b64decode(person_b64)
+
+        # ── Logo ─────────────────────────────────────────────────────────────
+        logo_bytes: bytes | None = None
+        logo_url = request.logo_url or brand.get("logo_url")
+        if logo_url:
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(logo_url)
+                    resp.raise_for_status()
+                    logo_bytes = resp.content
+            except Exception as exc:
+                logger.warning("Could not fetch logo %s: %s", logo_url, exc)
+
+        # ── Compose ──────────────────────────────────────────────────────────
+        image_bytes = await compose_masterclass(
+            background_bytes=background_bytes,
+            person_bytes=person_bytes,
+            logo_bytes=logo_bytes,
+            event_label=tf.get("event_label", ""),
+            title=tf.get("title", ""),
+            subtitle=tf.get("subtitle", ""),
+            date_time=tf.get("date_time", ""),
+            venue=tf.get("venue", ""),
+            via=tf.get("via", ""),
+            cta=tf.get("cta", ""),
+            brand_color_primary=brand_color,
+            brand_color_secondary=brand_color_sec,
+        )
+
+        upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        image_url = await self._storage.upload_image(upload_b64, user_id)
+
+        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        ContentService._invalidate_cache(user_id)
+
+        try:
+            await self._credits.increment_credits(user_id)
+        except Exception as exc:
+            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+
+        return image_url, request.caption
+
 
 def _merge_brand(profile: dict, req: PostGenerateRequest) -> dict:
     """Return merged brand dict: DB profile takes precedence, request fills gaps."""
@@ -220,4 +301,5 @@ def _merge_brand(profile: dict, req: PostGenerateRequest) -> dict:
         "visual_identity": _pick("visual_identity", req.visual_identity),
         "content_style_brief": _pick("content_style_brief", req.content_style_brief),
         "cta": _pick("cta", req.cta),
+        "logo_url": profile.get("logo_url"),
     }

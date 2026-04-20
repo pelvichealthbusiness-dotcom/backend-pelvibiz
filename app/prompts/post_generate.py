@@ -437,6 +437,40 @@ def build_post_image_prompt(
         return _build_promo_prompt(template_key, text_fields, topic, brand)
 
 
+def build_masterclass_background_prompt(text_fields: dict[str, str], brand: dict) -> str:
+    """Background scene for masterclass-banner: elegant, professional, topic-relevant."""
+    topic_hint = text_fields.get("title", text_fields.get("event_label", "masterclass"))
+    color = brand.get("brand_color_primary") or "#1A9E8F"
+    identity = brand.get("visual_identity") or "modern clean health professional aesthetic"
+    env = brand.get("visual_environment_setup") or "modern wellness studio or professional setting"
+    return (
+        f"Create a high-quality 1080x1350 background photograph for a professional masterclass promotion. "
+        f"Topic: {topic_hint}. "
+        f"Setting: {env}, {identity}. "
+        f"Style: cinematic, professional, slight bokeh. "
+        f"Mood: aspirational, authoritative, warm. "
+        f"Brand accent color present subtly in the scene: {color}. "
+        f"NO text, NO people, NO logos in the image — BACKGROUND ONLY. "
+        f"Fill the ENTIRE 1080x1350 canvas with no white borders."
+    )
+
+
+def build_masterclass_person_prompt(brand: dict) -> str:
+    """Professional headshot/portrait for the person slot in masterclass-banner."""
+    outfit_face = brand.get("visual_subject_outfit_face") or brand.get("visual_subject_outfit_generic") or "professional health practitioner"
+    identity = brand.get("visual_identity") or "modern, clean, health-focused"
+    color = brand.get("brand_color_primary") or "#1A9E8F"
+    return (
+        f"Professional portrait photograph of {outfit_face}. "
+        f"Style: {identity}, confident and approachable expression, slight smile. "
+        f"Framing: head and upper body (portrait style), centered subject. "
+        f"Background: simple, slightly blurred, complementary to {color}. "
+        f"Lighting: soft, flattering studio or natural light. "
+        f"High quality, photorealistic, 380x480 aspect ratio roughly. "
+        f"NO text, NO watermarks."
+    )
+
+
 def _build_hero_title_background_prompt(brand: dict) -> str:
     """Background-only scene for the hero-title template.
 

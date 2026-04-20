@@ -90,6 +90,15 @@ _TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
         "context": "Why it matters and what to do (max 160 chars)",
         "source": "Source citation, e.g. 'WHO, 2023' (max 40 chars, optional)",
     },
+    "masterclass-banner": {
+        "event_label": "Short event category label, e.g. 'FREE MASTERCLASS' or 'LIVE WORKSHOP' (max 30 chars, ALL CAPS)",
+        "title": "Compelling masterclass title that promises transformation (max 60 chars)",
+        "subtitle": "One-line value proposition or who it's for (max 80 chars)",
+        "date_time": "Date and time, e.g. 'Thursday, May 15 · 7:00 PM EST' (max 50 chars)",
+        "venue": "Location or platform, e.g. 'Online via Zoom' or 'Miami Wellness Center' (max 50 chars)",
+        "via": "Platform or host detail, e.g. 'Register via link in bio' (max 50 chars)",
+        "cta": "Action CTA for the button, e.g. 'Secure Your Spot' (max 30 chars)",
+    },
 }
 
 
