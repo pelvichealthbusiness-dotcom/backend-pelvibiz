@@ -1,0 +1,110 @@
+- generic [ref=e150]:
+  - complementary [ref=e152]:
+    - img "PelviBiz" [ref=e154]
+    - navigation [ref=e155]:
+      - link "chat PelviBiz AI" [ref=e157] [cursor=pointer]:
+        - /url: /pelvibiz-ai
+        - generic [ref=e158]: chat
+        - generic [ref=e159]: PelviBiz AI
+      - generic [ref=e160]:
+        - paragraph [ref=e161]:
+          - generic [ref=e162]: view_carousel
+          - text: Carousels
+        - link "photo_library Real Carousel" [ref=e165] [cursor=pointer]:
+          - /url: /agent/real-carousel
+          - generic [ref=e166]: photo_library
+          - generic [ref=e167]: Real Carousel
+        - link "auto_awesome A.I Carousel" [ref=e170] [cursor=pointer]:
+          - /url: /agent/ai-carousel
+          - generic [ref=e171]: auto_awesome
+          - generic [ref=e172]: A.I Carousel
+      - generic [ref=e173]:
+        - paragraph [ref=e174]:
+          - generic [ref=e175]: videocam
+          - text: Videos
+        - link "movie Real Video" [ref=e178] [cursor=pointer]:
+          - /url: /agent/reels-edited-by-ai
+          - generic [ref=e179]: movie
+          - generic [ref=e180]: Real Video
+        - generic [ref=e183]:
+          - generic [ref=e184]: videocam
+          - generic [ref=e185]: A.I Video
+      - generic [ref=e186]:
+        - paragraph [ref=e187]:
+          - generic [ref=e188]: article
+          - text: Posts
+        - link "edit_note A.I Post Generator" [ref=e191] [cursor=pointer]:
+          - /url: /agent/ai-post-generator
+          - generic [ref=e192]: edit_note
+          - generic [ref=e193]: A.I Post Generator
+      - generic [ref=e194]:
+        - paragraph [ref=e195]: Tools
+        - link "dashboard Dashboard" [ref=e196] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e197]: dashboard
+          - generic [ref=e198]: Dashboard
+        - link "content_cut Video Editor" [ref=e199] [cursor=pointer]:
+          - /url: /tools/video-cut
+          - generic [ref=e200]: content_cut
+          - generic [ref=e201]: Video Editor
+        - link "collections Content Library" [ref=e202] [cursor=pointer]:
+          - /url: /library
+          - generic [ref=e203]: collections
+          - generic [ref=e204]: Content Library
+        - link "calendar_month Content Calendar" [ref=e205] [cursor=pointer]:
+          - /url: /calendar
+          - generic [ref=e206]: calendar_month
+          - generic [ref=e207]: Content Calendar
+        - link "analytics Style Analyzer" [ref=e208] [cursor=pointer]:
+          - /url: /style-analyzer
+          - generic [ref=e209]: analytics
+          - generic [ref=e210]: Style Analyzer
+        - link "hub Content Studio" [ref=e211] [cursor=pointer]:
+          - /url: /content-studio
+          - generic [ref=e212]: hub
+          - generic [ref=e213]: Content Studio
+        - link "groups Competitors" [ref=e214] [cursor=pointer]:
+          - /url: /competitors
+          - generic [ref=e215]: groups
+          - generic [ref=e216]: Competitors
+        - link "settings Brand Settings" [ref=e217] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e218]: settings
+          - generic [ref=e219]: Brand Settings
+      - generic [ref=e220]:
+        - paragraph [ref=e221]: Admin
+        - link "admin_panel_settings Panel Admin" [ref=e222] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e223]: admin_panel_settings
+          - generic [ref=e224]: Panel Admin
+    - generic [ref=e225]:
+      - generic [ref=e227]:
+        - generic [ref=e228]: A
+        - generic [ref=e229]:
+          - paragraph [ref=e230]: asepulveda
+          - paragraph [ref=e231]: asepulvedadev@gmail.com
+      - button "logout Sign out" [ref=e232]:
+        - generic [ref=e233]: logout
+        - generic [ref=e234]: Sign out
+    - button "chevron_left" [ref=e235]:
+      - generic [ref=e236]: chevron_left
+  - main [ref=e238]:
+    - generic [ref=e239]:
+      - generic [ref=e240]:
+        - generic [ref=e242]: psychology
+        - generic [ref=e243]:
+          - heading "Style Analyzer" [level=1] [ref=e244]
+          - paragraph [ref=e245]: Deep analysis of any public Instagram account
+      - generic [ref=e246]:
+        - generic [ref=e247]:
+          - text: Analyze a profile
+          - paragraph [ref=e248]: Enter the username of any public Instagram account.
+          - generic [ref=e249]:
+            - generic [ref=e250]: "@"
+            - textbox "username" [ref=e251]: brock11johnson
+        - button "psychology Analyze Profile" [ref=e252]:
+          - generic [ref=e253]: psychology
+          - text: Analyze Profile
+    - generic [ref=e256]:
+      - generic [ref=e257]: info
+      - paragraph [ref=e258]: Could not analyze @brock11johnson. The account may be private or have no posts.

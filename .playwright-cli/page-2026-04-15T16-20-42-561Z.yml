@@ -1,0 +1,260 @@
+- generic [ref=e7]:
+  - complementary [ref=e9]:
+    - img "PelviBiz" [ref=e11]
+    - navigation [ref=e12]:
+      - link "chat PelviBiz AI" [ref=e14] [cursor=pointer]:
+        - /url: /pelvibiz-ai
+        - generic [ref=e15]: chat
+        - generic [ref=e16]: PelviBiz AI
+      - generic [ref=e17]:
+        - paragraph [ref=e18]:
+          - generic [ref=e19]: view_carousel
+          - text: Carousels
+        - link "photo_library Real Carousel" [ref=e22] [cursor=pointer]:
+          - /url: /agent/real-carousel
+          - generic [ref=e23]: photo_library
+          - generic [ref=e24]: Real Carousel
+        - link "auto_awesome A.I Carousel" [ref=e27] [cursor=pointer]:
+          - /url: /agent/ai-carousel
+          - generic [ref=e28]: auto_awesome
+          - generic [ref=e29]: A.I Carousel
+      - generic [ref=e30]:
+        - paragraph [ref=e31]:
+          - generic [ref=e32]: videocam
+          - text: Videos
+        - link "movie Real Video" [ref=e35] [cursor=pointer]:
+          - /url: /agent/reels-edited-by-ai
+          - generic [ref=e36]: movie
+          - generic [ref=e37]: Real Video
+        - generic [ref=e40]:
+          - generic [ref=e41]: videocam
+          - generic [ref=e42]: A.I Video
+      - generic [ref=e43]:
+        - paragraph [ref=e44]:
+          - generic [ref=e45]: article
+          - text: Posts
+        - link "edit_note A.I Post Generator" [ref=e48] [cursor=pointer]:
+          - /url: /agent/ai-post-generator
+          - generic [ref=e49]: edit_note
+          - generic [ref=e50]: A.I Post Generator
+      - generic [ref=e51]:
+        - paragraph [ref=e52]: Tools
+        - link "dashboard Dashboard" [ref=e53] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e54]: dashboard
+          - generic [ref=e55]: Dashboard
+        - link "content_cut Video Editor" [ref=e56] [cursor=pointer]:
+          - /url: /tools/video-cut
+          - generic [ref=e57]: content_cut
+          - generic [ref=e58]: Video Editor
+        - link "collections Content Library" [ref=e59] [cursor=pointer]:
+          - /url: /library
+          - generic [ref=e60]: collections
+          - generic [ref=e61]: Content Library
+        - link "calendar_month Content Calendar" [ref=e62] [cursor=pointer]:
+          - /url: /calendar
+          - generic [ref=e63]: calendar_month
+          - generic [ref=e64]: Content Calendar
+        - link "analytics Style Analyzer" [ref=e65] [cursor=pointer]:
+          - /url: /style-analyzer
+          - generic [ref=e66]: analytics
+          - generic [ref=e67]: Style Analyzer
+        - link "hub Content Studio" [ref=e68] [cursor=pointer]:
+          - /url: /content-studio
+          - generic [ref=e69]: hub
+          - generic [ref=e70]: Content Studio
+        - link "groups Competitors" [ref=e71] [cursor=pointer]:
+          - /url: /competitors
+          - generic [ref=e72]: groups
+          - generic [ref=e73]: Competitors
+        - link "settings Brand Settings" [ref=e74] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e75]: settings
+          - generic [ref=e76]: Brand Settings
+      - generic [ref=e77]:
+        - paragraph [ref=e78]: Admin
+        - link "admin_panel_settings Panel Admin" [ref=e79] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e80]: admin_panel_settings
+          - generic [ref=e81]: Panel Admin
+    - generic [ref=e82]:
+      - generic [ref=e84]:
+        - generic [ref=e85]: A
+        - generic [ref=e86]:
+          - paragraph [ref=e87]: asepulveda
+          - paragraph [ref=e88]: asepulvedadev@gmail.com
+      - button "logout Sign out" [ref=e89]:
+        - generic [ref=e90]: logout
+        - generic [ref=e91]: Sign out
+    - button "chevron_left" [ref=e92]:
+      - generic [ref=e93]: chevron_left
+  - main [ref=e95]:
+    - generic [ref=e96]:
+      - generic [ref=e97]:
+        - generic [ref=e99]: hub
+        - generic [ref=e100]:
+          - heading "Content Intelligence Studio" [level=1] [ref=e101]
+          - paragraph [ref=e102]: Research viral social signals → generate ideas → write hooks and scripts — powered by platform data.
+        - generic [ref=e103]:
+          - generic [ref=e104]: "vs. competitor:"
+          - combobox [ref=e105]:
+            - option "None" [selected]
+            - option "brock11johnson"
+            - option "PelviFloor Pro"
+      - generic [ref=e106]:
+        - button "travel_explore Research" [ref=e107]:
+          - generic [ref=e108]: travel_explore
+          - text: Research
+        - button "lightbulb Ideation" [ref=e110]:
+          - generic [ref=e111]: lightbulb
+          - text: Ideation
+        - button "bolt Scripting" [ref=e113]:
+          - generic [ref=e114]: bolt
+          - text: Scripting
+      - generic [ref=e116]:
+        - generic [ref=e318]:
+          - generic [ref=e319]:
+            - generic [ref=e320]:
+              - heading "Write hooks and scripts with social research" [level=2] [ref=e321]
+              - paragraph [ref=e322]: The social pipeline generates hook packs and scripts from research plus competitor gaps.
+            - generic [ref=e323]:
+              - button "Hooks" [ref=e324]
+              - button "Script" [ref=e325]
+          - generic [ref=e326]:
+            - generic [ref=e327]:
+              - generic [ref=e328]: Topic
+              - textbox "Optional — overrides auto-select" [ref=e329]: fisioterapia pelvica
+            - generic [ref=e330]:
+              - generic [ref=e331]: Research item
+              - combobox [ref=e332]:
+                - option "Latest item (auto)" [selected]
+                - option "·"
+                - option "·"
+                - option "·"
+                - option "·"
+          - generic [ref=e333]:
+            - generic [ref=e334]:
+              - generic [ref=e335]: Idea variation
+              - combobox [ref=e336]:
+                - option "Optional" [selected]
+                - option "fisioterapia pelvica - Contrarian · contrarian"
+                - option "fisioterapia pelvica - Contrarian · contrarian"
+                - option "fisioterapia pelvica - How To · how-to"
+                - option "fisioterapia pelvica - How To · how-to"
+                - option "fisioterapia pelvica - Proof · proof"
+                - option "fisioterapia pelvica - Proof · proof"
+                - option "fisioterapia pelvica - Checklist · checklist"
+                - option "fisioterapia pelvica - Checklist · checklist"
+                - option "fisioterapia pelvica - Story · story"
+                - option "fisioterapia pelvica - Story · story"
+            - generic [ref=e337]:
+              - generic [ref=e338]: Selected hook
+              - combobox [ref=e339]:
+                - option "Auto" [selected]
+                - option "Stop treating fisioterapia pelvica like a generic topic"
+                - option "Why fisioterapia keeps getting attention"
+                - option "The mistake people make with fisioterapia"
+                - option "How to explain fisioterapia without losing attention"
+                - option "What to say first when talking about fisioterapia"
+                - option "How to turn fisioterapia pelvica into content people save"
+                - option "Why fisioterapia pelvica keeps getting attention"
+                - option "The mistake people make with fisioterapia pelvica"
+                - option "How to explain fisioterapia pelvica without losing attention"
+                - option "What to say first when talking about fisioterapia pelvica"
+                - option "How to turn fisioterapia pelvica into content people save"
+                - option "Why fisioterapia pelvica keeps getting attention"
+                - option "The mistake people make with fisioterapia pelvica"
+                - option "How to explain fisioterapia pelvica without losing attention"
+                - option "What to say first when talking about fisioterapia pelvica"
+            - generic [ref=e340]:
+              - generic [ref=e341]: Hooks per pack
+              - spinbutton [ref=e342]: "6"
+          - generic [ref=e343]:
+            - button "bolt Generate hook pack" [ref=e344]:
+              - generic [ref=e400]: bolt
+              - text: Generate hook pack
+            - button "description Generate script" [ref=e346]:
+              - generic [ref=e347]: description
+              - text: Generate script
+          - generic [ref=e401]:
+            - paragraph [ref=e402]: Script ready
+            - generic [ref=e403]: "Hook: Stop treating fisioterapia pelvica like a generic topic 1) Say why fisioterapia is relevant now. 2) Show the pattern from the research: pélvica. 3) Give one clear action the viewer can use today. 4) Close with: Download Rcomienda today and start exploring your city's best-kept secrets and supporting local businesses!"
+            - generic [ref=e404]:
+              - paragraph [ref=e405]: Filming card
+              - paragraph [ref=e406]: "Format: myth-busting Tone: Our voice is that of a knowledgeable, friendly local guide – confident and modern, yet effortlessly approachable. We communicate with an exciting, curious tone, fostering a sense of discovery and genuine connection within the urban landscape. Open with eye contact and a fast first sentence. Use one visual example per point."
+        - complementary [ref=e146]:
+          - generic [ref=e348]:
+            - heading "Latest hook packs" [level=2] [ref=e349]
+            - generic [ref=e350]:
+              - generic [ref=e407]:
+                - paragraph [ref=e408]: Stop treating fisioterapia pelvica like a generic topic
+                - paragraph [ref=e409]: social · score 0
+                - button "Use for script →" [ref=e410]
+              - generic [ref=e411]:
+                - paragraph [ref=e412]: Why fisioterapia keeps getting attention
+                - paragraph [ref=e413]: social · score 0
+                - button "Use for script →" [ref=e414]
+              - generic [ref=e415]:
+                - paragraph [ref=e416]: The mistake people make with fisioterapia
+                - paragraph [ref=e417]: social · score 0
+                - button "Use for script →" [ref=e418]
+              - generic [ref=e419]:
+                - paragraph [ref=e420]: How to explain fisioterapia without losing attention
+                - paragraph [ref=e421]: social · score 0
+                - button "Use for script →" [ref=e422]
+              - generic [ref=e423]:
+                - paragraph [ref=e424]: What to say first when talking about fisioterapia
+                - paragraph [ref=e425]: social · score 0
+                - button "Use for script →" [ref=e426]
+              - generic [ref=e427]:
+                - paragraph [ref=e428]: How to turn fisioterapia pelvica into content people save
+                - paragraph [ref=e429]: social · score 0
+                - button "Use for script →" [ref=e430]
+              - generic [ref=e431]:
+                - paragraph [ref=e432]: Why fisioterapia pelvica keeps getting attention
+                - paragraph [ref=e433]: social · score 0
+                - button "Use for script →" [ref=e434]
+              - generic [ref=e435]:
+                - paragraph [ref=e436]: The mistake people make with fisioterapia pelvica
+                - paragraph [ref=e437]: social · score 0
+                - button "Use for script →" [ref=e438]
+              - generic [ref=e439]:
+                - paragraph [ref=e440]: How to explain fisioterapia pelvica without losing attention
+                - paragraph [ref=e441]: social · score 0
+                - button "Use for script →" [ref=e442]
+              - generic [ref=e443]:
+                - paragraph [ref=e444]: What to say first when talking about fisioterapia pelvica
+                - paragraph [ref=e445]: social · score 0
+                - button "Use for script →" [ref=e446]
+              - generic [ref=e447]:
+                - paragraph [ref=e448]: How to turn fisioterapia pelvica into content people save
+                - paragraph [ref=e449]: social · score 0
+                - button "Use for script →" [ref=e450]
+              - generic [ref=e451]:
+                - paragraph [ref=e452]: Why fisioterapia pelvica keeps getting attention
+                - paragraph [ref=e453]: social · score 0
+                - button "Use for script →" [ref=e454]
+              - generic [ref=e455]:
+                - paragraph [ref=e456]: The mistake people make with fisioterapia pelvica
+                - paragraph [ref=e457]: social · score 0
+                - button "Use for script →" [ref=e458]
+              - generic [ref=e459]:
+                - paragraph [ref=e460]: How to explain fisioterapia pelvica without losing attention
+                - paragraph [ref=e461]: social · score 0
+                - button "Use for script →" [ref=e462]
+              - generic [ref=e463]:
+                - paragraph [ref=e464]: What to say first when talking about fisioterapia pelvica
+                - paragraph [ref=e465]: social · score 0
+                - button "Use for script →" [ref=e466]
+          - generic [ref=e391]:
+            - heading "Latest scripts" [level=2] [ref=e392]
+            - generic [ref=e393]:
+              - generic [ref=e467]:
+                - paragraph [ref=e468]: Stop treating fisioterapia pelvica like a generic topic
+                - paragraph [ref=e469]: "Hook: Stop treating fisioterapia pelvica like a generic topic 1) Say why fisioterapia is relevant now. 2) Show the pattern from the research: pélvica. 3) Give one clear action the viewer can use today. 4) Close with: Download Rcomienda today and start exploring your city's best-kept secrets and supporting local businesses!"
+              - generic [ref=e394]:
+                - paragraph [ref=e395]: How to turn fisioterapia pelvica into content people save
+                - paragraph [ref=e396]: "Hook: How to turn fisioterapia pelvica into content people save 1) Say why fisioterapia pelvica is relevant now. 2) Show the pattern from the research: fisioterapia pelvica. 3) Give one clear action the viewer can use today. 4) Close with: Download Rcomienda today and start exploring your city's best-kept secrets and supporting local businesses!"
+              - generic [ref=e397]:
+                - paragraph [ref=e398]: How to turn fisioterapia pelvica into content people save
+                - paragraph [ref=e399]: "Hook: How to turn fisioterapia pelvica into content people save 1) Say why fisioterapia pelvica is relevant now. 2) Show the pattern from the research: fisioterapia pelvica. 3) Give one clear action the viewer can use today. 4) Close with: Download Rcomienda today and start exploring your city's best-kept secrets and supporting local businesses!"

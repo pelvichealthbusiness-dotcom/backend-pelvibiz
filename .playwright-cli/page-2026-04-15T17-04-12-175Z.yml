@@ -1,0 +1,12 @@
+- generic [ref=e2]:
+  - text: "Error: supabaseUrl is required."
+  - text: at validateSupabaseUrl (/home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/.angular/cache/21.2.2/pelvibiz/vite/deps_ssr/@supabase_supabase-js.js:12851:26)
+  - text: at new SupabaseClient (/home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/.angular/cache/21.2.2/pelvibiz/vite/deps_ssr/@supabase_supabase-js.js:13056:21)
+  - text: at createClient (/home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/.angular/cache/21.2.2/pelvibiz/vite/deps_ssr/@supabase_supabase-js.js:13235:10)
+  - text: at eval (/home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/src/server.ts:32:23)
+  - text: at async ESModulesEvaluator.runInlinedModule (file:///home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/node_modules/vite/dist/node/module-runner.js:913:3)
+  - text: at async SSRCompatModuleRunner.directRequest (file:///home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/node_modules/vite/dist/node/module-runner.js:1146:59)
+  - text: at async SSRCompatModuleRunner.directRequest (file:///home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/node_modules/vite/dist/node/chunks/config.js:15111:22)
+  - text: at async SSRCompatModuleRunner.cachedRequest (file:///home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/node_modules/vite/dist/node/module-runner.js:1053:73)
+  - text: at async SSRCompatModuleRunner.import (file:///home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/node_modules/vite/dist/node/module-runner.js:1014:10)
+  - text: at async instantiateModule (file:///home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/node_modules/vite/dist/node/chunks/config.js:15084:10)

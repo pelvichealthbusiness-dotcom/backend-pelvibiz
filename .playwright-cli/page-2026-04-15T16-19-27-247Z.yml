@@ -1,0 +1,125 @@
+- generic [ref=e22]:
+  - complementary [ref=e24]:
+    - img "PelviBiz" [ref=e26]
+    - navigation [ref=e27]:
+      - link "chat PelviBiz AI" [ref=e29] [cursor=pointer]:
+        - /url: /pelvibiz-ai
+        - generic [ref=e30]: chat
+        - generic [ref=e31]: PelviBiz AI
+      - generic [ref=e32]:
+        - paragraph [ref=e33]:
+          - generic [ref=e34]: view_carousel
+          - text: Carousels
+        - link "photo_library Real Carousel" [ref=e37] [cursor=pointer]:
+          - /url: /agent/real-carousel
+          - generic [ref=e38]: photo_library
+          - generic [ref=e39]: Real Carousel
+        - link "auto_awesome A.I Carousel" [ref=e42] [cursor=pointer]:
+          - /url: /agent/ai-carousel
+          - generic [ref=e43]: auto_awesome
+          - generic [ref=e44]: A.I Carousel
+      - generic [ref=e45]:
+        - paragraph [ref=e46]:
+          - generic [ref=e47]: videocam
+          - text: Videos
+        - link "movie Real Video" [ref=e50] [cursor=pointer]:
+          - /url: /agent/reels-edited-by-ai
+          - generic [ref=e51]: movie
+          - generic [ref=e52]: Real Video
+        - generic [ref=e55]:
+          - generic [ref=e56]: videocam
+          - generic [ref=e57]: A.I Video
+      - generic [ref=e58]:
+        - paragraph [ref=e59]:
+          - generic [ref=e60]: article
+          - text: Posts
+        - link "edit_note A.I Post Generator" [ref=e63] [cursor=pointer]:
+          - /url: /agent/ai-post-generator
+          - generic [ref=e64]: edit_note
+          - generic [ref=e65]: A.I Post Generator
+      - generic [ref=e66]:
+        - paragraph [ref=e67]: Tools
+        - link "dashboard Dashboard" [ref=e68] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e69]: dashboard
+          - generic [ref=e70]: Dashboard
+        - link "content_cut Video Editor" [ref=e71] [cursor=pointer]:
+          - /url: /tools/video-cut
+          - generic [ref=e72]: content_cut
+          - generic [ref=e73]: Video Editor
+        - link "collections Content Library" [ref=e74] [cursor=pointer]:
+          - /url: /library
+          - generic [ref=e75]: collections
+          - generic [ref=e76]: Content Library
+        - link "calendar_month Content Calendar" [ref=e77] [cursor=pointer]:
+          - /url: /calendar
+          - generic [ref=e78]: calendar_month
+          - generic [ref=e79]: Content Calendar
+        - link "analytics Style Analyzer" [ref=e80] [cursor=pointer]:
+          - /url: /style-analyzer
+          - generic [ref=e81]: analytics
+          - generic [ref=e82]: Style Analyzer
+        - link "hub Content Studio" [ref=e83] [cursor=pointer]:
+          - /url: /content-studio
+          - generic [ref=e84]: hub
+          - generic [ref=e85]: Content Studio
+        - link "groups Competitors" [ref=e86] [cursor=pointer]:
+          - /url: /competitors
+          - generic [ref=e87]: groups
+          - generic [ref=e88]: Competitors
+        - link "settings Brand Settings" [ref=e89] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e90]: settings
+          - generic [ref=e91]: Brand Settings
+      - generic [ref=e92]:
+        - paragraph [ref=e93]: Admin
+        - link "admin_panel_settings Panel Admin" [ref=e94] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e95]: admin_panel_settings
+          - generic [ref=e96]: Panel Admin
+    - generic [ref=e97]:
+      - generic [ref=e99]:
+        - generic [ref=e100]: A
+        - generic [ref=e101]:
+          - paragraph [ref=e102]: asepulveda
+          - paragraph [ref=e103]: asepulvedadev@gmail.com
+      - button "logout Sign out" [ref=e104]:
+        - generic [ref=e105]: logout
+        - generic [ref=e106]: Sign out
+    - button "chevron_left" [ref=e107]:
+      - generic [ref=e108]: chevron_left
+  - main [ref=e110]:
+    - generic [ref=e111]:
+      - generic [ref=e112]:
+        - generic [ref=e114]: dashboard
+        - generic [ref=e115]:
+          - heading "Good morning, asepulveda" [level=1] [ref=e116]
+          - paragraph [ref=e117]: Here's your content creation overview
+      - generic [ref=e118]:
+        - generic [ref=e119]:
+          - img [ref=e120]
+          - generic [ref=e123]:
+            - generic [ref=e124]: "0"
+            - generic [ref=e125]: / 9999 credits
+        - paragraph [ref=e126]: Credits reset monthly
+      - generic [ref=e127]:
+        - button "photo_library Real Carousel 0 / 10" [ref=e128]:
+          - generic [ref=e130]: photo_library
+          - generic [ref=e132]:
+            - generic [ref=e133]: Real Carousel
+            - generic [ref=e134]: 0 / 10
+        - button "auto_awesome A.I Carousel 0 / 10" [ref=e136]:
+          - generic [ref=e138]: auto_awesome
+          - generic [ref=e140]:
+            - generic [ref=e141]: A.I Carousel
+            - generic [ref=e142]: 0 / 10
+        - button "movie Real Video 0 / 10" [ref=e144]:
+          - generic [ref=e146]: movie
+          - generic [ref=e148]:
+            - generic [ref=e149]: Real Video
+            - generic [ref=e150]: 0 / 10
+        - button "videocam A.I Video 0 / 10" [ref=e152]:
+          - generic [ref=e154]: videocam
+          - generic [ref=e156]:
+            - generic [ref=e157]: A.I Video
+            - generic [ref=e158]: 0 / 10

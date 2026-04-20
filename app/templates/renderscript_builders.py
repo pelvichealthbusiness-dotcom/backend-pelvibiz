@@ -427,6 +427,8 @@ def _caption_elements(
     font_size: str = "8 vmin",
     chunk_size: int = 3,
     font_family: str | None = None,
+    fill_color: str = "#FFFFFF",
+    font_weight: str = "900",
 ) -> list[dict]:
     """Split a caption into timed word-group elements for word-by-word animation."""
     chunks = _word_chunks(text, chunk_size)
@@ -445,9 +447,9 @@ def _caption_elements(
             "x_alignment": "50%",
             "width": "85%",
             "font_family": font_family or CAPTION_FONT,
-            "font_weight": "900",
+            "font_weight": font_weight,
             "font_size": font_size,
-            "fill_color": "#FFFFFF",
+            "fill_color": fill_color,
             "stroke_color": "#000000",
             "stroke_width": "1.5 vmin",
             "background_color": "rgba(0,0,0,0.75)",
@@ -465,6 +467,7 @@ def _caption_elem(
     y: str = "78%",
     font_family: str | None = None,
     fill_color: str = "#FFFFFF",
+    font_weight: str = "900",
 ) -> dict:
     """OpusClip-style caption element.
 
@@ -475,13 +478,13 @@ def _caption_elem(
         "type": "text", "track": track, "name": f"Sub-{track}",
         "text": text, "time": round(time, 3),
         # No minimum padding — karaoke words must end exactly when they end to avoid overlap
-        "duration": round(max(duration, 0.1), 3),
+        "duration": round(max(duration - 0.05, 0.1), 3),
         "x": "50%", "y": y, "x_anchor": "50%", "y_anchor": "50%",
         "x_alignment": "50%", "width": "85%",
         "font_family": font_family or CAPTION_FONT,
-        "font_weight": "900",
+        "font_weight": font_weight,
         "font_size": "9 vmin",
-        "letter_spacing": "8%",
+        "letter_spacing": "20%",
         "fill_color": fill_color,
         "stroke_color": "#000000",
         "stroke_width": "1.8 vmin",
@@ -491,7 +494,7 @@ def _caption_elem(
     }
 
 
-_MAX_CAPTION_WORDS = 2
+_MAX_CAPTION_WORDS = 4
 
 
 def _split_phrase(block: PhraseBlock, max_words: int = _MAX_CAPTION_WORDS) -> list[PhraseBlock]:
@@ -529,20 +532,19 @@ def _append_captions(
     base_track: int = 500,
     font_family: str | None = None,
     highlight_color: str | None = None,
+    fill_color: str = "#FFFFFF",
+    font_weight: str = "900",
 ) -> None:
-    """Append OpusClip-style caption elements to `elements` in-place.
-
-    Long phrase blocks are automatically split so no caption shows
-    more than _MAX_CAPTION_WORDS words at once.
-    """
+    """Append OpusClip-style caption elements to `elements` in-place."""
     track = base_track
     for block in phrase_blocks:
         for sub in _split_phrase(block):
             duration = sub.end - sub.start
-            color = highlight_color if highlight_color else "#FFFFFF"
+            color = highlight_color if highlight_color else fill_color
             elem = _caption_elem(
                 track, sub.text, sub.start, duration,
                 y=y, font_family=font_family, fill_color=color,
+                font_weight=font_weight,
             )
             elements.append(elem)
             track += 1
@@ -604,16 +606,18 @@ def build_talking_head(
     # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
     caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
     caption_font = getattr(request, 'caption_font', None) or CAPTION_FONT
+    caption_color = getattr(request, 'caption_color', None) or "#FFFFFF"
+    caption_weight = getattr(request, 'caption_weight', None) or "900"
 
     if phrase_blocks:
         # New pipeline: OpusClip-style phrase blocks from TranscriptionService
-        # Use bright yellow (#FFE600) — guaranteed legible on any background,
-        # gives the "karaoke highlight" effect regardless of brand primary color
         _append_captions(
             els, phrase_blocks,
             y="75%", base_track=500,
             font_family=caption_font,
             highlight_color="#FFE600",
+            fill_color=caption_color,
+            font_weight=caption_weight,
         )
     elif analysis and analysis.transcript_segments:
         # Legacy: raw Gemini segments (3-5 word chunks, no grouping)
@@ -631,6 +635,8 @@ def build_talking_head(
                 duration=seg_dur,
                 y=caption_y,
                 font_family=caption_font,
+                fill_color=caption_color,
+                font_weight=caption_weight,
             ))
     else:
         # Fallback: manual text_2 split into timed groups (no analysis available)
@@ -642,6 +648,8 @@ def build_talking_head(
                 start_track=30, theme=theme,
                 y=caption_y, font_size="5.5 vmin", chunk_size=3,
                 font_family=caption_font,
+                fill_color=caption_color,
+                font_weight=caption_weight,
             ))
 
     if theme.music_url:

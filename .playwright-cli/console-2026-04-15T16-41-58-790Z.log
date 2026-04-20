@@ -1,0 +1,13 @@
+[     675ms] [LOG] [Auth] User ID: 3c8a1290-ff32-4ae8-9815-797d5a535dd4 | Email: asepulvedadev@gmail.com @ https://healthcareai.pelvibiz.live/chunk-ZV57GVHX.js:42
+[    5672ms] [ERROR] Failed to load resource: the server responded with a status of 502 () @ https://agent-api.pelvibiz.live/api/v1/competitors/compare:0
+[   15644ms] [ERROR] [GlobalError] TypeError: Cannot read properties of undefined (reading '0')
+    at Qe (https://healthcareai.pelvibiz.live/chunk-HO7CSZOE.js:1:12870)
+    at Op (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:25652)
+    at EI (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:31124)
+    at Ja (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:32329)
+    at Qp (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:32161)
+    at zp (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:31901)
+    at EI (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:31294)
+    at Ja (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:32329)
+    at Qp (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:32161)
+    at DI (https://healthcareai.pelvibiz.live/chunk-FWEXQYFD.js:5:32097) @ https://healthcareai.pelvibiz.live/main-7AISX3EU.js:0

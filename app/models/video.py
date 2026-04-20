@@ -233,6 +233,8 @@ class GenerateVideoRequest(BaseModel):
 
     # Brand fields (enriched by frontend generate.ts or loaded from profile)
     caption_font: Optional[str] = Field(None, max_length=50, description="Creatomate font name for captions. Defaults to Anton.")
+    caption_color: Optional[str] = Field(None, max_length=20, description="Hex color for caption text. Defaults to #FFFFFF.")
+    caption_weight: Optional[str] = Field(None, max_length=10, description="Font weight for captions: 400, 700, 900. Defaults to 900.")
 
     brand_name: Optional[str] = None
     brand_color_primary: Optional[str] = None

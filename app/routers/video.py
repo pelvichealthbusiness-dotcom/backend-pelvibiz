@@ -33,6 +33,24 @@ from app.templates.renderscript_builders import RENDERSCRIPT_BUILDERS
 logger = logging.getLogger(__name__)
 
 
+def _trim_black_tail(source_dict: dict, phrase_blocks=None) -> dict:
+    """Cap source duration at actual content end to avoid black tail padding."""
+    current_dur = float(source_dict.get("duration", 0))
+    if phrase_blocks:
+        content_end = phrase_blocks[-1].end + 0.5
+    else:
+        elements = source_dict.get("elements", [])
+        ends = [
+            float(el.get("time", 0)) + float(el.get("duration", 0))
+            for el in elements
+            if el.get("type") in ("video", "audio") and el.get("duration", 0) > 0
+        ]
+        content_end = max(ends) if ends else current_dur
+    if content_end < current_dur:
+        source_dict["duration"] = round(content_end, 3)
+    return source_dict
+
+
 def _should_use_renderscript(template_key: str) -> bool:
     """Check RENDERSCRIPT_TEMPLATES env var to decide render path."""
     flag = os.getenv("RENDERSCRIPT_TEMPLATES", "").strip().lower()
@@ -179,9 +197,7 @@ async def generate_video(
                 else {}
             )
             source_dict = builder(request, theme, analysis_result, **_bkw)
-            # Duration trim: cut black tail frame at last phrase block end + 0.3s buffer
-            if phrase_blocks and "duration" not in source_dict:
-                source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
+            _trim_black_tail(source_dict, phrase_blocks or None)
             logger.info("creatomate render source (truncated): template=%s audio_elements=%s",
                 request.template,
                 [e for e in source_dict.get('elements', []) if e.get('type') == 'audio']
@@ -381,8 +397,7 @@ async def generate_video_stream(
                         else {}
                     )
                     source_dict = builder(request, theme, analysis_result, **_bkw)
-                    if phrase_blocks and "duration" not in source_dict:
-                        source_dict["duration"] = round(phrase_blocks[-1].end + 0.3, 3)
+                    _trim_black_tail(source_dict, phrase_blocks or None)
                     logger.info("creatomate render source (truncated): template=%s audio_elements=%s",
                         request.template,
                         [e for e in source_dict.get('elements', []) if e.get('type') == 'audio']

@@ -1,0 +1,4 @@
+[    2188ms] [LOG] Angular is running in development mode. @ http://localhost:4201/@fs/home/asepulvedadev/dev/clients/pelvibiz/fronend/pelvi-ai-hub/.angular/cache/21.2.2/pelvibiz/vite/deps/chunk-DRS6ILLJ.js?v=62c42307:11100
+[    2580ms] [LOG] %c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit @ https://va.vercel-scripts.com/v1/speed-insights/script.debug.js:0
+[   14756ms] [ERROR] Access to fetch at 'http://localhost:8100/api/v1/auth/login' from origin 'http://localhost:4201' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:4201/login:0
+[   14757ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:8100/api/v1/auth/login:0
