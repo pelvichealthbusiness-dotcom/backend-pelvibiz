@@ -464,15 +464,14 @@ class ContentIntelligenceService:
         )
         if not own_account.data:
             return empty
-        own_account_data = type('_R', (), {'data': own_account.data[0]})()
-        own_account = own_account_data
+        own_account_id = own_account.data[0]['id']
 
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         cached = (
             self.supabase.table('competitor_analyses')
             .select('hook_gaps, topic_gaps, white_space')
             .eq('user_id', user_id)
-            .eq('own_account_id', own_account.data['id'])
+            .eq('own_account_id', own_account_id)
             .eq('competitor_account_id', competitor_account.data['id'])
             .gte('updated_at', cutoff)
             .order('updated_at', desc=True)

@@ -634,8 +634,8 @@ _TOOLS = [
                         "max_posts": types.Schema(type="INTEGER", description="Max posts to analyze (default 30)"),
                         "account_type": types.Schema(
                             type="STRING",
-                            description="Type of account: competitor, inspiration, own",
-                            enum=["competitor", "inspiration", "own"],
+                            description="Type of account: competitor or personal",
+                            enum=["competitor", "personal"],
                         ),
                     },
                     required=["username"],
@@ -1839,13 +1839,19 @@ class PelvibizAiAgent(BaseStreamingAgent):
         return result
 
     async def _tool_get_competitor_gaps(self, args: dict, user_id: str) -> dict:
+        import asyncio
         from app.services.content_intelligence import ContentIntelligenceService
         service = ContentIntelligenceService()
         handle = args.get("handle", "").lstrip("@")
         if not handle:
             return {"error": "handle is required"}
-        result = await service.get_competitor_gaps(user_id=user_id, competitor_handle=handle)
-        return result
+        try:
+            result = await asyncio.to_thread(
+                service.get_competitor_gaps, user_id=user_id, competitor_handle=handle
+            )
+            return result if result else {"hook_gaps": [], "topic_gaps": [], "white_space": [], "note": "No gap analysis found — try running compare_with_competitor first"}
+        except Exception as exc:
+            return {"error": str(exc)}
 
     async def _tool_delete_competitor(self, args: dict, user_id: str) -> dict:
         from app.services.competitors import CompetitorService
