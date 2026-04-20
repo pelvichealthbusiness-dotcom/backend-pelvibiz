@@ -220,6 +220,8 @@ class PostGeneratorService:
             person_b64 = await self._image_gen.generate_from_prompt(person_prompt)
             person_bytes = base64.b64decode(person_b64)
 
+        person_bytes = await _remove_background(person_bytes)
+
         # ── Logo ─────────────────────────────────────────────────────────────
         logo_bytes: bytes | None = None
         logo_url = request.logo_url or brand.get("logo_url")
@@ -291,3 +293,18 @@ def _merge_brand(profile: dict, req: PostGenerateRequest) -> dict:
         "cta": _pick("cta", req.cta),
         "logo_url": profile.get("logo_url"),
     }
+
+
+async def _remove_background(img_bytes: bytes) -> bytes:
+    """Remove background from person image using rembg. Gracefully degrades if unavailable."""
+    import asyncio
+    try:
+        from rembg import remove as rembg_remove
+        result: bytes = await asyncio.to_thread(rembg_remove, img_bytes)
+        return result
+    except ImportError:
+        logger.warning("rembg not installed — skipping background removal")
+        return img_bytes
+    except Exception as exc:
+        logger.warning("Background removal failed: %s", exc)
+        return img_bytes

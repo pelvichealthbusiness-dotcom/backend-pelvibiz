@@ -19,6 +19,8 @@ dependencies = [
     "pandas>=2.2.0",
     "numpy>=1.26.0",
     "cryptography>=42.0.0",
+    "rembg>=2.0.50",
+    "onnxruntime>=1.17.0",
 ]
 
 [project.optional-dependencies]

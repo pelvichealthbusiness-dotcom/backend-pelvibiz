@@ -1,22 +1,18 @@
 """Pillow compositor for the masterclass-banner post template.
 
-Two-panel split layout (inspired by professional event banner design):
-
-Layer stack:
-  1. Left panel  — solid brand_color_primary (lightened), full height left half
-  2. Right panel — solid dark color (brand_color_primary darkened), full height right half
-  3. Arch divider — large filled circle from left-panel color bulging into right panel,
-                    creating an organic curved boundary
-  4. Person image — fills the left panel area, clipped to the arch mask
-  5. Dark gradient on person — subtle fade on right edge for blending
-  6. Logo         — small, top-right of text column
-  7. event_label  — small caps, brand_color_secondary (accent)
-  8. Divider line — thin, accent color
-  9. title        — very large bold white (Montserrat Black, auto-shrink)
- 10. subtitle     — medium white
- 11. Date badge   — bordered rounded rectangle with date_time inside
- 12. venue / via  — small white meta text
- 13. CTA button   — filled rounded rect in brand_color_primary + white text
+Two-panel split layout:
+  1. Right panel  — solid dark (brand_color_primary darkened), full canvas
+  2. Left panel   — solid brand_color_primary (lighter), left half + arch bulge
+  3. Person       — background-removed cutout, full height, anchored bottom-left
+  4. Bottom fade  — subtle gradient on person bottom edge for grounding
+  5. Logo         — top-right corner, small
+  6. event_label  — small caps accent color
+  7. Divider line — accent color
+  8. title        — large bold white, auto-wrap + auto-shrink
+  9. subtitle     — medium white
+ 10. Date badge   — bordered rounded rect
+ 11. venue / via  — small meta text
+ 12. CTA button   — filled rounded rect
 """
 
 from __future__ import annotations
@@ -25,7 +21,7 @@ import asyncio
 import io
 import logging
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
 from app.utils.fonts import get_montserrat, get_montserrat_sync
 
@@ -35,28 +31,29 @@ logger = logging.getLogger(__name__)
 CANVAS_W, CANVAS_H = 1080, 1350
 
 # ── Panel split ───────────────────────────────────────────────────────────────
-SPLIT_X = 460          # vertical split point
-ARCH_CENTER_X = 400    # arch circle center x (left of split)
-ARCH_CENTER_Y = 800    # arch circle center y (lower half bias)
-ARCH_RADIUS = 820      # large circle — creates the organic curved boundary
+SPLIT_X = 470
+ARCH_CENTER_X = 410
+ARCH_CENTER_Y = 750
+ARCH_RADIUS = 830
 
-# ── Right column ──────────────────────────────────────────────────────────────
-TEXT_X = 510           # text starts here
-TEXT_MAX_W = 510       # max text width before wrapping
-LOGO_MAX = 90          # max logo size (px)
+# ── Right column (text area) ──────────────────────────────────────────────────
+TEXT_X = 500
+TEXT_RIGHT_MARGIN = 50
+TEXT_MAX_W = CANVAS_W - TEXT_X - TEXT_RIGHT_MARGIN   # 530 px
+LOGO_MAX = 80
 
 # ── Font sizes (px) ───────────────────────────────────────────────────────────
-LABEL_SIZE = 30
-TITLE_MAX_SIZE = 96
-TITLE_MIN_SIZE = 54
-SUBTITLE_SIZE = 36
-META_SIZE = 28
-CTA_SIZE = 34
-DATE_BADGE_SIZE = 32
+LABEL_SIZE = 28
+TITLE_MAX_SIZE = 72
+TITLE_MIN_SIZE = 36
+SUBTITLE_SIZE = 34
+META_SIZE = 26
+CTA_SIZE = 32
+DATE_BADGE_SIZE = 28
 
-# ── Y positions ───────────────────────────────────────────────────────────────
-LOGO_TOP = 80
-TEXT_TOP = 200         # where text block starts (advances dynamically)
+# ── Y start ───────────────────────────────────────────────────────────────────
+LOGO_TOP = 70
+TEXT_TOP = 180
 
 
 # ── Color helpers ─────────────────────────────────────────────────────────────
@@ -69,7 +66,6 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int]:
 
 
 def _lighten(rgb: tuple[int, int, int], factor: float = 0.35) -> tuple[int, int, int]:
-    """Mix color with white."""
     r, g, b = rgb
     return (
         int(r + (255 - r) * factor),
@@ -79,7 +75,6 @@ def _lighten(rgb: tuple[int, int, int], factor: float = 0.35) -> tuple[int, int,
 
 
 def _darken(rgb: tuple[int, int, int], factor: float = 0.25) -> tuple[int, int, int]:
-    """Darken by mixing towards black."""
     r, g, b = rgb
     return int(r * factor), int(g * factor), int(b * factor)
 
@@ -134,7 +129,6 @@ def _draw_left_block(
     max_w: int,
     line_gap: int = 6,
 ) -> int:
-    """Draw left-aligned wrapped text. Returns y after last line."""
     for line in _wrap_text(draw, text, font, max_w):
         bb = draw.textbbox((0, 0), line, font=font)
         draw.text((x, y), line, font=font, fill=fill)
@@ -142,22 +136,20 @@ def _draw_left_block(
     return y
 
 
-def _shrink_title(
+def _auto_fit_title(
     draw: ImageDraw.ImageDraw,
     text: str,
     max_w: int,
+    max_lines: int = 3,
 ) -> tuple[ImageFont.FreeTypeFont, list[str]]:
-    size = TITLE_MAX_SIZE
-    while size >= TITLE_MIN_SIZE:
+    """Find largest font size where the title wraps to at most max_lines."""
+    for size in range(TITLE_MAX_SIZE, TITLE_MIN_SIZE - 1, -4):
         font = get_montserrat_sync("black", size)
-        bb = draw.textbbox((0, 0), text, font=font)
-        if (bb[2] - bb[0]) <= max_w:
-            return font, [text]
-        size -= 6
+        lines = _wrap_text(draw, text, font, max_w)
+        if len(lines) <= max_lines:
+            return font, lines
     font = get_montserrat_sync("black", TITLE_MIN_SIZE)
-    words = text.split()
-    mid = max(1, len(words) // 2)
-    return font, [" ".join(words[:mid]), " ".join(words[mid:])]
+    return font, _wrap_text(draw, text, font, max_w)
 
 
 def _draw_title_lines(
@@ -185,8 +177,7 @@ def _draw_date_badge(
     text_color: tuple,
     max_w: int,
 ) -> int:
-    """Draw date/time inside a rounded-border badge. Returns y after badge."""
-    pad_h, pad_v, r = 20, 12, 14
+    pad_h, pad_v, r = 18, 10, 12
     lines = _wrap_text(draw, text, font, max_w - pad_h * 2)
     line_heights = []
     for line in lines:
@@ -196,7 +187,6 @@ def _draw_date_badge(
     total_text_h = sum(line_heights) + 6 * (len(lines) - 1)
     badge_h = total_text_h + pad_v * 2
 
-    # Use longest line for badge width (cap at max_w)
     max_line_w = 0
     for line in lines:
         bb = draw.textbbox((0, 0), line, font=font)
@@ -214,7 +204,7 @@ def _draw_date_badge(
         draw.text((x + pad_h, ty), line, font=font, fill=text_color)
         ty += line_heights[i] + 6
 
-    return y + badge_h + 16
+    return y + badge_h + 14
 
 
 def _draw_cta(
@@ -226,7 +216,7 @@ def _draw_cta(
     bg_color: tuple,
     max_w: int,
 ) -> int:
-    pad_h, pad_v, r = 32, 16, 18
+    pad_h, pad_v, r = 30, 14, 16
     bb = draw.textbbox((0, 0), text, font=font)
     btn_w = min(bb[2] - bb[0] + pad_h * 2, max_w)
     btn_h = (bb[3] - bb[1]) + pad_v * 2
@@ -261,20 +251,16 @@ async def compose(
 
     def _sync_compose() -> bytes:
         primary_rgb = _hex_to_rgb(brand_color_primary)
-        left_bg = _lighten(primary_rgb, 0.55)   # very light brand color for left panel
-        right_bg = _darken(primary_rgb, 0.20)    # very dark for right panel
+        left_bg = _lighten(primary_rgb, 0.45)
+        right_bg = _darken(primary_rgb, 0.18)
         accent_rgb = _ensure_visible_on_dark(brand_color_secondary)
 
-        # ── 1 & 2. Two-panel background ──────────────────────────────────────
+        # ── 1 & 2. Two-panel background with arch divider ─────────────────────
         img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*right_bg, 255))
         left_panel = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
         left_draw = ImageDraw.Draw(left_panel)
 
-        # Fill left rectangle
         left_draw.rectangle([(0, 0), (SPLIT_X, CANVAS_H)], fill=(*left_bg, 255))
-
-        # ── 3. Arch divider ───────────────────────────────────────────────────
-        # Large circle centered at ARCH_CENTER that bulges right from SPLIT_X
         left_draw.ellipse(
             [
                 (ARCH_CENTER_X - ARCH_RADIUS, ARCH_CENTER_Y - ARCH_RADIUS),
@@ -284,54 +270,40 @@ async def compose(
         )
         img = Image.alpha_composite(img, left_panel)
 
-        # ── 4. Person image — fills left panel area clipped by arch ───────────
+        # ── 3. Person cutout — placed bottom-left, full height ────────────────
         if person_bytes is not None:
             try:
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
-                # Fit person to fill the full left panel height
-                person_target_w = SPLIT_X + 120   # a bit wider than split
-                person_target_h = CANVAS_H
-                person_img = ImageOps.fit(
-                    person_img, (person_target_w, person_target_h), Image.LANCZOS
-                )
+                # Scale to fill the full canvas height, keep aspect ratio
+                scale = CANVAS_H / person_img.height
+                pw = int(person_img.width * scale)
+                ph = CANVAS_H
+                person_img = person_img.resize((pw, ph), Image.LANCZOS)
 
-                # Build arch mask matching the arch shape on the left panel
-                arch_mask = Image.new("L", (CANVAS_W, CANVAS_H), 0)
-                mask_draw = ImageDraw.Draw(arch_mask)
-                mask_draw.rectangle([(0, 0), (SPLIT_X, CANVAS_H)], fill=230)
-                mask_draw.ellipse(
-                    [
-                        (ARCH_CENTER_X - ARCH_RADIUS, ARCH_CENTER_Y - ARCH_RADIUS),
-                        (ARCH_CENTER_X + ARCH_RADIUS, ARCH_CENTER_Y + ARCH_RADIUS),
-                    ],
-                    fill=230,
-                )
+                # Center the person in the left panel area
+                paste_x = max(0, (SPLIT_X - pw) // 2)
 
-                # Paste person with arch mask
-                person_canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-                person_canvas.paste(person_img, (0, 0))
-                img = Image.composite(person_canvas, img, arch_mask)
-
-                # ── 5. Subtle right-edge gradient on person ───────────────────
-                fade = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-                fade_draw = ImageDraw.Draw(fade)
-                fade_width = 120
-                fade_start_x = SPLIT_X - fade_width + 80
-                for i in range(fade_width):
-                    alpha = int((i / fade_width) * 160)
+                # ── 4. Bottom fade for grounding the cutout ───────────────────
+                fade_h = 180
+                fade_overlay = Image.new("RGBA", (pw, ph), (0, 0, 0, 0))
+                fade_draw = ImageDraw.Draw(fade_overlay)
+                for i in range(fade_h):
+                    alpha = int((i / fade_h) ** 1.5 * 200)
                     fade_draw.line(
-                        [(fade_start_x + i, 0), (fade_start_x + i, CANVAS_H)],
+                        [(0, ph - fade_h + i), (pw, ph - fade_h + i)],
                         fill=(*right_bg, alpha),
                     )
-                img = Image.alpha_composite(img, fade)
+                person_img = Image.alpha_composite(person_img, fade_overlay)
+
+                img.paste(person_img, (paste_x, 0), person_img)
 
             except Exception as exc:
                 logger.warning("Could not paste person image: %s", exc)
 
         draw = ImageDraw.Draw(img)
 
-        # ── 6. Logo (top-right of text column, small) ─────────────────────────
+        # ── 5. Logo (top-right corner) ────────────────────────────────────────
         text_x = TEXT_X
         y = TEXT_TOP
 
@@ -342,45 +314,45 @@ async def compose(
                 logo_w = int(logo_img.width * ratio)
                 logo_h = int(logo_img.height * ratio)
                 logo_img = logo_img.resize((logo_w, logo_h), Image.LANCZOS)
-                logo_x = CANVAS_W - 60 - logo_w
+                logo_x = CANVAS_W - 50 - logo_w
                 img.paste(logo_img, (logo_x, LOGO_TOP), logo_img)
             except Exception as exc:
                 logger.warning("Could not paste logo: %s", exc)
 
-        # ── 7. event_label (small caps, accent color) ─────────────────────────
+        # ── 6. event_label ────────────────────────────────────────────────────
         if event_label:
             y = _draw_left_block(
                 draw, event_label.upper(), font_label,
                 text_x, y, (*accent_rgb, 230), TEXT_MAX_W, line_gap=4,
             )
-            y += 8
+            y += 10
 
-        # ── 8. Divider line ───────────────────────────────────────────────────
+        # ── 7. Divider line ───────────────────────────────────────────────────
         draw.line([(text_x, y), (text_x + TEXT_MAX_W, y)], fill=(*accent_rgb, 120), width=2)
-        y += 18
+        y += 20
 
-        # ── 9. Title (very large bold white, auto-shrink) ─────────────────────
+        # ── 8. Title ──────────────────────────────────────────────────────────
         if title:
-            font_title, title_lines = _shrink_title(draw, title, TEXT_MAX_W)
+            font_title, title_lines = _auto_fit_title(draw, title, TEXT_MAX_W)
             y = _draw_title_lines(draw, title_lines, font_title, text_x, y, (255, 255, 255, 255))
-            y += 20
+            y += 18
 
-        # ── 10. Subtitle ──────────────────────────────────────────────────────
+        # ── 9. Subtitle ───────────────────────────────────────────────────────
         if subtitle:
             y = _draw_left_block(
                 draw, subtitle, font_subtitle,
                 text_x, y, (255, 255, 255, 190), TEXT_MAX_W, line_gap=6,
             )
-            y += 24
+            y += 22
 
-        # ── 11. Date badge ────────────────────────────────────────────────────
+        # ── 10. Date badge ────────────────────────────────────────────────────
         if date_time:
             y = _draw_date_badge(
                 draw, date_time, font_date,
                 text_x, y, accent_rgb, (255, 255, 255, 240), TEXT_MAX_W,
             )
 
-        # ── 12. venue / via ───────────────────────────────────────────────────
+        # ── 11. venue / via ───────────────────────────────────────────────────
         if venue:
             y = _draw_left_block(
                 draw, venue, font_meta,
@@ -392,16 +364,13 @@ async def compose(
                 draw, via, font_meta,
                 text_x, y, (255, 255, 255, 160), TEXT_MAX_W,
             )
-            y += 24
+            y += 22
 
-        # ── 13. CTA button ────────────────────────────────────────────────────
+        # ── 12. CTA button ────────────────────────────────────────────────────
         if cta:
-            cta_rgb = _hex_to_rgb(brand_color_primary)
-            # Make CTA button color visible against dark background
-            cta_btn_rgb = _lighten(cta_rgb, 0.15) if max(cta_rgb) > 150 else _lighten(cta_rgb, 0.45)
+            cta_btn_rgb = _lighten(primary_rgb, 0.15) if max(primary_rgb) > 150 else _lighten(primary_rgb, 0.45)
             _draw_cta(draw, cta, font_cta, text_x, y, cta_btn_rgb, TEXT_MAX_W)
 
-        # ── Export ────────────────────────────────────────────────────────────
         out = io.BytesIO()
         img.convert("RGB").save(out, format="PNG")
         return out.getvalue()
