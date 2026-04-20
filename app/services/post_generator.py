@@ -203,22 +203,11 @@ class PostGeneratorService:
     ) -> tuple[str, str]:
         """Masterclass-banner: background + person + logo → Pillow compositor."""
         from app.utils.masterclass_banner_composer import compose as compose_masterclass
-        from app.prompts.post_generate import build_masterclass_background_prompt, build_masterclass_person_prompt
+        from app.prompts.post_generate import build_masterclass_person_prompt
 
         tf = request.text_fields
         brand_color = brand.get("brand_color_primary") or "#1A9E8F"
         brand_color_sec = brand.get("brand_color_secondary") or "#FFFFFF"
-
-        # ── Background ──────────────────────────────────────────────────────
-        if request.reference_image_url:
-            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-                resp = await client.get(request.reference_image_url)
-                resp.raise_for_status()
-                background_bytes = resp.content
-        else:
-            prompt = build_masterclass_background_prompt(tf, brand)
-            bg_b64 = await self._image_gen.generate_from_prompt(prompt)
-            background_bytes = base64.b64decode(bg_b64)
 
         # ── Person image ─────────────────────────────────────────────────────
         if request.person_image_url:
@@ -245,7 +234,6 @@ class PostGeneratorService:
 
         # ── Compose ──────────────────────────────────────────────────────────
         image_bytes = await compose_masterclass(
-            background_bytes=background_bytes,
             person_bytes=person_bytes,
             logo_bytes=logo_bytes,
             event_label=tf.get("event_label", ""),
