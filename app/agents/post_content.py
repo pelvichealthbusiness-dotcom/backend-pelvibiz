@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
+    "hero-title": {
+        "pre_title": "Short setup line above the main title, e.g. 'Stop surviving. Start' (max 40 chars)",
+        "main_title": "Powerful main title, 3–6 words, ALL CAPS impact, e.g. 'BUILDING YOUR EMPIRE' (max 40 chars)",
+        "accent_word": "ONE high-impact word displayed in brand color — makes the phrase complete, e.g. 'THRIVING' (max 25 chars)",
+    },
     "tip-card": {
         "headline": "Bold, actionable headline (max 60 chars)",
         "tip_body": "Clear, concise tip (max 160 chars)",
@@ -174,6 +179,22 @@ class PostContentAgent(BaseStreamingAgent):
                 f"\n\nContent style DNA (match this voice closely):\n{content_style.strip()}"
             )
 
+        hero_extra = ""
+        if template_key == "hero-title":
+            hero_extra = """
+
+HERO-TITLE SPECIAL RULES:
+The 3 fields form a single visual sentence read top-to-bottom on the image:
+  [pre_title]
+  [main_title]
+  [accent_word]  ← displayed in brand color, largest font
+
+Example result: "Your practice isn't broken, your" / "SYSTEMS ARE." / "FIX IT."
+- pre_title: lowercase/sentence case setup phrase (no period)
+- main_title: ALL CAPS, the core claim (can end with period or none)
+- accent_word: ONE or TWO impactful words ALL CAPS that resolve the phrase — shown in brand color
+All three together must read as one powerful, complete thought."""
+
         system = f"""You are an expert social media copywriter for health and wellness businesses.
 Your task: generate post copy for a '{template_key}' Instagram post.
 
@@ -183,7 +204,7 @@ BRAND CONTEXT:
 - Audience: {target_audience}
 - Services: {services}
 - CTA: {cta}
-- Keywords: {keywords}{style_block}
+- Keywords: {keywords}{style_block}{hero_extra}
 
 OUTPUT FORMAT — CRITICAL:
 Respond with ONLY a valid JSON object. No markdown. No code fences. No explanation. Start directly with {{.
