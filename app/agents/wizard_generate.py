@@ -309,7 +309,7 @@ class WizardGenerateAgent:
         photos: list[str],
         wizard_data: dict,
         profile: dict,
-        progress_queue: asyncio.Queue = None,
+        progress_queue: asyncio.Queue | None = None,
     ) -> tuple[list[str | None], list[int]]:
         """Generate P1 real-photo slides sequentially using Pillow renderer.
 
@@ -345,6 +345,8 @@ class WizardGenerateAgent:
                     slide_position = "Center"
 
                 image_bytes = await renderer.download_image(photo_url)
+                if not image_bytes:
+                    raise ValueError(f"Failed to download photo for slide {i + 1}")
                 result_bytes = renderer.render_slide(
                     image_bytes=image_bytes,
                     text=slide_text,
@@ -472,15 +474,11 @@ class WizardGenerateAgent:
                 generated_base64 = await image_gen.generate_slide(prompt, image_base64)
                 public_url = await storage.upload_image(generated_base64, self.user_id)
                 generated_urls.append(public_url)
-                if progress_queue:
-                    await progress_queue.put(("slide_complete", i, public_url))
 
             except Exception as e:
                 logger.error("P1 slide %d failed: %s", i + 1, e)
                 generated_urls.append(None)
                 failed_slides.append(i + 1)
-                if progress_queue:
-                    await progress_queue.put(("slide_failed", i, str(e)))
 
         return generated_urls, failed_slides
 
@@ -549,7 +547,7 @@ class WizardGenerateAgent:
                             font_size=profile.get("font_size", "42px"),
                             color_primary=profile.get("brand_color_primary", "#000000"),
                             color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
-                            color_background=profile.get("brand_color_background"),
+                            color_background=profile.get("brand_color_background") or "",
                             slide_index=i,
                             font_prompt_secondary=profile.get("font_prompt_secondary"),
                         )
@@ -569,7 +567,7 @@ class WizardGenerateAgent:
                             if slide_type == "face" and profile.get("visual_subject_outfit_face")
                             else profile.get("visual_subject_outfit_generic", "")
                         ),
-                            color_background=profile.get("brand_color_background"),
+                            color_background=profile.get("brand_color_background") or "",
                             slide_index=i,
                             is_face_mode=(slide_type == "face" and bool(wizard_data.get("face_photo_url"))),
                             font_prompt_secondary=profile.get("font_prompt_secondary"),
@@ -598,7 +596,7 @@ class WizardGenerateAgent:
                     image_bytes: bytes = b""
 
                     while True:
-                        if is_face_slide:
+                        if is_face_slide and face_base64 is not None:
                             generated_base64 = await image_gen.generate_slide(_current_prompt, face_base64)
                         else:
                             generated_base64 = await image_gen.generate_from_prompt(_current_prompt)
@@ -720,4 +718,3 @@ class WizardGenerateAgent:
             if wizard_key in wizard_data and wizard_data[wizard_key]:
                 overrides[profile_key] = wizard_data[wizard_key]
         return overrides
-        logger.info("Profile overrides from wizard_data: %s", overrides)

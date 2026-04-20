@@ -23,6 +23,9 @@ dependencies = [
     "onnxruntime>=1.17.0",
 ]
 
+[tool.pyrefly]
+python_interpreter = ".venv/bin/python3"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",

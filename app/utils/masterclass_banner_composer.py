@@ -143,7 +143,7 @@ def _draw_lines(
     for line in lines:
         bb = draw.textbbox((0, 0), line, font=font)
         draw.text((x, y), line, font=font, fill=fill)
-        y += (bb[3] - bb[1]) + line_gap
+        y += int(bb[3] - bb[1]) + line_gap
     return y
 
 
@@ -186,7 +186,7 @@ def _draw_date_badge(
     for i, line in enumerate(lines):
         draw.text((x + pad_h, ty), line, font=font, fill=text_color)
         ty += line_heights[i] + 8
-    return y + badge_h + 20
+    return int(y + badge_h + 20)
 
 
 # ── Main compositor ───────────────────────────────────────────────────────────
@@ -226,7 +226,7 @@ async def compose(
         if background_bytes is not None:
             try:
                 bg_img = Image.open(io.BytesIO(background_bytes)).convert("RGBA")
-                bg_img = ImageOps.fit(bg_img, (CANVAS_W, CANVAS_H), Image.LANCZOS)
+                bg_img = ImageOps.fit(bg_img, (CANVAS_W, CANVAS_H), Image.Resampling.LANCZOS)
                 img = bg_img
             except Exception as exc:
                 logger.warning("Could not load background: %s", exc)
@@ -259,7 +259,7 @@ async def compose(
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
                 # Scale to 80% canvas height, cap width to left panel
-                target_h = int(CANVAS_H * 0.65)
+                target_h = int(CANVAS_H * 0.75)
                 scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
                 ph = target_h
@@ -267,7 +267,7 @@ async def compose(
                 if pw > SPLIT_X - 20:
                     pw = SPLIT_X - 20
                     ph = int(person_img.height * (pw / person_img.width))
-                person_img = person_img.resize((pw, ph), Image.LANCZOS)
+                person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
                 # Center in left panel, anchor to bottom
                 paste_x = (SPLIT_X - pw) // 2
@@ -288,7 +288,7 @@ async def compose(
                 ratio = min(LOGO_MAX / logo_img.width, LOGO_MAX / logo_img.height)
                 lw = int(logo_img.width * ratio)
                 lh = int(logo_img.height * ratio)
-                logo_img = logo_img.resize((lw, lh), Image.LANCZOS)
+                logo_img = logo_img.resize((lw, lh), Image.Resampling.LANCZOS)
                 img.paste(logo_img, (CANVAS_W - LOGO_RIGHT - lw, CANVAS_H - LOGO_BOTTOM - lh), logo_img)
             except Exception as exc:
                 logger.warning("Could not paste logo: %s", exc)
