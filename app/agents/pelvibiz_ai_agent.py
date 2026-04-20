@@ -328,6 +328,99 @@ _TOOLS = [
                 ),
             ),
             types.FunctionDeclaration(
+                name="unpublish_content",
+                description="Unpublish (revert to draft) a content item that was previously published.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "content_id": types.Schema(type="STRING", description="ID of the content item"),
+                    },
+                    required=["content_id"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="research_content",
+                description=(
+                    "Research trending content topics for a niche. "
+                    "Use when user asks to research, find trends, or explore ideas for a topic."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "niche": types.Schema(type="STRING", description="Niche or topic to research"),
+                        "limit": types.Schema(type="INTEGER", description="Number of topics (default 10)"),
+                    },
+                    required=["niche"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="generate_hooks",
+                description=(
+                    "Generate scroll-stopping hook variations for a topic. "
+                    "Use when user wants hooks, titles, or opening lines."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "topic": types.Schema(type="STRING", description="Topic to generate hooks for"),
+                        "count": types.Schema(type="INTEGER", description="Number of hooks (default 6)"),
+                    },
+                    required=["topic"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="generate_script",
+                description=(
+                    "Write a full short-form video script and filming card for a topic. "
+                    "Use when user wants a reel script, video script, or filming guide."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "topic": types.Schema(type="STRING", description="Topic for the script"),
+                        "selected_hook": types.Schema(type="STRING", description="The hook to open with (optional)"),
+                    },
+                    required=["topic"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="social_research",
+                description=(
+                    "Research a topic across Instagram, TikTok, Facebook, and Google. "
+                    "Returns a ranked brief of what's working. "
+                    "Use for competitor research, trend scouting, or content strategy."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "topic": types.Schema(type="STRING", description="Topic or niche to research"),
+                        "platforms": types.Schema(
+                            type="ARRAY",
+                            items=types.Schema(type="STRING"),
+                            description="Platforms: instagram, tiktok, facebook, google. Default: all.",
+                        ),
+                    },
+                    required=["topic"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="get_brand_stories",
+                description="Get the user's saved brand stories — personal experiences used to humanize content.",
+                parameters=types.Schema(type="OBJECT", properties={}),
+            ),
+            types.FunctionDeclaration(
+                name="create_brand_story",
+                description="Save a new brand story to use in future content generation.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "title": types.Schema(type="STRING", description="Short title for the story"),
+                        "content": types.Schema(type="STRING", description="The full story text"),
+                    },
+                    required=["title", "content"],
+                ),
+            ),
+            types.FunctionDeclaration(
                 name="creatomate_list_templates",
                 description=(
                     "List all available Creatomate video templates. "
@@ -565,6 +658,13 @@ class PelvibizAiAgent(BaseStreamingAgent):
             "get_account_info": lambda: self._tool_get_account_info(user_id),
             "get_learning_summary": lambda: self._tool_get_learning_summary(user_id),
             "analyze_instagram": lambda: self._tool_analyze_instagram(args),
+            "unpublish_content": lambda: self._tool_unpublish_content(args, user_id),
+            "research_content": lambda: self._tool_research_content(args, user_id),
+            "generate_hooks": lambda: self._tool_generate_hooks(args, user_id),
+            "generate_script": lambda: self._tool_generate_script(args, user_id),
+            "social_research": lambda: self._tool_social_research(args, user_id),
+            "get_brand_stories": lambda: self._tool_get_brand_stories(user_id),
+            "create_brand_story": lambda: self._tool_create_brand_story(args, user_id),
             "creatomate_list_templates": lambda: self._tool_creatomate_list_templates(user_id),
             "creatomate_render_template": lambda: self._tool_creatomate_render_template(args, user_id),
             "creatomate_render_with_voice": lambda: self._tool_creatomate_render_with_voice(args, user_id),
@@ -1063,6 +1163,93 @@ class PelvibizAiAgent(BaseStreamingAgent):
         }
 
 
+    async def _tool_unpublish_content(self, args: dict, user_id: str) -> dict:
+        supabase = get_supabase_admin()
+        content_id = args.get("content_id", "")
+        check = (
+            supabase.table("requests_log")
+            .select("id, title")
+            .eq("id", content_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not check.data:
+            return {"error": "Content not found or access denied"}
+        supabase.table("requests_log").update({"published": False}).eq("id", content_id).execute()
+        return {"content_id": content_id, "title": check.data[0].get("title", ""), "published": False, "success": True}
+
+    async def _tool_research_content(self, args: dict, user_id: str) -> dict:
+        from app.services.research import ResearchService
+        service = ResearchService()
+        result = await service.run_research(
+            user_id=user_id,
+            niche=args.get("niche", ""),
+            sources=["reddit", "news", "youtube"],
+            limit=int(args.get("limit", 10)),
+            competitor_handle=None,
+        )
+        return result
+
+    async def _tool_generate_hooks(self, args: dict, user_id: str) -> dict:
+        from app.services.scripting import ScriptingService
+        service = ScriptingService()
+        return await service.generate_hook_pack(
+            user_id=user_id,
+            topic=args.get("topic", ""),
+            research_topic_id=None,
+            idea_variation_id=None,
+            count=int(args.get("count", 6)),
+            competitor_handle=None,
+        )
+
+    async def _tool_generate_script(self, args: dict, user_id: str) -> dict:
+        from app.services.scripting import ScriptingService
+        service = ScriptingService()
+        return await service.generate_script(
+            user_id=user_id,
+            topic=args.get("topic", ""),
+            research_topic_id=None,
+            idea_variation_id=None,
+            selected_hook=args.get("selected_hook"),
+            competitor_handle=None,
+        )
+
+    async def _tool_social_research(self, args: dict, user_id: str) -> dict:
+        from app.services.social_intelligence import SocialIntelligenceService
+        service = SocialIntelligenceService()
+        platforms = args.get("platforms") or ["instagram", "tiktok", "facebook", "google"]
+        return await service.run_research(
+            user_id=user_id,
+            topic=args.get("topic", ""),
+            platforms=platforms,
+            limit=12,
+            language="es",
+        )
+
+    async def _tool_get_brand_stories(self, user_id: str) -> dict:
+        supabase = get_supabase_admin()
+        result = (
+            supabase.table("brand_stories")
+            .select("id, title, content, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        return {"stories": result.data or []}
+
+    async def _tool_create_brand_story(self, args: dict, user_id: str) -> dict:
+        from uuid import uuid4
+        supabase = get_supabase_admin()
+        story_id = str(uuid4())
+        supabase.table("brand_stories").insert({
+            "id": story_id,
+            "user_id": user_id,
+            "title": args.get("title", ""),
+            "content": args.get("content", ""),
+        }).execute()
+        return {"id": story_id, "title": args.get("title", ""), "success": True}
+
     async def _tool_creatomate_list_templates(self, user_id: str) -> dict:
         """List available Creatomate templates (cached 5 min)."""
         from app.tools.creatomate_tools import CreatomateToolkit
@@ -1158,8 +1345,19 @@ def _build_system_prompt(profile: dict, learning_summary: str = "") -> str:
 - **`check_content_library`** — View recent carousels and videos
 - **`schedule_content`** — Schedule a post for a future date
 - **`publish_content`** — Mark content as published
+- **`unpublish_content`** — Revert published content back to draft
 - **`delete_content`** — Delete content from the library
 - **`get_content_stats`** — Usage stats by type
+
+### Research & Scripts
+- **`research_content`** — Research trending topics for a niche (Reddit, news, YouTube)
+- **`generate_hooks`** — Generate scroll-stopping hook variations for any topic
+- **`generate_script`** — Write a full video script + filming card
+- **`social_research`** — Research what's trending on Instagram, TikTok, Facebook, Google
+
+### Brand Stories
+- **`get_brand_stories`** — View saved brand stories (personal experiences for content)
+- **`create_brand_story`** — Save a new brand story
 
 ### Analytics & Insights
 - **`analyze_instagram`** — Analyze any IG account's style (competitors, inspiration accounts)
