@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     # OpenClaw gateway
     openclaw_url: str = "http://localhost:18789/v1/chat/completions"
-    openclaw_token: str = ""
+    openclaw_token: str = "c172820421a634220f606d737806ef2ee001072549f9fec4"
 
     # Blotato
     blotato_api_key: str = ""
