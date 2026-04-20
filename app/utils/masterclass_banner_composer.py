@@ -37,9 +37,9 @@ TEXT_MAX_W  = CANVAS_W - TEXT_X - 40    # 580 px
 TEXT_TOP    = 80
 
 # ── Logo ───────────────────────────────────────────────────────────────────────
-LOGO_MAX    = 75
-LOGO_TOP    = 50
-LOGO_RIGHT  = 50
+LOGO_MAX    = 150          # doubled from 75
+LOGO_BOTTOM = 60           # anchor to bottom instead of top
+LOGO_RIGHT  = 60
 
 # ── Font sizes (px) ───────────────────────────────────────────────────────────
 LABEL_SIZE   = 26
@@ -234,12 +234,11 @@ async def compose(
         else:
             img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*right_bg, 255))
 
-        # ── 2. Left panel color overlay (light brand, semi-transparent) ───────
+        # ── 2. Single overlay layer: left light + right dark, one composite ──────
         overlay = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
         od = ImageDraw.Draw(overlay)
-        od.rectangle([(0, 0), (SPLIT_X, CANVAS_H)], fill=(*left_bg, 210))
-        # Right panel overlay (dark brand, more opaque)
-        od.rectangle([(SPLIT_X, 0), (CANVAS_W, CANVAS_H)], fill=(*right_bg, 215))
+        od.rectangle([(0, 0), (SPLIT_X, CANVAS_H)], fill=(*left_bg, 185))
+        od.rectangle([(SPLIT_X, 0), (CANVAS_W, CANVAS_H)], fill=(*right_bg, 220))
         img = Image.alpha_composite(img, overlay)
 
         # ── 3. Decorative circle — bottom-left, right-panel color ─────────────
@@ -259,14 +258,19 @@ async def compose(
             try:
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
-                # Scale to ~90% of canvas height, keep aspect ratio
-                scale = (CANVAS_H * 0.92) / person_img.height
+                # Scale to 80% canvas height, cap width to left panel
+                target_h = int(CANVAS_H * 0.80)
+                scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
-                ph = int(person_img.height * scale)
+                ph = target_h
+                # If wider than the left panel, constrain by width instead
+                if pw > SPLIT_X - 20:
+                    pw = SPLIT_X - 20
+                    ph = int(person_img.height * (pw / person_img.width))
                 person_img = person_img.resize((pw, ph), Image.LANCZOS)
 
-                # Anchor bottom-left: person sits flush to bottom, offset left
-                paste_x = max(-30, (SPLIT_X - pw) // 2 - 20)
+                # Center in left panel, anchor to bottom
+                paste_x = (SPLIT_X - pw) // 2
                 paste_y = CANVAS_H - ph
 
                 img.paste(person_img, (paste_x, paste_y), person_img)
@@ -285,7 +289,7 @@ async def compose(
                 lw = int(logo_img.width * ratio)
                 lh = int(logo_img.height * ratio)
                 logo_img = logo_img.resize((lw, lh), Image.LANCZOS)
-                img.paste(logo_img, (CANVAS_W - LOGO_RIGHT - lw, LOGO_TOP), logo_img)
+                img.paste(logo_img, (CANVAS_W - LOGO_RIGHT - lw, CANVAS_H - LOGO_BOTTOM - lh), logo_img)
             except Exception as exc:
                 logger.warning("Could not paste logo: %s", exc)
 
