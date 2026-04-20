@@ -263,20 +263,20 @@ async def compose(
                 if bbox:
                     person_img = person_img.crop(bbox)
 
-                # Scale to 85% canvas height; allow slight overlap past split line
-                target_h = int(CANVAS_H * 0.85)
+                # Scale to 105% canvas height so feet fall off canvas naturally
+                target_h = int(CANVAS_H * 1.05)
                 scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
                 ph = target_h
-                max_pw = SPLIT_X + 60  # overlap a bit into right panel, like reference design
+                max_pw = SPLIT_X + 80  # allow overlap into right panel
                 if pw > max_pw:
                     pw = max_pw
                     ph = int(person_img.height * (pw / person_img.width))
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
-                # Center in left panel, anchor to bottom
+                # Anchor near top — feet naturally clip below canvas edge
                 paste_x = (SPLIT_X - pw) // 2
-                paste_y = CANVAS_H - ph
+                paste_y = int(CANVAS_H * 0.02)
 
                 img.paste(person_img, (paste_x, paste_y), person_img)
             except Exception as exc:
