@@ -7,9 +7,7 @@ and caches them in /tmp/pelvibiz_fonts/ for the process lifetime.
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
-import zipfile
 from pathlib import Path
 
 import httpx
@@ -18,7 +16,16 @@ from PIL import ImageFont
 logger = logging.getLogger(__name__)
 
 FONT_CACHE_DIR = Path("/tmp/pelvibiz_fonts")
-_MONTSERRAT_ZIP_URL = "https://fonts.google.com/download?family=Montserrat"
+
+# Direct TTF downloads from the official Google Fonts GitHub repo
+_FONT_URLS: dict[str, str] = {
+    "Montserrat-Regular.ttf": (
+        "https://github.com/google/fonts/raw/main/ofl/montserrat/static/Montserrat-Regular.ttf"
+    ),
+    "Montserrat-Black.ttf": (
+        "https://github.com/google/fonts/raw/main/ofl/montserrat/static/Montserrat-Black.ttf"
+    ),
+}
 
 _download_lock = asyncio.Lock()
 _fonts_ready = False
@@ -29,27 +36,23 @@ async def _ensure_fonts() -> None:
     if _fonts_ready:
         return
 
-    regular_path = FONT_CACHE_DIR / "Montserrat-Regular.ttf"
-    black_path = FONT_CACHE_DIR / "Montserrat-Black.ttf"
-
-    if regular_path.exists() and black_path.exists():
+    all_cached = all((FONT_CACHE_DIR / fname).exists() for fname in _FONT_URLS)
+    if all_cached:
         _fonts_ready = True
         return
 
     FONT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    logger.info("Downloading Montserrat fonts from Google Fonts...")
 
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        resp = await client.get(_MONTSERRAT_ZIP_URL)
-        resp.raise_for_status()
-
-    with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
-        for name in z.namelist():
-            basename = Path(name).name
-            if basename in ("Montserrat-Regular.ttf", "Montserrat-Black.ttf"):
-                target = FONT_CACHE_DIR / basename
-                target.write_bytes(z.read(name))
-                logger.info("Extracted font: %s", basename)
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        for filename, url in _FONT_URLS.items():
+            target = FONT_CACHE_DIR / filename
+            if target.exists():
+                continue
+            logger.info("Downloading font %s ...", filename)
+            resp = await client.get(url)
+            resp.raise_for_status()
+            target.write_bytes(resp.content)
+            logger.info("Font cached: %s (%d bytes)", filename, len(resp.content))
 
     _fonts_ready = True
 
