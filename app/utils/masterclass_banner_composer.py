@@ -259,7 +259,7 @@ async def compose(
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
                 # Scale to 80% canvas height, cap width to left panel
-                target_h = int(CANVAS_H * 0.80)
+                target_h = int(CANVAS_H * 0.65)
                 scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
                 ph = target_h
