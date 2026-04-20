@@ -1883,18 +1883,22 @@ class PelvibizAiAgent(BaseStreamingAgent):
 
         metrics = analyzer.analyze(posts, profile_data)
 
-        saved = await content_intel.store_scrape(
-            user_id=user_id,
-            handle=username,
-            account_type=account_type,
-            display_name=profile_data.get("full_name", username),
-            metadata={
-                "followers": profile_data.get("followers", 0),
-                "style_metrics": metrics,
-            },
-            posts=posts,
-        )
-        scrape_id = saved.get("account", {}).get("id", "")
+        scrape_id = ""
+        try:
+            saved = await content_intel.store_scrape(
+                user_id=user_id,
+                handle=username,
+                account_type=account_type,
+                display_name=profile_data.get("full_name", username),
+                metadata={
+                    "followers": profile_data.get("followers", 0),
+                    "style_metrics": metrics,
+                },
+                posts=posts,
+            )
+            scrape_id = saved.get("account", {}).get("id", "")
+        except Exception as exc:
+            logger.warning("store_scrape failed for @%s: %s", username, exc)
 
         return {
             "scrape_id": scrape_id,
