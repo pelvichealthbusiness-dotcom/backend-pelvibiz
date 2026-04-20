@@ -1936,10 +1936,10 @@ class PelvibizAiAgent(BaseStreamingAgent):
         supabase = get_supabase_admin()
         result = (
             supabase.table("content_accounts")
-            .select("id, handle, display_name, account_type, analyzed_at, metadata")
+            .select("id, handle, display_name, account_type, last_analyzed_at, metadata")
             .eq("user_id", user_id)
             .not_.is_("metadata", "null")
-            .order("analyzed_at", desc=True)
+            .order("last_analyzed_at", desc=True)
             .limit(20)
             .execute()
         )
@@ -1952,7 +1952,7 @@ class PelvibizAiAgent(BaseStreamingAgent):
                 "display_name": row.get("display_name"),
                 "account_type": row.get("account_type"),
                 "followers": meta.get("followers", 0),
-                "analyzed_at": str(row.get("analyzed_at", "")),
+                "last_analyzed_at": str(row.get("last_analyzed_at", "")),
             })
         return {"accounts": accounts, "total": len(accounts)}
 
@@ -1968,7 +1968,7 @@ class PelvibizAiAgent(BaseStreamingAgent):
                 .select("id")
                 .eq("user_id", user_id)
                 .not_.is_("metadata", "null")
-                .order("analyzed_at", desc=True)
+                .order("last_analyzed_at", desc=True)
                 .limit(1)
                 .execute()
             )

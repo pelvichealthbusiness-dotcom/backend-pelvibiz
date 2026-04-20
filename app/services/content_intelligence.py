@@ -458,11 +458,14 @@ class ContentIntelligenceService:
             .select('id')
             .eq('user_id', user_id)
             .eq('account_type', 'personal')
-            .maybe_single()
+            .order('created_at', desc=True)
+            .limit(1)
             .execute()
         )
         if not own_account.data:
             return empty
+        own_account_data = type('_R', (), {'data': own_account.data[0]})()
+        own_account = own_account_data
 
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         cached = (
