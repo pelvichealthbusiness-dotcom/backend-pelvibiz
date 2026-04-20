@@ -126,7 +126,7 @@ class PostContentAgent(BaseStreamingAgent):
 
     @property
     def temperature(self) -> float:
-        return 0.4  # Lower for consistent structured output
+        return 0.75
 
     @property
     def max_tokens(self) -> int:
@@ -184,16 +184,25 @@ class PostContentAgent(BaseStreamingAgent):
             hero_extra = """
 
 HERO-TITLE SPECIAL RULES:
-The 3 fields form a single visual sentence read top-to-bottom on the image:
-  [pre_title]
-  [main_title]
-  [accent_word]  ← displayed in brand color, largest font
+The 3 fields form a single visual sentence read top-to-bottom:
+  [pre_title]  ← sentence case setup, no period
+  [main_title] ← ALL CAPS core claim
+  [accent_word] ← 1-2 ALL CAPS words in brand color that COMPLETE the phrase
 
-Example result: "Your practice isn't broken, your" / "SYSTEMS ARE." / "FIX IT."
-- pre_title: lowercase/sentence case setup phrase (no period)
-- main_title: ALL CAPS, the core claim (can end with period or none)
-- accent_word: ONE or TWO impactful words ALL CAPS that resolve the phrase — shown in brand color
-All three together must read as one powerful, complete thought."""
+The three together must form ONE powerful thought. Vary the structure:
+- Contrast: "Most providers are..." / "WORKING HARDER," / "NOT SMARTER."
+- Question resolved: "What separates $5k from $20k months?" / "YOUR SYSTEMS," / "NOT YOUR SKILLS."
+- Identity shift: "You weren't trained to be" / "AN ENTREPRENEUR." / "UNTIL NOW."
+- Direct provocation: "The thing keeping you stuck" / "ISN'T YOUR NICHE." / "IT'S YOUR PRICE."
+
+BANNED phrases (never use these):
+- "you didn't go to school for 8 years"
+- "burnout"
+- "work-life balance"
+- "hustle"
+- Any phrase you used in a previous generation
+
+Make the pre_title feel like a fresh setup specific to the topic below."""
 
         system = f"""You are an expert social media copywriter for health and wellness businesses.
 Your task: generate post copy for a '{template_key}' Instagram post.

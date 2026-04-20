@@ -7,6 +7,7 @@ Returns a JSON array of strings streamed as text-delta events.
 from __future__ import annotations
 
 import logging
+import random
 from typing import Any, AsyncGenerator
 
 from app.agents.base import BaseStreamingAgent
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TEMPLATE_DESCRIPTIONS: dict[str, str] = {
+    "hero-title": "a bold 3-part title post (pre-title + main title + accent word forming one powerful phrase)",
     "tip-card": "a tip or piece of advice",
     "myth-vs-fact": "a common myth to bust",
     "quote-card": "an inspiring quote topic",
@@ -34,6 +36,18 @@ TEMPLATE_DESCRIPTIONS: dict[str, str] = {
     "question-hook": "a question to engage the audience",
     "stat-callout": "a statistic to share",
 }
+
+# Rotating angle prompts to force variety across consecutive calls
+_ANGLE_SEEDS = [
+    "Focus on mindset and identity shifts for practitioners.",
+    "Focus on business systems and time freedom.",
+    "Focus on patient outcomes and transformation.",
+    "Focus on the emotional cost of burnout and overwork.",
+    "Focus on revenue, pricing, and financial independence.",
+    "Focus on marketing and visibility for health practices.",
+    "Focus on the contrast between old vs new ways of practicing.",
+    "Focus on confidence, authority, and niche positioning.",
+]
 
 
 class BrainstormPostIdeasAgent(BaseStreamingAgent):
@@ -96,9 +110,21 @@ class BrainstormPostIdeasAgent(BaseStreamingAgent):
         brand_voice = profile.get("brand_voice") or "professional and empathetic"
 
         template_description = TEMPLATE_DESCRIPTIONS.get(template_key, "a social media post")
+        angle = random.choice(_ANGLE_SEEDS)
+
+        hero_extra = ""
+        if template_key == "hero-title":
+            hero_extra = """
+
+HERO-TITLE SPECIFIC RULES:
+Each idea should be a theme that translates into a punchy 3-part title:
+  [setup line] + [bold claim] + [powerful resolution word]
+Think in terms of contrasts, provocations, or identity statements.
+Example ideas: "The gap between working hard and working smart",
+"Why most practices plateau at $10k/month", "Trading time for money is a trap"."""
 
         system = f"""You are an expert social media content strategist for health and wellness businesses.
-Your task: brainstorm 4-5 specific topic ideas for a '{template_key}' Instagram post.
+Your task: brainstorm 5 DISTINCT topic ideas for a '{template_key}' Instagram post.
 
 BRAND CONTEXT:
 - Brand: {brand_name}
@@ -106,24 +132,22 @@ BRAND CONTEXT:
 - Audience: {target_audience}
 - Services: {services}
 
-POST FORMAT CONTEXT:
-The post will be {template_description}. Ideas must fit this format naturally.
+POST FORMAT: {template_description}{hero_extra}
+
+CREATIVE DIRECTION FOR THIS BATCH: {angle}
 
 OUTPUT FORMAT — CRITICAL:
-Respond with ONLY a valid JSON array of strings. No markdown. No code fences. No explanation. Start directly with [.
-
-Example format:
+Respond ONLY with a valid JSON array. No markdown. No code fences. Start directly with [.
 ["idea 1", "idea 2", "idea 3", "idea 4", "idea 5"]
 
-IDEA RULES:
-1. Each idea: 5-15 words, specific and actionable
-2. Ideas must be tailored to {brand_name}'s services and audience
-3. Ideas must fit naturally into the '{template_key}' format ({template_description})
-4. Avoid generic wellness clichés — be specific to pelvic health / {services}
-5. Generate exactly 4-5 ideas (no more, no less)
-6. Write ideas in the same language as the user's message"""
+RULES:
+1. Each idea: 6-14 words, specific and provocative — not generic
+2. NEVER use phrases like "you didn't go to school", "burnout", or "work-life balance"
+3. Each of the 5 ideas must explore a DIFFERENT angle — no repetition
+4. Ideas must feel fresh, specific to {brand_name}'s audience
+5. Make them scroll-stopping: provocative, counterintuitive, or deeply relatable"""
 
-        user_message = f"Generate post ideas for template: {template_key}"
+        user_message = f"Template: {template_key}. Brand: {brand_name}. Services: {services}."
 
         try:
             async for chunk in stream_chat_with_retry(
