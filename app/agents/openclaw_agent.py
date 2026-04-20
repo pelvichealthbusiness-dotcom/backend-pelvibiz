@@ -507,7 +507,7 @@ class _ToolExecutor:
                 payload[name] = result
         return _dump(payload)
 
-    async def _get_brand_profile(self) -> str:
+    async def _get_brand_profile(self, args: dict | None = None) -> str:
         data = await self._get("/auth/profile")
         return _dump(data)
 
@@ -816,30 +816,24 @@ class OpenClawAgent(BaseStreamingAgent):
             messages.append({"role": "user", "content": message})
 
             for _round in range(_MAX_TOOL_ROUNDS):
-                tool_calls_acc: dict[int, dict] = {}
-                msg_content = ""
-                got_tool_calls = False
+                response = await _call_openclaw(messages)
+                choice = (response.get("choices") or [{}])[0]
+                msg = choice.get("message") or {}
+                tool_calls = msg.get("tool_calls") or []
 
-                async for event_type, event_data in _stream_openclaw(messages):
-                    if event_type == "text":
-                        msg_content += event_data
-                        yield text_chunk(event_data)
-                    elif event_type == "tool_calls":
-                        got_tool_calls = True
-                        tool_calls_acc = event_data
-
-                if not got_tool_calls:
+                if not tool_calls:
+                    final_content = msg.get("content") or ""
+                    if final_content:
+                        yield text_chunk(final_content)
                     break
 
-                # Rebuild tool_calls list sorted by index
-                tool_calls_list = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
                 messages.append({
                     "role": "assistant",
-                    "content": msg_content or None,
-                    "tool_calls": tool_calls_list,
+                    "content": msg.get("content"),
+                    "tool_calls": tool_calls,
                 })
 
-                for tc in tool_calls_list:
+                for tc in tool_calls:
                     tc_id = tc.get("id") or "call_0"
                     tc_name = tc.get("function", {}).get("name", "")
                     tc_args_raw = tc.get("function", {}).get("arguments", "{}")
@@ -871,6 +865,29 @@ class OpenClawAgent(BaseStreamingAgent):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _call_openclaw(messages: list[dict]) -> dict:
+    """Blocking call to the OpenClaw gateway — returns full JSON response."""
+    settings = get_settings()
+    async with httpx.AsyncClient() as http:
+        r = await http.post(
+            settings.openclaw_url,
+            headers={
+                "Authorization": f"Bearer {settings.openclaw_token}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "openclaw/pelvibiz-users",
+                "messages": messages,
+                "tools": TOOLS,
+                "tool_choice": "auto",
+                "stream": False,
+            },
+            timeout=120.0,
+        )
+        r.raise_for_status()
+        return r.json()
+
 
 async def _stream_openclaw(
     messages: list[dict],
