@@ -807,8 +807,19 @@ class OpenClawAgent(BaseStreamingAgent):
         try:
             brand_service = BrandService()
             profile = await brand_service.load_profile(self.user_id)
-            system_ctx = f"{self.system_prompt}\n\n{_build_system_context(profile, self.user_id)}"
             executor = _ToolExecutor(self.user_id)
+
+            # Pre-load workspace so the model knows brand + user context upfront
+            workspace_json = await executor.run(
+                "get_workspace_context",
+                {"sections": ["brand_profile", "preferences", "content_usage", "content"], "limit": 3},
+            )
+
+            system_ctx = (
+                f"{self.system_prompt}\n\n"
+                f"{_build_system_context(profile, self.user_id)}\n\n"
+                f"## Workspace Snapshot (pre-loaded)\n{workspace_json}"
+            )
 
             messages: list[dict] = [{"role": "system", "content": system_ctx}]
             if history:
