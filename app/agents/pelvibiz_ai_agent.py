@@ -1311,7 +1311,7 @@ class PelvibizAiAgent(BaseStreamingAgent):
 
 def _build_system_prompt(profile: dict, learning_summary: str = "") -> str:
     brand_name = profile.get("brand_name") or "tu marca"
-    display_name = profile.get("display_name") or brand_name
+    display_name = brand_name
     brand_voice = profile.get("brand_voice") or "professional"
     target_audience = profile.get("target_audience") or "health professionals' patients"
     services = profile.get("services_offered") or ""
