@@ -258,14 +258,20 @@ async def compose(
             try:
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
-                # Scale to fill the left panel width, maintain aspect ratio,
-                # cap at canvas height. This avoids tiny persons from square images.
-                max_pw = SPLIT_X - 20
-                pw = max_pw
-                ph = int(person_img.height * (pw / person_img.width))
-                if ph > CANVAS_H:
-                    ph = CANVAS_H
-                    pw = int(person_img.width * (ph / person_img.height))
+                # rembg keeps original dimensions with transparent padding — crop first
+                bbox = person_img.getbbox()
+                if bbox:
+                    person_img = person_img.crop(bbox)
+
+                # Scale to 85% canvas height; allow slight overlap past split line
+                target_h = int(CANVAS_H * 0.85)
+                scale = target_h / person_img.height
+                pw = int(person_img.width * scale)
+                ph = target_h
+                max_pw = SPLIT_X + 60  # overlap a bit into right panel, like reference design
+                if pw > max_pw:
+                    pw = max_pw
+                    ph = int(person_img.height * (pw / person_img.width))
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
                 # Center in left panel, anchor to bottom
