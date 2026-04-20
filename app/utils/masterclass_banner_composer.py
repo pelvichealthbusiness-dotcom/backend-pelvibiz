@@ -258,15 +258,14 @@ async def compose(
             try:
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
-                # Scale to 80% canvas height, cap width to left panel
-                target_h = int(CANVAS_H * 0.75)
-                scale = target_h / person_img.height
-                pw = int(person_img.width * scale)
-                ph = target_h
-                # If wider than the left panel, constrain by width instead
-                if pw > SPLIT_X - 20:
-                    pw = SPLIT_X - 20
-                    ph = int(person_img.height * (pw / person_img.width))
+                # Scale to fill the left panel width, maintain aspect ratio,
+                # cap at canvas height. This avoids tiny persons from square images.
+                max_pw = SPLIT_X - 20
+                pw = max_pw
+                ph = int(person_img.height * (pw / person_img.width))
+                if ph > CANVAS_H:
+                    ph = CANVAS_H
+                    pw = int(person_img.width * (ph / person_img.height))
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
                 # Center in left panel, anchor to bottom
