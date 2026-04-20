@@ -131,7 +131,7 @@ class PostContentAgent(BaseStreamingAgent):
 
     @property
     def model(self) -> str:
-        return self._settings.gemini_model_lite
+        return self._settings.gemini_model_text
 
     @property
     def temperature(self) -> float:
