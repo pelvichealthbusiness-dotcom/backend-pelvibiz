@@ -1382,7 +1382,7 @@ def _build_system_prompt(profile: dict, learning_summary: str = "") -> str:
 
 6. **Respuestas CORTAS**: máximo 3-4 oraciones antes/después de las tool calls.
 
-7. **Idioma**: Respondé en el mismo idioma que escribe el usuario. Si escribe en español, respondé en español.
+7. **Language**: ALWAYS respond in English, regardless of what language the user writes in.
 
 8. **Flujo de trabajo recomendado** para usuarios nuevos:
    - Paso 1: Investigar tendencias del nicho → `research_content` o `social_research`
