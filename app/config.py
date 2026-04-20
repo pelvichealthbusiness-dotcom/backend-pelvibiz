@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     blotato_api_key: str = ""
 
     # Internal service-to-service auth (bypasses JWT for backend→backend calls)
-    internal_api_key: str = ""
+    internal_api_key: str = "pelvi-internal-service-key-2024"
 
     @property
     def google_api_key(self) -> str:

@@ -6,14 +6,16 @@ import logging
 from dataclasses import dataclass
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 @dataclass
@@ -102,15 +104,33 @@ async def _validate_via_supabase(token: str) -> UserContext:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> UserContext:
     """
     Validate Supabase JWT and return UserContext.
-    Uses local PyJWT if SUPABASE_JWT_SECRET is configured, else falls back to API call.
+    Supports internal service bypass via X-Internal-Key + X-User-Id headers.
     """
     settings = get_settings()
-    token = credentials.credentials
 
+    # Internal service-to-service bypass (used by OpenClaw tool executor)
+    internal_key = request.headers.get("X-Internal-Key", "")
+    user_id_header = request.headers.get("X-User-Id", "")
+    if (
+        internal_key
+        and settings.internal_api_key
+        and internal_key == settings.internal_api_key
+        and user_id_header
+    ):
+        return UserContext(user_id=user_id_header, email="", role="client", token="")
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "MISSING_TOKEN", "message": "Authorization required"},
+        )
+
+    token = credentials.credentials
     if settings.supabase_jwt_secret:
         return await _decode_jwt_local(token)
     else:

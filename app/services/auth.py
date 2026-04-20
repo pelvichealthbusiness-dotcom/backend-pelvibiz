@@ -20,7 +20,22 @@ class AuthService:
             raise TokenExpiredError()
 
 async def get_current_user(request: Request) -> dict:
-    """FastAPI dependency — extracts and validates Bearer token."""
+    """FastAPI dependency — extracts and validates Bearer token.
+    Supports internal service bypass via X-Internal-Key + X-User-Id headers.
+    """
+    from app.config import get_settings
+    settings = get_settings()
+
+    internal_key = request.headers.get("X-Internal-Key", "")
+    user_id_header = request.headers.get("X-User-Id", "")
+    if (
+        internal_key
+        and settings.internal_api_key
+        and internal_key == settings.internal_api_key
+        and user_id_header
+    ):
+        return {"id": user_id_header, "email": ""}
+
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer ") or auth_header == "Bearer ":
         raise AuthError("Authorization header required")
