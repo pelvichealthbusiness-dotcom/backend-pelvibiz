@@ -7,7 +7,7 @@ _brand_cache: dict[str, tuple[dict, float]] = {}
 _CACHE_TTL = 300  # 5 minutes
 
 PROFILE_FIELDS = [
-    "id", "brand_name", "brand_voice", "services_offered", "target_audience",
+    "id", "display_name", "brand_name", "brand_voice", "services_offered", "target_audience",
     "visual_identity", "keywords", "brand_color_primary", "brand_color_secondary", "brand_color_background",
     "visual_environment_setup", "visual_subject_outfit_face", "visual_subject_outfit_generic",
     "cta", "font_style", "font_size", "font_prompt", "font_style_secondary", "font_prompt_secondary", "content_style_brief", "brand_stories",
