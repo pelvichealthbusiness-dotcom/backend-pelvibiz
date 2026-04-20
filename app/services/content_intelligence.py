@@ -447,11 +447,13 @@ class ContentIntelligenceService:
             .eq('user_id', user_id)
             .eq('handle', handle)
             .eq('account_type', 'competitor')
-            .maybe_single()
+            .order('created_at', desc=True)
+            .limit(1)
             .execute()
         )
         if not competitor_account.data:
             return empty
+        competitor_account_id = competitor_account.data[0]['id']
 
         own_account = (
             self.supabase.table('content_accounts')
@@ -472,7 +474,7 @@ class ContentIntelligenceService:
             .select('hook_gaps, topic_gaps, white_space')
             .eq('user_id', user_id)
             .eq('own_account_id', own_account_id)
-            .eq('competitor_account_id', competitor_account.data['id'])
+            .eq('competitor_account_id', competitor_account_id)
             .gte('updated_at', cutoff)
             .order('updated_at', desc=True)
             .limit(1)
