@@ -14,7 +14,7 @@ import asyncio
 import io
 import logging
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.utils.fonts import get_montserrat, get_montserrat_sync
 
@@ -192,6 +192,7 @@ def _draw_date_badge(
 # ── Main compositor ───────────────────────────────────────────────────────────
 
 async def compose(
+    background_bytes: bytes | None,
     person_bytes: bytes | None,
     logo_bytes: bytes | None,
     event_label: str,
@@ -221,14 +222,25 @@ async def compose(
         # Accent: secondary color, ensured visible on dark
         accent_rgb = _ensure_visible_on_dark(brand_color_secondary)
 
-        # ── 1. Base: full canvas in right (dark) color ────────────────────────
-        img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*right_bg, 255))
+        # ── 1. Base: background photo (or solid fallback) ─────────────────────
+        if background_bytes is not None:
+            try:
+                bg_img = Image.open(io.BytesIO(background_bytes)).convert("RGBA")
+                bg_img = ImageOps.fit(bg_img, (CANVAS_W, CANVAS_H), Image.LANCZOS)
+                img = bg_img
+            except Exception as exc:
+                logger.warning("Could not load background: %s", exc)
+                img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*right_bg, 255))
+        else:
+            img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*right_bg, 255))
 
-        # ── 2. Left panel rectangle ───────────────────────────────────────────
-        left_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-        ld = ImageDraw.Draw(left_layer)
-        ld.rectangle([(0, 0), (SPLIT_X, CANVAS_H)], fill=(*left_bg, 255))
-        img = Image.alpha_composite(img, left_layer)
+        # ── 2. Left panel color overlay (light brand, semi-transparent) ───────
+        overlay = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        od.rectangle([(0, 0), (SPLIT_X, CANVAS_H)], fill=(*left_bg, 210))
+        # Right panel overlay (dark brand, more opaque)
+        od.rectangle([(SPLIT_X, 0), (CANVAS_W, CANVAS_H)], fill=(*right_bg, 215))
+        img = Image.alpha_composite(img, overlay)
 
         # ── 3. Decorative circle — bottom-left, right-panel color ─────────────
         circ_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
@@ -238,7 +250,7 @@ async def compose(
                 (CIRCLE_CX - CIRCLE_R, CIRCLE_CY - CIRCLE_R),
                 (CIRCLE_CX + CIRCLE_R, CIRCLE_CY + CIRCLE_R),
             ],
-            fill=(*right_bg, 255),
+            fill=(*right_bg, 230),
         )
         img = Image.alpha_composite(img, circ_layer)
 
@@ -247,17 +259,17 @@ async def compose(
             try:
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
 
-                # Scale to fill canvas height, keep aspect
-                scale = CANVAS_H / person_img.height
+                # Scale to ~90% of canvas height, keep aspect ratio
+                scale = (CANVAS_H * 0.92) / person_img.height
                 pw = int(person_img.width * scale)
-                ph = CANVAS_H
+                ph = int(person_img.height * scale)
                 person_img = person_img.resize((pw, ph), Image.LANCZOS)
 
-                # Position: center the person within the left panel,
-                # allow slight overflow into right panel for natural look
-                paste_x = max(0, (SPLIT_X + 40 - pw) // 2)
+                # Anchor bottom-left: person sits flush to bottom, offset left
+                paste_x = max(-30, (SPLIT_X - pw) // 2 - 20)
+                paste_y = CANVAS_H - ph
 
-                img.paste(person_img, (paste_x, 0), person_img)
+                img.paste(person_img, (paste_x, paste_y), person_img)
             except Exception as exc:
                 logger.warning("Could not paste person image: %s", exc)
 
