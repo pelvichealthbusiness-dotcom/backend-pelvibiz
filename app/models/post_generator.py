@@ -28,6 +28,9 @@ class PostGenerateRequest(BaseModel):
     # Second reference image for masterclass-banner (person/face photo)
     person_image_url: Optional[str] = None
 
+    # How the person image should be processed: 'upload' | 'face' | 'ai'
+    person_image_mode: Optional[str] = None
+
     # Brand logo URL (Supabase Storage public URL)
     logo_url: Optional[str] = None
 

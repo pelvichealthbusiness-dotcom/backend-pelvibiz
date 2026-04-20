@@ -203,7 +203,11 @@ class PostGeneratorService:
     ) -> tuple[str, str]:
         """Masterclass-banner: background + person + logo → Pillow compositor."""
         from app.utils.masterclass_banner_composer import compose as compose_masterclass
-        from app.prompts.post_generate import build_masterclass_background_prompt, build_masterclass_person_prompt
+        from app.prompts.post_generate import (
+            build_masterclass_background_prompt,
+            build_masterclass_face_mode_prompt,
+            build_masterclass_person_prompt,
+        )
 
         tf = request.text_fields
         brand_color = brand.get("brand_color_primary") or "#1A9E8F"
@@ -225,7 +229,15 @@ class PostGeneratorService:
                 background_bytes = None
 
         # ── Person image ─────────────────────────────────────────────────────
-        if request.person_image_url:
+        mode = (request.person_image_mode or "ai").lower()
+
+        if mode == "face" and request.person_image_url:
+            # Download face photo, generate a full-body character preserving the face
+            face_b64 = await self._image_gen.download_image_as_base64(request.person_image_url)
+            person_prompt = build_masterclass_face_mode_prompt(brand)
+            person_b64 = await self._image_gen.generate_slide(person_prompt, face_b64)
+            person_bytes = base64.b64decode(person_b64)
+        elif mode == "upload" and request.person_image_url:
             async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
                 resp = await client.get(request.person_image_url)
                 resp.raise_for_status()

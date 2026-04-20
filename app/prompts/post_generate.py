@@ -456,18 +456,34 @@ def build_masterclass_background_prompt(text_fields: dict[str, str], brand: dict
 
 
 def build_masterclass_person_prompt(brand: dict) -> str:
-    """Professional headshot/portrait for the person slot in masterclass-banner."""
+    """Professional portrait for the person slot in masterclass-banner (AI mode)."""
     outfit_face = brand.get("visual_subject_outfit_face") or brand.get("visual_subject_outfit_generic") or "professional health practitioner"
     identity = brand.get("visual_identity") or "modern, clean, health-focused"
-    color = brand.get("brand_color_primary") or "#1A9E8F"
     return (
         f"Professional portrait photograph of {outfit_face}. "
         f"Style: {identity}, confident and approachable expression, slight smile. "
         f"Framing: head and upper body (portrait style), centered subject. "
-        f"Background: simple, slightly blurred, complementary to {color}. "
+        f"Background: solid white or very light neutral — NO complex backgrounds. "
         f"Lighting: soft, flattering studio or natural light. "
-        f"High quality, photorealistic, 380x480 aspect ratio roughly. "
+        f"High quality, photorealistic. "
         f"NO text, NO watermarks."
+    )
+
+
+def build_masterclass_face_mode_prompt(brand: dict) -> str:
+    """Face mode: generates full-body professional character preserving the reference face."""
+    outfit = brand.get("visual_subject_outfit_face") or brand.get("visual_subject_outfit_generic") or "business casual professional attire"
+    identity = brand.get("visual_identity") or "modern, clean, health professional"
+    return (
+        f"FACE REFERENCE (MANDATORY): A reference photo of a person is attached. "
+        f"You MUST preserve this exact person's face, features, skin tone, and likeness in the output. "
+        f"Generate a full-body professional photograph of this person. "
+        f"Outfit: {outfit}. "
+        f"Style: {identity}, confident posture, natural smile, standing or slight three-quarter pose. "
+        f"Framing: full body from head to toe, centered, vertical portrait orientation. "
+        f"Background: solid white or very light neutral — NO complex backgrounds, NO furniture, NO props. "
+        f"Lighting: soft studio light, even and flattering. "
+        f"High quality, photorealistic. NO text, NO watermarks, NO background patterns."
     )
 
 
