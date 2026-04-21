@@ -1,5 +1,6 @@
 """Gemini-based video analysis for T3 (Viral Reaction) and T4 (Testimonial Story)."""
 
+import asyncio
 import json
 import logging
 import httpx
@@ -203,10 +204,12 @@ class VideoAnalysisService:
             return defaults
 
     async def _upload_to_files_api(self, video_bytes: bytes, mime: str) -> str:
-        """Upload video to Gemini Files API and return the file URI.
+        """Upload video to Gemini Files API, wait for ACTIVE state, return file URI.
 
         Files API gives Gemini access to the actual audio stream, which
         produces far more accurate word-level timestamps than inline base64.
+        Must poll for ACTIVE state before using in generateContent — sending
+        a PROCESSING file causes a 400 error.
         """
         boundary = "pelvi_video_boundary"
         metadata = json.dumps({"file": {"mimeType": mime}}).encode()
@@ -229,6 +232,25 @@ class VideoAnalysisService:
             resp = await client.post(upload_url, headers=headers, content=body)
             resp.raise_for_status()
 
-        file_uri = resp.json()["file"]["uri"]
-        logger.info("Uploaded video to Files API: %s", file_uri)
+        file_data = resp.json()["file"]
+        file_name = file_data["name"]   # e.g. "files/abc123"
+        file_uri = file_data["uri"]
+        logger.info("Uploaded video to Files API: %s (state=%s)", file_uri, file_data.get("state"))
+
+        # Poll until ACTIVE — file may be in PROCESSING for several seconds
+        poll_url = f"https://generativelanguage.googleapis.com/v1beta/{file_name}?key={self.api_key}"
+        for attempt in range(20):
+            async with httpx.AsyncClient(timeout=30) as client:
+                poll_resp = await client.get(poll_url)
+                poll_resp.raise_for_status()
+            state = poll_resp.json().get("state", "PROCESSING")
+            if state == "ACTIVE":
+                logger.info("Files API file ACTIVE after %d poll(s)", attempt + 1)
+                break
+            if state == "FAILED":
+                raise RuntimeError(f"Gemini Files API upload failed: {poll_resp.text}")
+            await asyncio.sleep(2)
+        else:
+            raise RuntimeError("Gemini Files API file never reached ACTIVE state")
+
         return file_uri
