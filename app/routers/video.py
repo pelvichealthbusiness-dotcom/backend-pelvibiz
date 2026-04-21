@@ -352,7 +352,18 @@ async def generate_video_stream(
             # Only transcribe for Talking Head — B-roll templates must not caption their own audio
             if request.enable_captions and effective_video_urls and template_enum == VideoTemplate.TALKING_HEAD:
                 yield f'data: {json.dumps({"type": "progress", "phase": "transcribing", "message": "Transcribing audio for captions..."})}\n\n'
-                phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
+                # Run transcription concurrently and send SSE keepalives every 8s so
+                # browsers / network proxies don't close the idle stream (Files API
+                # upload + polling can take 60-180s with no output otherwise).
+                _transcription_task = asyncio.create_task(
+                    TranscriptionService().transcribe(effective_video_urls[0])
+                )
+                while not _transcription_task.done():
+                    try:
+                        await asyncio.wait_for(asyncio.shield(_transcription_task), timeout=8.0)
+                    except asyncio.TimeoutError:
+                        yield ': keepalive\n\n'
+                phrase_blocks = await _transcription_task
                 logger.info("generate-stream: transcription returned %d phrase blocks for template %s", len(phrase_blocks), request.template)
 
             if needs_analysis and effective_video_urls:
