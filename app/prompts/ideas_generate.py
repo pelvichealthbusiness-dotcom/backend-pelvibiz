@@ -313,12 +313,13 @@ Never number the ideas in the output and never start a title with a numeral.
 - NEVER use emojis anywhere
 - Format:
 
-{{"ideas": [{{"title": "...", "hook": "...", "angle": "...", "content_type": "...", "engagement_score": 0.85, "slides_suggestion": 5}}, ...]}}
+{{"ideas": [{{"title": "...", "hook": "...", "why": "...", "angle": "...", "content_type": "...", "engagement_score": 0.85, "slides_suggestion": 5}}, ...]}}
 
 - Array should contain about {count} items; a small variation is acceptable when the topic is broad.
 - "title": punchy, specific, under 60 characters. Must pass the specificity test.
 - "hook": the scroll-stopping opening line (under 100 characters)
-- "angle": which template angle is used
+- "why": one sentence explaining why this resonates deeply with the audience
+- "angle": which template angle is used (e.g. pain-point | aspiration | myth-bust | authority | transformation)
 - "content_type": the content category
 - "engagement_score": confidence this will engage (0.0-1.0)
 - "slides_suggestion": recommended segment count for this template"""
