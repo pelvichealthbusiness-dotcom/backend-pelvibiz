@@ -427,8 +427,9 @@ def _caption_elements(
     font_size: str = "8 vmin",
     chunk_size: int = 3,
     font_family: str | None = None,
-    fill_color: str = "#FFFFFF",
+    fill_color: str = "#FFE600",
     font_weight: str = "900",
+    letter_spacing: str = "20%",
 ) -> list[dict]:
     """Split a caption into timed word-group elements for word-by-word animation."""
     chunks = _word_chunks(text, chunk_size)
@@ -449,6 +450,7 @@ def _caption_elements(
             "font_family": font_family or CAPTION_FONT,
             "font_weight": font_weight,
             "font_size": font_size,
+            "letter_spacing": letter_spacing,
             "fill_color": fill_color,
             "stroke_color": "#000000",
             "stroke_width": "1.5 vmin",
@@ -606,7 +608,7 @@ def build_talking_head(
     # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
     caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
     caption_font = getattr(request, 'caption_font', None) or CAPTION_FONT
-    caption_color = getattr(request, 'caption_color', None) or "#FFFFFF"
+    caption_color = getattr(request, 'caption_color', None) or "#FFE600"
     caption_weight = getattr(request, 'caption_weight', None) or "900"
 
     if phrase_blocks:
