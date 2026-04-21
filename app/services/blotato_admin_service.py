@@ -40,8 +40,29 @@ async def list_accounts_with_assignments() -> dict[str, Any]:
     if not settings.blotato_api_key:
         raise DatabaseError("BLOTATO_API_KEY is not configured")
 
-    # 1. Fetch all accounts from master Blotato account
+    # 1. Fetch all accounts from master Blotato account + subaccounts for FB/LinkedIn/YT
     raw_accounts = await fetch_blotato_accounts(settings.blotato_api_key)
+
+    # Resolve pageId and page_name for platforms that need subaccounts
+    subaccount_data: dict[str, dict[str, str]] = {}
+    import httpx as _httpx
+    async with _httpx.AsyncClient(base_url="https://backend.blotato.com/v2", timeout=30.0, headers={"blotato-api-key": settings.blotato_api_key}) as client:
+        for acc in raw_accounts:
+            acc_id = str(acc.get("id") or acc.get("accountId") or "").strip()
+            platform = str(acc.get("platform") or acc.get("type") or "").strip().lower()
+            if not acc_id or platform not in _SUBACCOUNT_PLATFORMS:
+                continue
+            try:
+                resp = await client.get(f"/users/me/accounts/{acc_id}/subaccounts")
+                resp.raise_for_status()
+                items = list((resp.json() or {}).get("items") or [])
+                if items:
+                    first = items[0]
+                    page_id = str(first.get("id") or first.get("pageId") or "").strip()
+                    page_name = str(first.get("name") or first.get("displayName") or first.get("username") or "").strip()
+                    subaccount_data[acc_id] = {"page_id": page_id, "page_name": page_name}
+            except Exception:
+                pass
 
     # 2. Fetch all PelviBiz users with blotato_connections
     client = get_service_client()
@@ -96,10 +117,13 @@ async def list_accounts_with_assignments() -> dict[str, Any]:
         name = str(acc.get("name") or acc.get("username") or acc.get("displayName") or "").strip()
         if not acc_id or not platform:
             continue
+        sub = subaccount_data.get(acc_id, {})
         enriched.append({
             "id": acc_id,
             "platform": platform,
             "name": name,
+            "page_id": sub.get("page_id") or None,
+            "page_name": sub.get("page_name") or None,
             "assigned_to": account_assignment.get(acc_id),
         })
 
