@@ -92,6 +92,29 @@ def _ensure_visible_on_dark(h: str) -> tuple[int, int, int]:
 
 # ── Text helpers ──────────────────────────────────────────────────────────────
 
+def _break_word(
+    draw: ImageDraw.ImageDraw,
+    word: str,
+    font: ImageFont.FreeTypeFont,
+    max_w: int,
+) -> list[str]:
+    """Break a single word into chunks that fit within max_w."""
+    chunks: list[str] = []
+    current = ""
+    for ch in word:
+        candidate = current + ch
+        bb = draw.textbbox((0, 0), candidate, font=font)
+        if bb[2] - bb[0] <= max_w:
+            current = candidate
+        else:
+            if current:
+                chunks.append(current)
+            current = ch
+    if current:
+        chunks.append(current)
+    return chunks or [word]
+
+
 def _wrap_text(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -102,6 +125,14 @@ def _wrap_text(
     lines: list[str] = []
     current = ""
     for word in words:
+        # Break word itself if it doesn't fit alone
+        word_bb = draw.textbbox((0, 0), word, font=font)
+        if word_bb[2] - word_bb[0] > max_w:
+            if current:
+                lines.append(current)
+                current = ""
+            lines.extend(_break_word(draw, word, font, max_w))
+            continue
         candidate = (current + " " + word).strip()
         bb = draw.textbbox((0, 0), candidate, font=font)
         if bb[2] - bb[0] <= max_w:
@@ -303,46 +334,46 @@ async def compose(
             font_lbl_it = get_montserrat_sync("bold", LABEL_SIZE)
             y = _draw_wrapped(draw, event_label.upper(), font_lbl_it,
                               text_x, y, (*accent_rgb, 210), TEXT_MAX_W, line_gap=4)
-            y += 20
+            y += 48
 
         # ── 7. Title — massive white ───────────────────────────────────────────
         if title:
             font_title, title_lines = _auto_fit_title(draw, title, TEXT_MAX_W)
             y = _draw_lines(draw, title_lines, font_title,
-                            text_x, y, (255, 255, 255, 255), line_gap=8)
-            y += 28
+                            text_x, y, (255, 255, 255, 255), line_gap=12)
+            y += 56
 
         # ── 8. Subtitle — split at \n: first part white, last part accent ─────
         if subtitle:
             parts = subtitle.split("\n", 1)
             if len(parts) == 2:
                 y = _draw_wrapped(draw, parts[0], font_subtitle,
-                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=8)
-                y += 6
+                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=10)
+                y += 12
                 y = _draw_wrapped(draw, parts[1], font_sub_acc,
-                                  text_x, y, (*accent_rgb, 255), TEXT_MAX_W, line_gap=8)
+                                  text_x, y, (*accent_rgb, 255), TEXT_MAX_W, line_gap=10)
             else:
                 y = _draw_wrapped(draw, subtitle, font_subtitle,
-                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=8)
-            y += 32
+                                  text_x, y, (255, 255, 255, 230), TEXT_MAX_W, line_gap=10)
+            y += 56
 
         # ── 9. Date badge — bordered rounded rect ────────────────────────────
         if date_time:
             y = _draw_date_badge(draw, date_time, font_date,
                                  text_x, y, accent_rgb, (255, 255, 255, 245), TEXT_MAX_W)
-            y += 8
+            y += 28
 
         # ── 10. venue ─────────────────────────────────────────────────────────
         if venue:
             y = _draw_wrapped(draw, venue, font_meta,
                               text_x, y, (255, 255, 255, 180), TEXT_MAX_W)
-            y += 14
+            y += 28
 
         # ── 11. via — small caps accent ───────────────────────────────────────
         if via:
             y = _draw_wrapped(draw, via.upper(), font_meta,
                               text_x, y, (*accent_rgb, 200), TEXT_MAX_W)
-            y += 24
+            y += 44
 
         # ── 12. CTA — bold text, no button background ─────────────────────────
         if cta:

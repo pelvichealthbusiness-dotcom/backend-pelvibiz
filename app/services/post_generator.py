@@ -231,7 +231,12 @@ class PostGeneratorService:
         # ── Person image ─────────────────────────────────────────────────────
         mode = (request.person_image_mode or "ai").lower()
 
-        if mode in ("face", "upload") and request.person_image_url:
+        if mode == "face" and request.person_image_url:
+            face_b64 = await self._image_gen.download_image_as_base64(request.person_image_url)
+            person_prompt = build_masterclass_face_mode_prompt(brand)
+            person_b64 = await self._image_gen.generate_slide(person_prompt, face_b64)
+            person_bytes = base64.b64decode(person_b64)
+        elif mode == "upload" and request.person_image_url:
             async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
                 resp = await client.get(request.person_image_url)
                 resp.raise_for_status()
