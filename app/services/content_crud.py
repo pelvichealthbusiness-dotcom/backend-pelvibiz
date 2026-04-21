@@ -239,53 +239,62 @@ class ContentCRUD:
     def get_usage(self, user_id: str) -> dict:
         """User usage stats: total generated, by agent type, credits used."""
         try:
-            # Total count
-            total_result = (
-                self.client.table("requests_log")
-                .select("id", count="exact")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            total = total_result.count or 0
-
-            # Count by agent_type — fetch all IDs + agent_type
-            by_type_result = (
-                self.client.table("requests_log")
-                .select("agent_type")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            type_counts: dict[str, int] = {}
-            for row in (by_type_result.data or []):
-                at = row.get("agent_type", "unknown")
-                type_counts[at] = type_counts.get(at, 0) + 1
-
-            # Published count
-            published_result = (
-                self.client.table("requests_log")
-                .select("id", count="exact")
-                .eq("user_id", user_id)
-                .eq("published", True)
-                .execute()
-            )
-            published = published_result.count or 0
-
-            # Get credits from profile
-            profile_result = (
+            # Get profile first — need credits_reset_at for date-bounded queries
+            profile_res = (
                 self.client.table("profiles")
-                .select("credits_used, credits_limit")
+                .select("credits_used, credits_limit, credits_reset_at")
                 .eq("id", user_id)
                 .maybe_single()
                 .execute()
             )
-            profile = profile_result.data if profile_result else {}
+            profile: dict = {}
+            if profile_res is not None:
+                raw = profile_res.data  # type: ignore[union-attr]
+                if isinstance(raw, dict):
+                    profile = raw
+            credits_reset_at: str | None = str(profile["credits_reset_at"]) if profile.get("credits_reset_at") else None
+
+            # Total count in current period
+            total_q = (
+                self.client.table("requests_log")
+                .select("id", count="exact")  # type: ignore[call-arg]
+                .eq("user_id", user_id)
+            )
+            if credits_reset_at:
+                total_q = total_q.gte("created_at", credits_reset_at)
+            total = total_q.execute().count or 0
+
+            # Count by agent_type in current period
+            by_type_q = (
+                self.client.table("requests_log")
+                .select("agent_type")
+                .eq("user_id", user_id)
+            )
+            if credits_reset_at:
+                by_type_q = by_type_q.gte("created_at", credits_reset_at)
+            type_counts: dict[str, int] = {}
+            for row in (by_type_q.execute().data or []):
+                if isinstance(row, dict):
+                    at: str = str(row.get("agent_type") or "unknown")
+                    type_counts[at] = type_counts.get(at, 0) + 1
+
+            # Published count in current period
+            pub_q = (
+                self.client.table("requests_log")
+                .select("id", count="exact")  # type: ignore[call-arg]
+                .eq("user_id", user_id)
+                .eq("published", True)
+            )
+            if credits_reset_at:
+                pub_q = pub_q.gte("created_at", credits_reset_at)
+            published = pub_q.execute().count or 0
 
             return {
                 "total_generated": total,
                 "total_published": published,
                 "by_agent_type": type_counts,
-                "credits_used": profile.get("credits_used", 0) if profile else 0,
-                "credits_limit": profile.get("credits_limit", 40) if profile else 40,
+                "credits_used": profile.get("credits_used", 0),
+                "credits_limit": profile.get("credits_limit", 50),
             }
         except Exception as exc:
             logger.error("Failed to get usage stats: %s", exc)
