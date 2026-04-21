@@ -195,7 +195,7 @@ async def schedule_content(
     admin = get_service_client()
     profile_result = (
         admin.table("profiles")
-        .select("blotato_connections, blotato_ig_id, blotato_fb_id, blotato_fb_account_id")
+        .select("blotato_connections")
         .eq("id", user.user_id)
         .maybe_single()
         .execute()

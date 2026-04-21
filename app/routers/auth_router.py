@@ -211,11 +211,6 @@ async def refresh_blotato_connections(user: UserContext = Depends(get_current_us
     merged_connections = {**current_connections, **imported}
 
     update_data: dict[str, object] = {"blotato_connections": merged_connections}
-    instagram = merged_connections.get("instagram") or {}
-    facebook = merged_connections.get("facebook") or {}
-    update_data["blotato_ig_id"] = instagram.get("accountId")
-    update_data["blotato_fb_account_id"] = facebook.get("accountId")
-    update_data["blotato_fb_id"] = facebook.get("pageId")
 
     admin.table("profiles").update(update_data).eq("id", user.user_id).execute()
 
