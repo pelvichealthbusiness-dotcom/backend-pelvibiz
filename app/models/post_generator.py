@@ -34,6 +34,9 @@ class PostGenerateRequest(BaseModel):
     # Brand logo URL (Supabase Storage public URL)
     logo_url: Optional[str] = None
 
+    # Optional QR code image to place next to logo (masterclass-banner)
+    qr_image_url: Optional[str] = None
+
     # Brand identity (sent from client; backend re-fetches from profile but
     # uses these as fallback if the DB field is empty)
     brand_name: Optional[str] = None

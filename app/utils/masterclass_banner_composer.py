@@ -37,9 +37,13 @@ TEXT_MAX_W  = CANVAS_W - TEXT_X - 40    # 580 px
 TEXT_TOP    = 80
 
 # ── Logo ───────────────────────────────────────────────────────────────────────
-LOGO_MAX    = 150          # doubled from 75
-LOGO_BOTTOM = 60           # anchor to bottom instead of top
+LOGO_MAX    = 150
+LOGO_BOTTOM = 60
 LOGO_RIGHT  = 60
+
+# ── QR code — left of logo, same bottom baseline ───────────────────────────────
+QR_MAX  = 110
+QR_GAP  = 20   # gap between QR and logo
 
 # ── Font sizes (px) ───────────────────────────────────────────────────────────
 LABEL_SIZE   = 26
@@ -226,6 +230,7 @@ async def compose(
     background_bytes: bytes | None,
     person_bytes: bytes | None,
     logo_bytes: bytes | None,
+    qr_bytes: bytes | None,
     event_label: str,
     title: str,
     subtitle: str,
@@ -317,7 +322,8 @@ async def compose(
         text_x = TEXT_X
         y = TEXT_TOP
 
-        # ── 5. Logo — top right ───────────────────────────────────────────────
+        # ── 5. Logo — bottom right ────────────────────────────────────────────
+        logo_left_edge = CANVAS_W - LOGO_RIGHT  # default if no logo
         if logo_bytes is not None:
             try:
                 logo_img = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
@@ -325,9 +331,26 @@ async def compose(
                 lw = int(logo_img.width * ratio)
                 lh = int(logo_img.height * ratio)
                 logo_img = logo_img.resize((lw, lh), Image.Resampling.LANCZOS)
-                img.paste(logo_img, (CANVAS_W - LOGO_RIGHT - lw, CANVAS_H - LOGO_BOTTOM - lh), logo_img)
+                logo_x = CANVAS_W - LOGO_RIGHT - lw
+                logo_y = CANVAS_H - LOGO_BOTTOM - lh
+                img.paste(logo_img, (logo_x, logo_y), logo_img)
+                logo_left_edge = logo_x
             except Exception as exc:
                 logger.warning("Could not paste logo: %s", exc)
+
+        # ── 5b. QR code — left of logo, same bottom baseline ─────────────────
+        if qr_bytes is not None:
+            try:
+                qr_img = Image.open(io.BytesIO(qr_bytes)).convert("RGBA")
+                ratio = min(QR_MAX / qr_img.width, QR_MAX / qr_img.height)
+                qw = int(qr_img.width * ratio)
+                qh = int(qr_img.height * ratio)
+                qr_img = qr_img.resize((qw, qh), Image.Resampling.LANCZOS)
+                qr_x = logo_left_edge - QR_GAP - qw
+                qr_y = CANVAS_H - LOGO_BOTTOM - qh
+                img.paste(qr_img, (qr_x, qr_y), qr_img)
+            except Exception as exc:
+                logger.warning("Could not paste QR image: %s", exc)
 
         # ── 6. event_label — italic small caps accent ─────────────────────────
         if event_label:

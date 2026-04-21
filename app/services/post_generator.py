@@ -260,11 +260,23 @@ class PostGeneratorService:
             except Exception as exc:
                 logger.warning("Could not fetch logo %s: %s", logo_url, exc)
 
+        # ── QR code ──────────────────────────────────────────────────────────
+        qr_bytes: bytes | None = None
+        if request.qr_image_url:
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(request.qr_image_url)
+                    resp.raise_for_status()
+                    qr_bytes = resp.content
+            except Exception as exc:
+                logger.warning("Could not fetch QR image %s: %s", request.qr_image_url, exc)
+
         # ── Compose ──────────────────────────────────────────────────────────
         image_bytes = await compose_masterclass(
             background_bytes=background_bytes,
             person_bytes=person_bytes,
             logo_bytes=logo_bytes,
+            qr_bytes=qr_bytes,
             event_label=tf.get("event_label", ""),
             title=tf.get("title", ""),
             subtitle=tf.get("subtitle", ""),
