@@ -37,6 +37,13 @@ class PostGenerateRequest(BaseModel):
     # Optional QR code image to place next to logo (masterclass-banner)
     qr_image_url: Optional[str] = None
 
+    # Collage images 2 & 3 for top panel (wellness-workshop)
+    bg_image_2_url: Optional[str] = None
+    bg_image_3_url: Optional[str] = None
+
+    # Optional second logo slot (wellness-workshop — sponsor / partner)
+    second_logo_url: Optional[str] = None
+
     # Brand identity (sent from client; backend re-fetches from profile but
     # uses these as fallback if the DB field is empty)
     brand_name: Optional[str] = None

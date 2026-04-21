@@ -488,6 +488,40 @@ def build_masterclass_face_mode_prompt(brand: dict) -> str:
     )
 
 
+def build_wellness_workshop_background_prompt(
+    slot: int,
+    text_fields: dict[str, str],
+    brand: dict,
+) -> str:
+    """Background scene for one of the 3 collage panels in wellness-workshop.
+
+    Each panel is a 360×440 portrait crop — generate a square 1:1 scene
+    that will be cropped to fit. Gemini outputs are center-cropped by PIL.
+    """
+    title = text_fields.get("title", "wellness workshop")
+    env = brand.get("visual_environment_setup") or "bright modern wellness studio"
+    subject = brand.get("visual_subject_outfit_generic") or "professional wellness practitioner"
+    identity = brand.get("visual_identity") or "clean, modern, health-focused"
+    color = brand.get("brand_color_primary") or "#1A9E8F"
+
+    scene_options = [
+        f"A close-up of hands guiding a yoga or stretching pose in {env}.",
+        f"A person demonstrating a gentle stretch or exercise for back and hip relief in {env}. {subject}.",
+        f"Serene wellness environment — foam roller, yoga mat, or fitness props with natural light. {identity} aesthetic.",
+    ]
+    scene = scene_options[(slot - 1) % len(scene_options)]
+
+    return (
+        f"High quality photorealistic image for a wellness workshop promotional flyer. "
+        f"Topic: {title}. "
+        f"Scene: {scene} "
+        f"Visual style: {identity}, warm and inviting. "
+        f"Brand accent color {color} present subtly. "
+        f"Square composition (1:1 ratio), center subject. "
+        f"NO text, NO logos, NO watermarks in the image."
+    )
+
+
 def _build_hero_title_background_prompt(brand: dict) -> str:
     """Background-only scene for the hero-title template.
 

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 
@@ -67,6 +68,10 @@ class PostGeneratorService:
         # Masterclass-banner: Pillow-composited pipeline (background + person + logo)
         if request.template_key == "masterclass-banner":
             return await self._generate_masterclass_banner(request, user_id, brand)
+
+        # Wellness-workshop: 3-image collage + tips + person + dual logo
+        if request.template_key == "wellness-workshop":
+            return await self._generate_wellness_workshop(request, user_id, brand)
 
         # 3. Build the image generation prompt
         prompt = build_post_image_prompt(
@@ -284,6 +289,129 @@ class PostGeneratorService:
             venue=tf.get("venue", ""),
             via=tf.get("via", ""),
             cta=tf.get("cta", ""),
+            brand_color_primary=brand_color,
+            brand_color_secondary=brand_color_sec,
+        )
+
+        upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        image_url = await self._storage.upload_image(upload_b64, user_id)
+
+        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        ContentService._invalidate_cache(user_id)
+
+        try:
+            await self._credits.increment_credits(user_id)
+        except Exception as exc:
+            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+
+        return image_url, request.caption
+
+
+    async def _generate_wellness_workshop(
+        self,
+        request: PostGenerateRequest,
+        user_id: str,
+        brand: dict,
+    ) -> tuple[str, str]:
+        """Wellness-workshop: 3-image top collage + tips checklist + person + dual logo."""
+        from app.utils.wellness_workshop_composer import compose as compose_wellness
+        from app.prompts.post_generate import build_wellness_workshop_background_prompt
+
+        tf = request.text_fields
+        brand_color = brand.get("brand_color_primary") or "#1A9E8F"
+        brand_color_sec = brand.get("brand_color_secondary") or "#FFFFFF"
+
+        # ── Background images (collage panels 1–3) ────────────────────────────
+        async def _fetch_or_generate(url: str | None, slot: int) -> bytes | None:
+            if url:
+                try:
+                    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                        resp = await client.get(url)
+                        resp.raise_for_status()
+                        return resp.content
+                except Exception as exc:
+                    logger.warning("Could not fetch bg panel %d (%s): %s", slot, url, exc)
+            try:
+                prompt = build_wellness_workshop_background_prompt(slot, tf, brand)
+                b64 = await self._image_gen.generate_from_prompt(prompt)
+                return base64.b64decode(b64)
+            except Exception as exc:
+                logger.warning("Background generation failed for panel %d: %s", slot, exc)
+                return None
+
+        bg1, bg2, bg3 = await asyncio.gather(
+            _fetch_or_generate(request.reference_image_url, 1),
+            _fetch_or_generate(request.bg_image_2_url, 2),
+            _fetch_or_generate(request.bg_image_3_url, 3),
+        )
+
+        # ── Person image ──────────────────────────────────────────────────────
+        from app.prompts.post_generate import (
+            build_masterclass_face_mode_prompt,
+            build_masterclass_person_prompt,
+        )
+
+        mode = (request.person_image_mode or "ai").lower()
+        try:
+            if mode == "face" and request.person_image_url:
+                face_b64 = await self._image_gen.download_image_as_base64(request.person_image_url)
+                person_prompt = build_masterclass_face_mode_prompt(brand)
+                person_b64 = await self._image_gen.generate_slide(person_prompt, face_b64)
+                person_bytes: bytes | None = base64.b64decode(person_b64)
+            elif mode == "upload" and request.person_image_url:
+                async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                    resp = await client.get(request.person_image_url)
+                    resp.raise_for_status()
+                    person_bytes = resp.content
+            else:
+                person_prompt = build_masterclass_person_prompt(brand)
+                person_b64 = await self._image_gen.generate_from_prompt(person_prompt)
+                person_bytes = base64.b64decode(person_b64)
+        except Exception as exc:
+            logger.warning("Person image generation failed: %s", exc)
+            person_bytes = None
+
+        if person_bytes is not None:
+            person_bytes = await _remove_background(person_bytes)
+
+        # ── Primary logo ──────────────────────────────────────────────────────
+        logo_bytes: bytes | None = None
+        logo_url = request.logo_url or brand.get("logo_url")
+        if logo_url:
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(logo_url)
+                    resp.raise_for_status()
+                    logo_bytes = resp.content
+            except Exception as exc:
+                logger.warning("Could not fetch primary logo: %s", exc)
+
+        # ── Second logo ───────────────────────────────────────────────────────
+        second_logo_bytes: bytes | None = None
+        if request.second_logo_url:
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(request.second_logo_url)
+                    resp.raise_for_status()
+                    second_logo_bytes = resp.content
+            except Exception as exc:
+                logger.warning("Could not fetch second logo: %s", exc)
+
+        # ── Compose ───────────────────────────────────────────────────────────
+        image_bytes = await compose_wellness(
+            bg1_bytes=bg1,
+            bg2_bytes=bg2,
+            bg3_bytes=bg3,
+            person_bytes=person_bytes,
+            logo_bytes=logo_bytes,
+            second_logo_bytes=second_logo_bytes,
+            event_label=tf.get("event_label", ""),
+            date_time=tf.get("date_time", ""),
+            title=tf.get("title", ""),
+            tip_1=tf.get("tip_1", ""),
+            tip_2=tf.get("tip_2", ""),
+            tip_3=tf.get("tip_3", ""),
+            tip_4=tf.get("tip_4", ""),
             brand_color_primary=brand_color,
             brand_color_secondary=brand_color_sec,
         )

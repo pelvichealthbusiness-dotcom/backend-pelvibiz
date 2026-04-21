@@ -237,3 +237,157 @@ class TestPostGeneratorService:
         with pytest.raises(ValueError, match="Gemini failed"):
             with patch("app.services.post_generator.force_resolution", side_effect=lambda b: b):
                 await service.generate(_make_request(), "user-1")
+
+
+# ---------------------------------------------------------------------------
+# Wellness-workshop template
+# ---------------------------------------------------------------------------
+
+class TestWellnessWorkshopTemplate:
+    def _make_service(self, profile=None):
+        service = PostGeneratorService.__new__(PostGeneratorService)
+        service._image_gen = MagicMock()
+        service._image_gen.generate_from_prompt = AsyncMock(return_value="ZmFrZQ==")
+        service._image_gen.generate_slide = AsyncMock(return_value="ZmFrZQ==")
+        service._image_gen.download_image_as_base64 = AsyncMock(return_value="ZmFrZQ==")
+        service._storage = MagicMock()
+        service._storage.upload_image = AsyncMock(return_value="https://cdn.example.com/ww.jpg")
+        service._brand_service = MagicMock()
+        service._brand_service.load_profile = AsyncMock(return_value=profile or {
+            "brand_name": "PelviBiz",
+            "brand_color_primary": "#1A9E8F",
+            "brand_color_secondary": "#FFFFFF",
+            "font_prompt": "Bold", "font_style": "bold", "font_size": "38px",
+        })
+        service._credits = MagicMock()
+        service._credits.check_credits = AsyncMock(return_value=(0, 40))
+        service._credits.increment_credits = AsyncMock(return_value=1)
+        service._supabase = MagicMock()
+        service._supabase.table.return_value.upsert.return_value.execute.return_value = MagicMock()
+        return service
+
+    def _make_request(self, **overrides) -> PostGenerateRequest:
+        base = dict(
+            template_key="wellness-workshop",
+            template_label="Wellness Workshop Flyer",
+            topic="low back and hip release workshop",
+            text_fields={
+                "event_label": "FREE WELLNESS WORKSHOP",
+                "date_time": "Sunday, Jan. 11 @ 11:30 AM",
+                "title": "Release Your Low Back, Hips & IT Band",
+                "tip_1": "Release tight hip flexors",
+                "tip_2": "Reduce lower back tension",
+                "tip_3": "Improve pelvic floor mobility",
+                "tip_4": "Restore IT band flexibility",
+            },
+            caption="Join us!",
+            message_id="msg-ww-1",
+            conversation_id="conv-1",
+        )
+        base.update(overrides)
+        return PostGenerateRequest(**base)
+
+    @pytest.mark.asyncio
+    async def test_wellness_workshop_dispatches_to_pillow_pipeline(self):
+        service = self._make_service()
+        compose_mock = AsyncMock(return_value=b"PNG_BYTES")
+        with patch("app.services.post_generator._remove_background", AsyncMock(side_effect=lambda b: b)), \
+             patch("app.utils.wellness_workshop_composer.compose", compose_mock):
+            url, caption = await service.generate(self._make_request(), "user-1")
+        assert url == "https://cdn.example.com/ww.jpg"
+        assert caption == "Join us!"
+
+    @pytest.mark.asyncio
+    async def test_wellness_workshop_accepts_bg_image_2_and_3_urls(self):
+        service = self._make_service()
+        req = self._make_request(
+            bg_image_2_url="https://example.com/bg2.jpg",
+            bg_image_3_url="https://example.com/bg3.jpg",
+        )
+        compose_mock = AsyncMock(return_value=b"PNG_BYTES")
+        with patch("app.services.post_generator._remove_background", AsyncMock(side_effect=lambda b: b)), \
+             patch("app.utils.wellness_workshop_composer.compose", compose_mock), \
+             patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()
+            mock_response.content = b"IMGBYTES"
+            mock_response.raise_for_status = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_cls.return_value = mock_client
+            url, _ = await service.generate(req, "user-1")
+        assert url == "https://cdn.example.com/ww.jpg"
+
+    @pytest.mark.asyncio
+    async def test_wellness_workshop_accepts_second_logo_url(self):
+        service = self._make_service()
+        req = self._make_request(second_logo_url="https://example.com/logo2.png")
+        compose_mock = AsyncMock(return_value=b"PNG_BYTES")
+        with patch("app.services.post_generator._remove_background", AsyncMock(side_effect=lambda b: b)), \
+             patch("app.utils.wellness_workshop_composer.compose", compose_mock), \
+             patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()
+            mock_response.content = b"LOGO2BYTES"
+            mock_response.raise_for_status = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_cls.return_value = mock_client
+            url, _ = await service.generate(req, "user-1")
+        assert url == "https://cdn.example.com/ww.jpg"
+
+    @pytest.mark.asyncio
+    async def test_wellness_workshop_ai_mode_generates_background_with_gemini(self):
+        service = self._make_service()
+        req = self._make_request()
+        compose_mock = AsyncMock(return_value=b"PNG_BYTES")
+        with patch("app.services.post_generator._remove_background", AsyncMock(side_effect=lambda b: b)), \
+             patch("app.utils.wellness_workshop_composer.compose", compose_mock):
+            await service.generate(req, "user-1")
+        assert service._image_gen.generate_from_prompt.await_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_wellness_workshop_saves_to_requests_log(self):
+        service = self._make_service()
+        compose_mock = AsyncMock(return_value=b"PNG_BYTES")
+        with patch("app.services.post_generator._remove_background", AsyncMock(side_effect=lambda b: b)), \
+             patch("app.utils.wellness_workshop_composer.compose", compose_mock):
+            await service.generate(self._make_request(), "user-1")
+        upsert_call = service._supabase.table.return_value.upsert
+        upsert_call.assert_called_once()
+        row = upsert_call.call_args[0][0]
+        assert row["agent_type"] == "ai-post-generator"
+        assert row["id"] == "msg-ww-1"
+
+
+class TestWellnessWorkshopRequestModel:
+    def test_accepts_new_image_fields(self):
+        req = PostGenerateRequest(
+            template_key="wellness-workshop",
+            template_label="Wellness Workshop Flyer",
+            topic="test",
+            text_fields={},
+            caption="",
+            message_id="msg-1",
+            bg_image_2_url="https://example.com/bg2.jpg",
+            bg_image_3_url="https://example.com/bg3.jpg",
+            second_logo_url="https://example.com/logo2.png",
+        )
+        assert req.bg_image_2_url == "https://example.com/bg2.jpg"
+        assert req.bg_image_3_url == "https://example.com/bg3.jpg"
+        assert req.second_logo_url == "https://example.com/logo2.png"
+
+    def test_new_fields_default_to_none(self):
+        req = PostGenerateRequest(
+            template_key="tip-card",
+            template_label="Tip",
+            topic="test",
+            text_fields={},
+            caption="",
+            message_id="msg-1",
+        )
+        assert req.bg_image_2_url is None
+        assert req.bg_image_3_url is None
+        assert req.second_logo_url is None
