@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 # Hard limits per spec
 _MAX_CHARS_PER_BLOCK = 150
 _MIN_BLOCK_DURATION = 0.6    # seconds — minimum for phrase-level blocks
-_KARAOKE_MIN_DURATION = 0.3  # seconds — minimum for word-level karaoke blocks
+_KARAOKE_MIN_DURATION = 0.5  # seconds — minimum for word-level karaoke blocks
 _SENTENCE_ENDINGS = {".", "?", "!"}
-_KARAOKE_WORDS_PER_BLOCK = 1  # one word per card — true karaoke highlight effect
+_KARAOKE_WORDS_PER_BLOCK = 3  # 3 words per card — readable without flickering
 
 
 class TranscriptionService:
