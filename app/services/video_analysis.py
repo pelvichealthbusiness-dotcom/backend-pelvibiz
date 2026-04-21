@@ -2,8 +2,6 @@
 
 import json
 import logging
-import base64
-
 import httpx
 
 from app.config import get_settings
@@ -158,43 +156,31 @@ class VideoAnalysisService:
     # ------------------------------------------------------------------
 
     async def _analyze(self, video_url: str, prompt: str, defaults: dict) -> dict:
-        """Send video to Gemini for analysis. Falls back to *defaults* on failure."""
+        """Send video to Gemini for analysis via Files API. Falls back to *defaults* on failure."""
         try:
-            # Download video as base64
-            async with httpx.AsyncClient(timeout=60) as client:
-                video_response = await client.get(video_url, follow_redirects=True)
+            async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+                video_response = await client.get(video_url)
                 video_response.raise_for_status()
-                video_base64 = base64.b64encode(video_response.content).decode("utf-8")
 
-            # Determine mime type
             content_type = video_response.headers.get("content-type", "video/mp4")
-            if "webm" in content_type:
-                mime = "video/webm"
-            else:
-                mime = "video/mp4"
+            mime = "video/webm" if "webm" in content_type else "video/mp4"
+
+            # Upload to Files API — gives Gemini proper audio access for accurate timestamps
+            file_uri = await self._upload_to_files_api(video_response.content, mime)
 
             url = f"{self.endpoint}?key={self.api_key}"
             body = {
-                "contents": [
-                    {
-                        "parts": [
-                            {"text": prompt},
-                            {
-                                "inlineData": {
-                                    "mimeType": mime,
-                                    "data": video_base64,
-                                }
-                            },
-                        ]
-                    }
-                ],
+                "contents": [{
+                    "parts": [
+                        {"text": prompt},
+                        {"fileData": {"mimeType": mime, "fileUri": file_uri}},
+                    ]
+                }],
                 "generationConfig": {"responseMimeType": "application/json"},
             }
 
-            async with httpx.AsyncClient(timeout=120) as client:
-                response = await client.post(
-                    url, json=body, headers={"Content-Type": "application/json"},
-                )
+            async with httpx.AsyncClient(timeout=180) as client:
+                response = await client.post(url, json=body, headers={"Content-Type": "application/json"})
                 response.raise_for_status()
 
             data = response.json()
@@ -210,9 +196,39 @@ class VideoAnalysisService:
                 .get("text", "")
             )
             result = json.loads(text)
-            # Merge with defaults for any missing fields
             return {**defaults, **result}
 
         except Exception as e:
             logger.warning("Video analysis failed, using defaults: %s", e)
             return defaults
+
+    async def _upload_to_files_api(self, video_bytes: bytes, mime: str) -> str:
+        """Upload video to Gemini Files API and return the file URI.
+
+        Files API gives Gemini access to the actual audio stream, which
+        produces far more accurate word-level timestamps than inline base64.
+        """
+        boundary = "pelvi_video_boundary"
+        metadata = json.dumps({"file": {"mimeType": mime}}).encode()
+        body = (
+            f"--{boundary}\r\nContent-Type: application/json\r\n\r\n".encode()
+            + metadata
+            + f"\r\n--{boundary}\r\nContent-Type: {mime}\r\n\r\n".encode()
+            + video_bytes
+            + f"\r\n--{boundary}--".encode()
+        )
+        upload_url = (
+            f"https://generativelanguage.googleapis.com/upload/v1beta/files"
+            f"?key={self.api_key}"
+        )
+        headers = {
+            "X-Goog-Upload-Protocol": "multipart",
+            "Content-Type": f"multipart/related; boundary={boundary}",
+        }
+        async with httpx.AsyncClient(timeout=300) as client:
+            resp = await client.post(upload_url, headers=headers, content=body)
+            resp.raise_for_status()
+
+        file_uri = resp.json()["file"]["uri"]
+        logger.info("Uploaded video to Files API: %s", file_uri)
+        return file_uri
