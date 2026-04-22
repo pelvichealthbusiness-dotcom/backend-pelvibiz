@@ -100,7 +100,7 @@ _TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
         "cta": "Action CTA for the button, e.g. 'Secure Your Spot' (max 30 chars)",
     },
     "patient-story": {
-        "section_label": "Category label above the title, e.g. 'PATIENT STORIES' or 'CLIENT WINS' (max 30 chars, ALL CAPS)",
+        "section_label": "Bold ALL CAPS label that frames the story — NEVER repeat the same label. Rotate through options like: 'REAL RESULTS', 'SHE SAID IT BEST', 'LIFE CHANGING', 'HER WORDS NOT OURS', 'THIS IS WHY WE DO IT', 'PROOF IT WORKS', 'TRANSFORMATION', 'GAME CHANGER', 'BEFORE & AFTER', 'THE TURNING POINT', 'UNFILTERED', 'FROM HER HEART', 'THE COMEBACK', 'SHE HEALED' — pick the one that best fits the testimonial's emotional arc (max 30 chars)",
         "testimonial": "Authentic client testimonial — specific, vivid, emotionally resonant. Reference a real transformation or outcome (max 380 chars)",
         "client_name": "Client identifier, e.g. 'Sarah M. — postpartum mom' or 'María G., 3 months postpartum' (max 60 chars)",
         "result": "Key measurable outcome, e.g. 'Leak-free in 6 sessions' or 'Back at the gym in 8 weeks' (max 60 chars, optional — leave empty if testimonial already states the result)",
@@ -204,6 +204,34 @@ class PostContentAgent(BaseStreamingAgent):
                 f"\n\nContent style DNA (match this voice closely):\n{content_style.strip()}"
             )
 
+        patient_story_extra = ""
+        if template_key == "patient-story":
+            patient_story_extra = """
+
+PATIENT-STORY SPECIAL RULES:
+section_label is the HEADLINE EMOTION of this specific story. Rules:
+- It must feel EARNED by the testimonial — read it first, then pick the label.
+- NEVER use 'PATIENT STORIES' or 'CLIENT WINS' — they are boring and generic.
+- The label should make someone stop scrolling. Think: what's the ONE feeling this story creates?
+  Transformation → 'THE TURNING POINT' / 'BEFORE & AFTER'
+  Surprise/shock  → 'SHE DIDN'T EXPECT THIS' / 'UNFILTERED'
+  Pride/comeback  → 'THE COMEBACK' / 'SHE HEALED' / 'SHE DID IT'
+  Validation      → 'HER WORDS NOT OURS' / 'PROOF IT WORKS'
+  Emotion         → 'THIS IS WHY WE DO IT' / 'FROM HER HEART'
+- Max 30 chars. ALL CAPS. No period.
+
+testimonial rules:
+- Write in first person as if the client is speaking.
+- Include ONE specific number, date, or measurable detail (e.g. "6 weeks", "2x", "finally").
+- Emotional arc: struggle → turning point → outcome. Don't skip the struggle.
+- NEVER use: "amazing", "wonderful", "great", "incredible", "life-changing" (show, don't tell).
+
+BANNED labels (never use):
+- PATIENT STORIES
+- CLIENT WINS
+- TESTIMONIAL
+- SUCCESS STORY"""
+
         hero_extra = ""
         if template_key == "hero-title":
             hero_extra = """
@@ -238,7 +266,7 @@ BRAND CONTEXT:
 - Audience: {target_audience}
 - Services: {services}
 - CTA: {cta}
-- Keywords: {keywords}{style_block}{hero_extra}
+- Keywords: {keywords}{style_block}{hero_extra}{patient_story_extra}
 
 OUTPUT FORMAT — CRITICAL:
 Respond with ONLY a valid JSON object. No markdown. No code fences. No explanation. Start directly with {{.
