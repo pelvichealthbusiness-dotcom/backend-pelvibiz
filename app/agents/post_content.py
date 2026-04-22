@@ -99,6 +99,15 @@ _TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
         "via": "Platform or host detail, e.g. 'Register via link in bio' (max 50 chars)",
         "cta": "Action CTA for the button, e.g. 'Secure Your Spot' (max 30 chars)",
     },
+    "wellness-workshop": {
+        "event_label": "Short uppercase event label, e.g. 'FREE WELLNESS WORKSHOP' or 'LIVE MOVEMENT CLASS' (max 40 chars, ALL CAPS)",
+        "date_time": "Date and time, e.g. 'Sunday, Jan. 11 @ 11:30 AM' (max 60 chars)",
+        "title": "Workshop title describing the physical benefit, warm and inviting, e.g. 'Release Your Low Back, Hips & IT Band' (max 70 chars)",
+        "tip_1": "First topic or benefit covered in the workshop, short and punchy (max 60 chars)",
+        "tip_2": "Second topic or benefit (max 60 chars)",
+        "tip_3": "Third topic or benefit (max 60 chars)",
+        "tip_4": "Fourth topic or benefit — optional, leave empty if not needed (max 60 chars)",
+    },
 }
 
 

@@ -37,13 +37,24 @@ class TestAgentRouting:
 # ---------------------------------------------------------------------------
 
 class TestTemplateFields:
-    def test_all_12_templates_registered(self):
+    def test_all_templates_registered(self):
         expected = {
-            "tip-card", "myth-vs-fact", "quote-card", "did-you-know",
+            "hero-title", "tip-card", "myth-vs-fact", "quote-card", "did-you-know",
             "offer-flyer", "event-banner", "testimonial-card", "before-after-teaser",
             "service-spotlight", "checklist-post", "question-hook", "stat-callout",
+            "masterclass-banner", "wellness-workshop",
         }
         assert set(_TEMPLATE_FIELDS.keys()) == expected
+
+    def test_wellness_workshop_has_required_fields(self):
+        fields = _TEMPLATE_FIELDS["wellness-workshop"]
+        assert "event_label" in fields
+        assert "date_time" in fields
+        assert "title" in fields
+        assert "tip_1" in fields
+        assert "tip_2" in fields
+        assert "tip_3" in fields
+        assert "tip_4" in fields
 
     def test_tip_card_has_headline_and_tip_body(self):
         fields = _TEMPLATE_FIELDS["tip-card"]
