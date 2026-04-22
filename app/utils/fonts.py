@@ -18,9 +18,11 @@ _FONTS_DIR = Path(__file__).parent.parent.parent / "fonts"
 
 _WEIGHT_MAP: dict[str, str] = {
     "regular": "Montserrat-Regular.ttf",
+    "semibold": "Montserrat-SemiBold.ttf",
     "bold": "Montserrat-Bold.ttf",
-    # Black ships as Bold fallback until Montserrat-Black.ttf is added to /fonts
+    "bold_italic": "Montserrat-BoldItalic.ttf",
     "black": "Montserrat-Black.ttf",
+    "script": "GreatVibes-Regular.ttf",
 }
 
 _FALLBACK: dict[str, str] = {

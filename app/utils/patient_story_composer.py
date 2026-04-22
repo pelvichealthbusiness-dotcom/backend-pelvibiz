@@ -2,18 +2,18 @@
 
 Layout (1080 × 1350 canvas):
 
-  TOP SECTION (y 0 – 490)
+  TOP SECTION (y 0 – 560)
     Brand gradient background
     ┌─────────────────────────────────────────────────────┐
-    │           SECTION LABEL (small, centered)           │  ← y=70
+    │        SECTION LABEL (tiny, centered, subtle)       │  ← y=65
     │                                                     │
-    │               "patient"  ← title line 1            │  ← y=115
-    │               "stories." ← title line 2            │  ← y=235
-    │      ○──────────────────────────────────────○       │  ← ellipse
+    │            "patient"  ← script title line 1         │  ← y=120
+    │            "stories." ← script title line 2         │  ← y=285
+    │    ○──────────────────────────────────────────○     │  ← golden ellipse
     │                                       [LOGO]        │  ← top-right
     └─────────────────────────────────────────────────────┘
 
-  CARD SECTION (y 490 – 1290)
+  CARD SECTION (y 560 – 1300)
     White rounded-rectangle card
     ┌─────────────────────────────────────────────────────┐
     │ ★★★★★                                               │
@@ -32,8 +32,10 @@ import io
 import math
 import logging
 
+import colorsys
+
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from app.utils.fonts import get_montserrat, get_montserrat_sync
 
@@ -43,40 +45,40 @@ logger = logging.getLogger(__name__)
 CANVAS_W, CANVAS_H = 1080, 1350
 
 # ── Title section ───────────────────────────────────────────────────────────────
-LABEL_Y      = 70
-LABEL_SIZE   = 22
-TITLE_1_Y    = 118
-TITLE_1_SIZE = 108
-TITLE_2_MAX  = 156
-TITLE_2_MIN  = 80
-ELLIPSE_PAD_V = 28
-ELLIPSE_PAD_H = 60
+LABEL_Y      = 65
+LABEL_SIZE   = 18
+TITLE_1_Y    = 120
+TITLE_1_SIZE = 138          # GreatVibes — script font, generous size
+TITLE_2_MAX  = 170
+TITLE_2_MIN  = 90
+ELLIPSE_PAD_V = 32
+ELLIPSE_PAD_H = 50
 
 # ── Logo (top-right) ────────────────────────────────────────────────────────────
-LOGO_MAX_H   = 88
-LOGO_MAX_W   = 200
-LOGO_MARGIN  = 42
+LOGO_MAX_H   = 80
+LOGO_MAX_W   = 180
+LOGO_MARGIN  = 38
 
 # ── Card ────────────────────────────────────────────────────────────────────────
-CARD_X       = 52
-CARD_Y       = 490
-CARD_W       = CANVAS_W - CARD_X * 2   # 976
-CARD_H       = 800
-CARD_RADIUS  = 30
-CARD_PAD_H   = 52
-CARD_PAD_V   = 44
+CARD_X       = 48
+CARD_Y       = 560
+CARD_W       = CANVAS_W - CARD_X * 2   # 984
+CARD_H       = 740
+CARD_RADIUS  = 28
+CARD_PAD_H   = 48
+CARD_PAD_V   = 40
 
 # ── Card content ────────────────────────────────────────────────────────────────
-STAR_R_OUTER = 15
+STAR_R_OUTER = 14
 STAR_R_INNER = 6
 STAR_COUNT   = 5
-STAR_GAP     = 40
+STAR_GAP     = 38
 STAR_COLOR   = (255, 190, 0)
-CLIENT_SIZE  = 28
-BODY_MAX     = 34
-BODY_MIN     = 20
+CLIENT_SIZE  = 26
+BODY_MAX     = 33
+BODY_MIN     = 19
 LINE_GAP     = 10
-RESULT_SIZE  = 28
+RESULT_SIZE  = 26
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
@@ -88,12 +90,25 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int]:
     return int(c[:2], 16), int(c[2:4], 16), int(c[4:6], 16)
 
 
-def _lighten(rgb: tuple[int, int, int], f: float) -> tuple[int, int, int]:
-    return (
-        int(rgb[0] + (255 - rgb[0]) * f),
-        int(rgb[1] + (255 - rgb[1]) * f),
-        int(rgb[2] + (255 - rgb[2]) * f),
-    )
+def _ensure_vibrant(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+    """Guarantee the brand color has enough saturation and brightness for a gradient.
+
+    Dark neutrals (grays, near-blacks) are shifted to the default teal hue so the
+    background never renders as a gray slab regardless of what the user stored.
+    """
+    r, g, b = rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+
+    if s < 0.12:        # achromatic / near-gray → use default brand teal
+        h = 0.483
+        s = 0.55
+    else:
+        s = max(s, 0.40)
+
+    v = max(v, 0.32)    # never render as near-black
+
+    r2, g2, b2 = colorsys.hsv_to_rgb(h, s, v)
+    return int(r2 * 255), int(g2 * 255), int(b2 * 255)
 
 
 def _make_gradient_bg(
@@ -101,21 +116,41 @@ def _make_gradient_bg(
     h: int,
     brand: tuple[int, int, int],
 ) -> Image.Image:
-    """Vertical gradient: light tint (top) → brand color (bottom) + radial bloom."""
-    light = _lighten(brand, 0.58)
-    arr = np.zeros((h, w, 3), dtype=np.float32)
-    mid = int(h * 0.50)
-    for c in range(3):
-        arr[:mid, :, c] = np.linspace(light[c], brand[c], mid, dtype=np.float32)[:, np.newaxis]
-        arr[mid:, :, c] = brand[c]
+    """Vertical gradient: pastel tint (top) → vibrant brand color (bottom)."""
+    brand = _ensure_vibrant(brand)
 
-    # Soft radial bloom at upper-center for depth
+    r, g, b   = brand[0] / 255.0, brand[1] / 255.0, brand[2] / 255.0
+    hue, s, v = colorsys.rgb_to_hsv(r, g, b)
+
+    def _hsv(sat: float, val: float) -> tuple[int, int, int]:
+        rc, gc, bc = colorsys.hsv_to_rgb(hue, sat, val)
+        return int(rc * 255), int(gc * 255), int(bc * 255)
+
+    light = _hsv(max(s * 0.30, 0.08), min(v + 0.45, 0.97))   # soft pastel top
+    mid   = _hsv(s * 0.70,            min(v + 0.10, 0.85))    # mid tone
+    dark  = _hsv(min(s * 1.10, 1.0),  max(v * 0.65, 0.25))    # deep bottom
+
+    arr   = np.zeros((h, w, 3), dtype=np.float32)
+    third = h // 3
+
+    for c in range(3):
+        top_c  = [light, mid, dark][0][c]
+        mid_c  = [light, mid, dark][1][c]
+        bot_c  = [light, mid, dark][2][c]
+        arr[:third, :, c]        = np.linspace(top_c, mid_c, third, dtype=np.float32)[:, np.newaxis]
+        arr[third:2*third, :, c] = np.linspace(mid_c, bot_c, third, dtype=np.float32)[:, np.newaxis]
+        arr[2*third:, :, c]      = bot_c
+
+    # Radial bloom at upper-center
     Y, X = np.mgrid[0:h, 0:w]
-    cy, cx = h * 0.22, w * 0.5
-    dist = np.sqrt(((Y - cy) / (h * 0.38)) ** 2 + ((X - cx) / (w * 0.50)) ** 2)
-    bloom = np.clip(1.0 - dist, 0.0, 1.0) ** 1.8 * 60.0
+    dist  = np.sqrt(((Y - h * 0.20) / (h * 0.35)) ** 2 + ((X - w * 0.5) / (w * 0.48)) ** 2)
+    bloom = np.clip(1.0 - dist, 0.0, 1.0) ** 1.6 * 65.0
     for c in range(3):
         arr[:, :, c] = np.clip(arr[:, :, c] + bloom, 0, 255)
+
+    # Film-grain for depth
+    rng   = np.random.default_rng(42)
+    arr   = np.clip(arr + rng.normal(0, 3.5, arr.shape).astype(np.float32), 0, 255)
 
     return Image.fromarray(arr.astype(np.uint8), "RGB")
 
@@ -159,18 +194,21 @@ def _wrap_text(
     return lines or [text]
 
 
-def _auto_fit_title2(
+def _auto_fit_script(
     draw: ImageDraw.ImageDraw,
     text: str,
     max_w: int,
+    size_max: int,
+    size_min: int,
+    step: int = 6,
 ) -> tuple:
-    for size in range(TITLE_2_MAX, TITLE_2_MIN - 1, -6):
-        f = get_montserrat_sync("black", size)
+    for size in range(size_max, size_min - 1, -step):
+        f = get_montserrat_sync("script", size)
         bb = draw.textbbox((0, 0), text, font=f)
         if bb[2] - bb[0] <= max_w:
             return f, size
-    f = get_montserrat_sync("black", TITLE_2_MIN)
-    return f, TITLE_2_MIN
+    f = get_montserrat_sync("script", size_min)
+    return f, size_min
 
 
 def _auto_fit_body(
@@ -198,56 +236,63 @@ async def compose(
     client_name: str,
     result: str,
     brand_color_primary: str,
-    brand_color_secondary: str,
+    brand_color_secondary: str,  # reserved for future accent use
 ) -> bytes:
     """Compose a patient-story card and return PNG bytes."""
 
-    font_label  = await get_montserrat("medium",   LABEL_SIZE)
-    font_title1 = await get_montserrat("black",    TITLE_1_SIZE)
-    font_client = await get_montserrat("semibold", CLIENT_SIZE)
-    font_result = await get_montserrat("semibold", RESULT_SIZE)
+    font_label  = await get_montserrat("semibold", LABEL_SIZE)
+    font_title1 = await get_montserrat("script",   TITLE_1_SIZE)
+    font_client = await get_montserrat("semibold",  CLIENT_SIZE)
+    font_result = await get_montserrat("semibold",  RESULT_SIZE)
 
     def _sync_compose() -> bytes:
         primary_rgb = _hex_to_rgb(brand_color_primary)
         white       = (255, 255, 255, 255)
-        white_dim   = (255, 255, 255, 170)
+        white_soft  = (255, 255, 255, 110)   # subtle label
         dark_text   = (28, 28, 28, 255)
+        gold        = (220, 178, 60, 200)    # golden ellipse
 
         # ── 1. Gradient background ─────────────────────────────────────────
         img  = _make_gradient_bg(CANVAS_W, CANVAS_H, primary_rgb).convert("RGBA")
         draw = ImageDraw.Draw(img)
 
-        # ── 2. Section label ───────────────────────────────────────────────
+        # ── 2. Section label (very subtle, above title) ────────────────────
         lbl = (section_label or "patient stories").upper()
         lb  = draw.textbbox((0, 0), lbl, font=font_label)
-        draw.text(((CANVAS_W - (lb[2] - lb[0])) // 2, LABEL_Y), lbl, font=font_label, fill=white_dim)
+        lbl_x = (CANVAS_W - (lb[2] - lb[0])) // 2
+        draw.text((lbl_x, LABEL_Y), lbl, font=font_label, fill=white_soft)
 
-        # ── 3. Title lines ─────────────────────────────────────────────────
+        # ── 3. Script title lines ──────────────────────────────────────────
         words    = (section_label or "patient stories").lower().split()
         title_l1 = words[0] if words else "patient"
         title_l2 = (" ".join(words[1:]) if len(words) > 1 else "stories") + "."
 
-        # Line 1
+        title_max_w = CANVAS_W - 80
+
+        # Line 1 — fixed size
         t1b = draw.textbbox((0, 0), title_l1, font=font_title1)
-        t1w, t1h = t1b[2] - t1b[0], t1b[3] - t1b[1]
+        t1w = t1b[2] - t1b[0]
+        t1h = t1b[3] - t1b[1]
         draw.text(((CANVAS_W - t1w) // 2, TITLE_1_Y), title_l1, font=font_title1, fill=white)
 
-        # Line 2 — auto-fit to canvas width
-        t2_max_w = CANVAS_W - 80
-        font_t2, _t2_size = _auto_fit_title2(draw, title_l2, t2_max_w)
+        # Line 2 — auto-fit script font
+        font_t2, _ = _auto_fit_script(draw, title_l2, title_max_w, TITLE_2_MAX, TITLE_2_MIN)
         t2b = draw.textbbox((0, 0), title_l2, font=font_t2)
-        t2w, t2h = t2b[2] - t2b[0], t2b[3] - t2b[1]
-        t2_y = TITLE_1_Y + t1h + 10
+        t2w = t2b[2] - t2b[0]
+        t2h = t2b[3] - t2b[1]
+
+        # Script fonts have large descender space — use visual top offset
+        t2_y = TITLE_1_Y + t1h - 12    # slight overlap looks good with script
         draw.text(((CANVAS_W - t2w) // 2, t2_y), title_l2, font=font_t2, fill=white)
 
         title_bottom = t2_y + t2h
 
-        # ── 4. Ellipse decoration around title ─────────────────────────────
+        # ── 4. Golden ellipse around title ─────────────────────────────────
         el_x1 = ELLIPSE_PAD_H
         el_x2 = CANVAS_W - ELLIPSE_PAD_H
         el_y1 = TITLE_1_Y - ELLIPSE_PAD_V
         el_y2 = title_bottom + ELLIPSE_PAD_V
-        draw.ellipse([(el_x1, el_y1), (el_x2, el_y2)], outline=(255, 255, 255, 140), width=2)
+        draw.ellipse([(el_x1, el_y1), (el_x2, el_y2)], outline=gold, width=2)
 
         # ── 5. Logo (top-right) ───────────────────────────────────────────
         if logo_bytes is not None:
@@ -263,13 +308,18 @@ async def compose(
                 logger.warning("Could not paste logo: %s", exc)
 
         # ── 6. Card shadow ─────────────────────────────────────────────────
-        shadow_off = 8
-        draw.rounded_rectangle(
+        shadow_off = 10
+        shadow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        shadow_draw  = ImageDraw.Draw(shadow_layer)
+        shadow_draw.rounded_rectangle(
             [(CARD_X + shadow_off, CARD_Y + shadow_off),
              (CARD_X + CARD_W + shadow_off, CARD_Y + CARD_H + shadow_off)],
             radius=CARD_RADIUS,
-            fill=(0, 0, 0, 35),
+            fill=(0, 0, 0, 45),
         )
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=8))
+        img = Image.alpha_composite(img, shadow_layer)
+        draw = ImageDraw.Draw(img)
 
         # ── 7. Card body ──────────────────────────────────────────────────
         draw.rounded_rectangle(
@@ -302,7 +352,7 @@ async def compose(
         sep_y = client_y + 4
         draw.line(
             [(CARD_X + CARD_PAD_H, sep_y), (CARD_X + CARD_W - CARD_PAD_H, sep_y)],
-            fill=(*primary_rgb, 55),
+            fill=(*primary_rgb, 50),
             width=1,
         )
 
@@ -311,7 +361,7 @@ async def compose(
         body_y   = sep_y + 22
         body_w   = CARD_W - CARD_PAD_H * 2
         res_reserve = RESULT_SIZE + 36 if (result and result.strip()) else 0
-        body_max_h = (CARD_Y + CARD_H - CARD_PAD_V) - body_y - res_reserve
+        body_max_h = int((CARD_Y + CARD_H - CARD_PAD_V) - body_y - res_reserve)
 
         font_body, body_lines = _auto_fit_body(draw, testimonial or "", body_w, body_max_h)
         ty = body_y
