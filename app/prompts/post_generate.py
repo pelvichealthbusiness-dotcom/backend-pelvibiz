@@ -533,15 +533,19 @@ def build_wellness_workshop_background_prompt(
     slot_scenes = {
         1: (
             f"A wellness scene that visually represents '{tip_1 or title}'. "
-            f"Setting: {env}. Warm, inviting, photorealistic close-up."
+            f"Setting: {env}. Warm, inviting, photorealistic close-up. "
+            f"No people or faces."
         ),
         2: (
             f"A health/movement scene embodying '{tip_2 or title}'. "
-            f"Setting: {env}. {subject}. Medium shot, natural light."
+            f"Setting: {env}. Medium shot, natural light. "
+            f"No people or faces — focus on the space, props, and mood."
         ),
         3: (
-            f"A serene wellness environment representing '{tip_3 or title}'. "
-            f"Props: yoga mat, foam roller, or stretching equipment. {identity} aesthetic."
+            f"A serene, people-free ambient environment representing '{tip_3 or title}'. "
+            f"Interior wellness space: cozy studio, calm office, or bright consultation room. "
+            f"Props: notebook, plants, soft furnishings, warm lighting. "
+            f"{identity} aesthetic. NO people, NO faces, NO silhouettes — pure environment only."
         ),
     }
     scene = slot_scenes.get(slot, slot_scenes[1])

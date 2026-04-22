@@ -301,13 +301,15 @@ async def compose(
             draw.text((box_x + BOX_PAD_H, ty), line, font=font_date, fill=(30, 30, 30, 255))
             ty += draw.textbbox((0,0), line, font=font_date)[3] - draw.textbbox((0,0), line, font=font_date)[1] + 4
 
-        # ── 3b. Subtle content-area background (bg1 at low opacity) ─────────────
-        if bg1_bytes is not None:
+        # ── 3b. Subtle content-area background (bg3 at low opacity, no people) ──
+        # Use bg3 (the most ambient/environmental panel) as the subtle overlay.
+        _bg_overlay = bg3_bytes or bg2_bytes
+        if _bg_overlay is not None:
             try:
-                bg_content = Image.open(io.BytesIO(bg1_bytes)).convert("RGBA")
+                bg_content = Image.open(io.BytesIO(_bg_overlay)).convert("RGBA")
                 bg_content = bg_content.resize((CANVAS_W, CONTENT_H), Image.Resampling.LANCZOS)
                 r_ch, g_ch, b_ch, a_ch = bg_content.split()
-                a_ch = a_ch.point([int(i * 0.15) for i in range(256)])
+                a_ch = a_ch.point([int(i * 0.13) for i in range(256)])
                 bg_content = Image.merge("RGBA", (r_ch, g_ch, b_ch, a_ch))
                 img.paste(bg_content, (0, COLLAGE_H), bg_content)
                 draw = ImageDraw.Draw(img)
@@ -343,7 +345,7 @@ async def compose(
                 person_img = person_img.crop((0, 0, pw, crop_h))
 
                 paste_x = PERSON_X + (PERSON_MAX_W - pw) // 2
-                paste_y = CANVAS_H - crop_h - 15
+                paste_y = CANVAS_H - crop_h + 50  # pushed down — bottom clips naturally
                 img.paste(person_img, (paste_x, paste_y), person_img)
                 draw = ImageDraw.Draw(img)
             except Exception as exc:
