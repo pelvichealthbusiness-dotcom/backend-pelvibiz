@@ -47,11 +47,11 @@ CONTENT_H = CANVAS_H - CONTENT_Y   # 910
 
 # ── Text column ────────────────────────────────────────────────────────────────
 TEXT_X     = 48
-TEXT_MAX_W = 580
+TEXT_MAX_W = 490   # stays within left column before person zone
 
 # ── Person image ───────────────────────────────────────────────────────────────
-PERSON_X     = 600   # left edge of person zone
-PERSON_MAX_W = CANVAS_W - PERSON_X   # 480
+PERSON_X     = 560   # left edge of person zone
+PERSON_MAX_W = CANVAS_W - PERSON_X   # 520
 
 # ── Logo row (bottom of content area) ──────────────────────────────────────────
 LOGO_Y_FROM_BOTTOM = 50
@@ -70,7 +70,7 @@ DOT_R       = 13   # radius of bullet dot
 
 # ── White event box (overlaps collage bottom) ───────────────────────────────────
 BOX_X       = 48
-BOX_OVERLAP = 150  # how many px the box overlaps into the collage from below
+BOX_OVERLAP = 175  # how many px the box overlaps into the collage from below
 BOX_PAD_H   = 28   # horizontal padding inside box
 BOX_PAD_V   = 20   # vertical padding inside box
 BOX_RADIUS  = 20
@@ -322,19 +322,24 @@ async def compose(
                 if bbox:
                     person_img = person_img.crop(bbox)
 
-                # Scale to full content height so cropping top 57% gives a
-                # large, natural-looking half-body portrait.
-                target_h = CONTENT_H
-                scale = target_h / person_img.height
+                # Use the LARGER of the two scales so the person fills either
+                # full zone width OR full content height — whichever is bigger.
+                # This makes the person as large as possible within the zone.
+                scale_h = CONTENT_H / person_img.height
+                scale_w = PERSON_MAX_W / person_img.width
+                scale = max(scale_h, scale_w)
                 pw = int(person_img.width * scale)
-                ph = target_h
-                if pw > PERSON_MAX_W:
-                    pw = PERSON_MAX_W
-                    ph = int(person_img.height * (pw / person_img.width))
+                ph = int(person_img.height * scale)
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
-                # Crop to upper 57% — head + torso + some waist (half-body look)
-                crop_h = int(ph * 0.57)
+                # Center-crop horizontally if wider than zone
+                if pw > PERSON_MAX_W:
+                    left = (pw - PERSON_MAX_W) // 2
+                    person_img = person_img.crop((left, 0, left + PERSON_MAX_W, ph))
+                    pw = PERSON_MAX_W
+
+                # Keep only top 52% — head + chest + waist (half-body)
+                crop_h = int(ph * 0.52)
                 person_img = person_img.crop((0, 0, pw, crop_h))
 
                 paste_x = PERSON_X + (PERSON_MAX_W - pw) // 2
@@ -345,9 +350,10 @@ async def compose(
                 logger.warning("Could not paste person image: %s", exc)
 
         # ── 5. Title (large display, starts below the white box) ──────────────
-        y = box_y + box_h + 32
+        # Safeguard: never let the title start inside the collage photo area
+        y = max(box_y + box_h + 32, COLLAGE_H + 20)
         if title:
-            title_max_w = CANVAS_W - TEXT_X * 2
+            title_max_w = TEXT_MAX_W
             font_title, title_lines = _auto_fit_title(draw, title, title_max_w)
             for line in title_lines:
                 bb = draw.textbbox((0, 0), line, font=font_title)
