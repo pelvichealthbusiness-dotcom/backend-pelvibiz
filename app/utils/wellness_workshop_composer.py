@@ -226,6 +226,7 @@ async def compose(
     bg1_bytes: bytes | None,
     bg2_bytes: bytes | None,
     bg3_bytes: bytes | None,
+    content_bg_bytes: bytes | None,
     person_bytes: bytes | None,
     logo_bytes: bytes | None,
     second_logo_bytes: bytes | None,
@@ -301,9 +302,8 @@ async def compose(
             draw.text((box_x + BOX_PAD_H, ty), line, font=font_date, fill=(30, 30, 30, 255))
             ty += draw.textbbox((0,0), line, font=font_date)[3] - draw.textbbox((0,0), line, font=font_date)[1] + 4
 
-        # ── 3b. Subtle content-area background (bg3 at low opacity, no people) ──
-        # Use bg3 (the most ambient/environmental panel) as the subtle overlay.
-        _bg_overlay = bg3_bytes or bg2_bytes
+        # ── 3b. Subtle content-area background (dedicated ambient, no people) ───
+        _bg_overlay = content_bg_bytes
         if _bg_overlay is not None:
             try:
                 bg_content = Image.open(io.BytesIO(_bg_overlay)).convert("RGBA")

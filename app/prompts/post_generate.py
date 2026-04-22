@@ -533,19 +533,15 @@ def build_wellness_workshop_background_prompt(
     slot_scenes = {
         1: (
             f"A wellness scene that visually represents '{tip_1 or title}'. "
-            f"Setting: {env}. Warm, inviting, photorealistic close-up. "
-            f"No people or faces."
+            f"Setting: {env}. Warm, inviting, photorealistic close-up."
         ),
         2: (
             f"A health/movement scene embodying '{tip_2 or title}'. "
-            f"Setting: {env}. Medium shot, natural light. "
-            f"No people or faces — focus on the space, props, and mood."
+            f"Setting: {env}. {subject}. Medium shot, natural light."
         ),
         3: (
-            f"A serene, people-free ambient environment representing '{tip_3 or title}'. "
-            f"Interior wellness space: cozy studio, calm office, or bright consultation room. "
-            f"Props: notebook, plants, soft furnishings, warm lighting. "
-            f"{identity} aesthetic. NO people, NO faces, NO silhouettes — pure environment only."
+            f"A serene wellness environment representing '{tip_3 or title}'. "
+            f"Props: yoga mat, foam roller, or stretching equipment. {identity} aesthetic."
         ),
     }
     scene = slot_scenes.get(slot, slot_scenes[1])
@@ -558,6 +554,30 @@ def build_wellness_workshop_background_prompt(
         f"Brand accent color {color} present subtly. "
         f"Square composition (1:1 ratio), center subject. "
         f"NO text, NO logos, NO watermarks in the image."
+    )
+
+
+def build_wellness_workshop_content_bg_prompt(text_fields: dict[str, str], brand: dict) -> str:
+    """Ambient background for the content area of a wellness-workshop post.
+
+    This is a SEPARATE image from the 3 collage panels.
+    Must be a people-free interior scene — used at low opacity behind text.
+    """
+    title = text_fields.get("title", "wellness workshop")
+    env = brand.get("visual_environment_setup") or "bright modern wellness or business studio"
+    identity = brand.get("visual_identity") or "clean, modern, health-focused"
+    color = brand.get("brand_color_primary") or "#1A9E8F"
+
+    return (
+        f"High quality photorealistic interior photograph for a wellness/business event flyer background. "
+        f"Topic: {title}. "
+        f"Scene: a cozy, well-lit interior space — warm office, elegant studio, or soft consultation room "
+        f"with plants, books, warm lighting, and tasteful furnishings. "
+        f"Visual style: {identity}, {env}. "
+        f"Brand accent color {color} present subtly in props or decor. "
+        f"ABSOLUTELY NO people, NO faces, NO silhouettes, NO hands — pure environment and atmosphere only. "
+        f"Wide horizontal composition that fills a 1080x910 canvas. "
+        f"Cinematic, editorial quality. Slightly blurred to feel like a backdrop."
     )
 
 

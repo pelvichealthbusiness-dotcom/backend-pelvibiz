@@ -315,13 +315,16 @@ class PostGeneratorService:
     ) -> tuple[str, str]:
         """Wellness-workshop: 3-image top collage + tips checklist + person + dual logo."""
         from app.utils.wellness_workshop_composer import compose as compose_wellness
-        from app.prompts.post_generate import build_wellness_workshop_background_prompt
+        from app.prompts.post_generate import (
+            build_wellness_workshop_background_prompt,
+            build_wellness_workshop_content_bg_prompt,
+        )
 
         tf = request.text_fields
         brand_color = brand.get("brand_color_primary") or "#1A9E8F"
         brand_color_sec = brand.get("brand_color_secondary") or "#FFFFFF"
 
-        # ── Background images (collage panels 1–3) ────────────────────────────
+        # ── Collage panels 1–3 (can have people — lifestyle photos) ──────────
         async def _fetch_or_generate(url: str | None, slot: int) -> bytes | None:
             if url:
                 try:
@@ -339,10 +342,21 @@ class PostGeneratorService:
                 logger.warning("Background generation failed for panel %d: %s", slot, exc)
                 return None
 
-        bg1, bg2, bg3 = await asyncio.gather(
+        # ── Content-area background (people-free ambient scene) ───────────────
+        async def _generate_content_bg() -> bytes | None:
+            try:
+                prompt = build_wellness_workshop_content_bg_prompt(tf, brand)
+                b64 = await self._image_gen.generate_from_prompt(prompt)
+                return base64.b64decode(b64)
+            except Exception as exc:
+                logger.warning("Content background generation failed: %s", exc)
+                return None
+
+        bg1, bg2, bg3, content_bg = await asyncio.gather(
             _fetch_or_generate(request.reference_image_url, 1),
             _fetch_or_generate(request.bg_image_2_url, 2),
             _fetch_or_generate(request.bg_image_3_url, 3),
+            _generate_content_bg(),
         )
 
         # ── Person image ──────────────────────────────────────────────────────
@@ -402,6 +416,7 @@ class PostGeneratorService:
             bg1_bytes=bg1,
             bg2_bytes=bg2,
             bg3_bytes=bg3,
+            content_bg_bytes=content_bg,
             person_bytes=person_bytes,
             logo_bytes=logo_bytes,
             second_logo_bytes=second_logo_bytes,
