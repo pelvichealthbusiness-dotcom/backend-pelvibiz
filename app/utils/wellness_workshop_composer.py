@@ -60,12 +60,20 @@ LOGO_MAX_W = 220
 LOGO_GAP   = 40
 
 # ── Font sizes ─────────────────────────────────────────────────────────────────
-LABEL_SIZE  = 22
-BADGE_SIZE  = 32
-TITLE_MAX   = 88
-TITLE_MIN   = 44
-TIP_SIZE    = 34
-DOT_R       = 10   # radius of bullet dot
+LABEL_SIZE  = 28   # event label inside white box
+DATE_SIZE   = 30   # date inside white box
+TITLE_MAX   = 112  # large display title
+TITLE_MIN   = 52
+TIP_SIZE    = 36
+DOT_R       = 11   # radius of bullet dot
+
+# ── White event box (overlaps collage bottom) ───────────────────────────────────
+BOX_X       = 48
+BOX_OVERLAP = 70   # how many px the box overlaps into the collage from below
+BOX_PAD_H   = 28   # horizontal padding inside box
+BOX_PAD_V   = 20   # vertical padding inside box
+BOX_RADIUS  = 20
+BOX_MAX_W   = 580
 
 
 # ── Color helpers ──────────────────────────────────────────────────────────────
@@ -232,15 +240,14 @@ async def compose(
 ) -> bytes:
     """Compose wellness-workshop flyer and return PNG bytes."""
 
-    font_label  = await get_montserrat("bold", LABEL_SIZE)
-    font_badge  = await get_montserrat("bold", BADGE_SIZE)
-    font_tip    = await get_montserrat("regular", TIP_SIZE)
+    font_label = await get_montserrat("bold", LABEL_SIZE)
+    font_date  = await get_montserrat("bold", DATE_SIZE)
+    font_tip   = await get_montserrat("regular", TIP_SIZE)
 
     def _sync_compose() -> bytes:
         primary_rgb = _hex_to_rgb(brand_color_primary)
         accent_rgb  = _ensure_visible_on_dark(brand_color_primary)
         dark_bg     = _darken(primary_rgb, 0.78)
-        strip_color = primary_rgb
 
         # ── 1. Base canvas (dark background) ─────────────────────────────────
         img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*dark_bg, 255))
@@ -253,9 +260,43 @@ async def compose(
         _paste_collage_panel(img_rgb, bg3_bytes, (PANEL_W + COLLAGE_GAP) * 2, light_fallback)
         img = img_rgb.convert("RGBA")
 
-        # ── 3. Thin brand-color separator strip below collage ─────────────────
-        strip = Image.new("RGBA", (CANVAS_W, 6), (*strip_color, 255))
-        img.paste(strip, (0, COLLAGE_H))
+        draw = ImageDraw.Draw(img)
+
+        # ── 3. White event box (overlaps collage bottom) ──────────────────────
+        # Measure content to compute box height dynamically
+        label_lines = _wrap_text(draw, event_label.upper(), font_label, BOX_MAX_W - BOX_PAD_H * 2) if event_label else []
+        date_lines  = _wrap_text(draw, date_time, font_date, BOX_MAX_W - BOX_PAD_H * 2) if date_time else []
+
+        def _line_h(font, lines):
+            return sum(draw.textbbox((0,0), l, font=font)[3] - draw.textbbox((0,0), l, font=font)[1] + 4 for l in lines)
+
+        label_block_h = _line_h(font_label, label_lines)
+        date_block_h  = _line_h(font_date,  date_lines)
+        inner_gap     = 10 if (label_lines and date_lines) else 0
+        box_h = BOX_PAD_V * 2 + label_block_h + inner_gap + date_block_h
+        box_h = max(box_h, 100)
+
+        box_y = COLLAGE_H - BOX_OVERLAP
+        box_x = BOX_X
+
+        draw.rounded_rectangle(
+            [(box_x, box_y), (box_x + BOX_MAX_W, box_y + box_h)],
+            radius=BOX_RADIUS,
+            fill=(255, 255, 255, 248),
+        )
+
+        # event_label — brand accent color inside box
+        ty = box_y + BOX_PAD_V
+        for line in label_lines:
+            draw.text((box_x + BOX_PAD_H, ty), line, font=font_label, fill=(*accent_rgb, 255))
+            ty += draw.textbbox((0,0), line, font=font_label)[3] - draw.textbbox((0,0), line, font=font_label)[1] + 4
+
+        ty += inner_gap
+
+        # date_time — dark text inside box
+        for line in date_lines:
+            draw.text((box_x + BOX_PAD_H, ty), line, font=font_date, fill=(30, 30, 30, 255))
+            ty += draw.textbbox((0,0), line, font=font_date)[3] - draw.textbbox((0,0), line, font=font_date)[1] + 4
 
         # ── 4. Person image (right zone, bottom-anchored) ─────────────────────
         if person_bytes is not None:
@@ -265,7 +306,6 @@ async def compose(
                 if bbox:
                     person_img = person_img.crop(bbox)
 
-                # Scale to fill from COLLAGE_H to CANVAS_H
                 target_h = CONTENT_H
                 scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
@@ -275,45 +315,27 @@ async def compose(
                     ph = int(person_img.height * (pw / person_img.width))
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
-                # Bottom-anchor: feet at CANVAS_H - 20
                 paste_x = PERSON_X + (PERSON_MAX_W - pw) // 2
                 paste_y = CANVAS_H - ph - 10
                 img.paste(person_img, (paste_x, paste_y), person_img)
+                draw = ImageDraw.Draw(img)  # refresh after paste
             except Exception as exc:
                 logger.warning("Could not paste person image: %s", exc)
 
-        draw = ImageDraw.Draw(img)
-        y = CONTENT_Y + 36
-
-        # ── 5. event_label ────────────────────────────────────────────────────
-        if event_label:
-            y = _draw_wrapped(
-                draw, event_label.upper(), font_label,
-                TEXT_X, y, (*accent_rgb, 220), TEXT_MAX_W, line_gap=4,
-            )
-            y += 16
-
-        # ── 6. date badge ─────────────────────────────────────────────────────
-        if date_time:
-            y = _draw_date_badge(
-                draw, date_time, font_badge,
-                TEXT_X, y, accent_rgb, (255, 255, 255, 245), TEXT_MAX_W,
-            )
-            y += 12
-
-        # ── 7. Title ──────────────────────────────────────────────────────────
+        # ── 5. Title (large display, starts below the white box) ──────────────
+        y = box_y + box_h + 32
         if title:
-            font_title, title_lines = _auto_fit_title(draw, title, TEXT_MAX_W - 20)
+            title_max_w = CANVAS_W - TEXT_X * 2  # full width minus margins
+            font_title, title_lines = _auto_fit_title(draw, title, title_max_w)
             for line in title_lines:
                 bb = draw.textbbox((0, 0), line, font=font_title)
                 draw.text((TEXT_X, y), line, font=font_title, fill=(255, 255, 255, 255))
-                y += int(bb[3] - bb[1]) + 10
-            y += 28
+                y += int(bb[3] - bb[1]) + 8
+            y += 24
 
-        # ── 8. Checklist tips ─────────────────────────────────────────────────
+        # ── 6. Checklist tips ─────────────────────────────────────────────────
         tips = [t for t in [tip_1, tip_2, tip_3, tip_4] if t.strip()]
         for tip in tips:
-            # Bullet dot
             dot_cx = TEXT_X + DOT_R
             dot_cy = y + TIP_SIZE // 2 + 4
             draw.ellipse(
@@ -322,10 +344,10 @@ async def compose(
             )
             tip_x = TEXT_X + DOT_R * 2 + 14
             tip_max_w = TEXT_MAX_W - (tip_x - TEXT_X)
-            y = _draw_wrapped(draw, tip, font_tip, tip_x, y, (255, 255, 255, 230), tip_max_w, line_gap=4)
-            y += 14
+            y = _draw_wrapped(draw, tip, font_tip, tip_x, int(y), (255, 255, 255, 220), tip_max_w, line_gap=4)
+            y += 16
 
-        # ── 9. Logos (bottom of content area) ────────────────────────────────
+        # ── 7. Logos (bottom left) ────────────────────────────────────────────
         logo_y = CANVAS_H - LOGO_Y_FROM_BOTTOM - LOGO_MAX_H
         logo_cursor_x = TEXT_X
         first_logo_placed = False
@@ -339,12 +361,12 @@ async def compose(
                 lw = int(logo_img.width * scale)
                 lh = int(logo_img.height * scale)
                 logo_img = logo_img.resize((lw, lh), Image.Resampling.LANCZOS)
-                # Vertical separator between the two logos
                 if first_logo_placed:
-                    sep_x = logo_cursor_x + LOGO_GAP // 2 - 1
-                    sep_top = logo_y + 8
-                    sep_bot = logo_y + LOGO_MAX_H - 8
-                    draw.line([(sep_x, sep_top), (sep_x, sep_bot)], fill=(*accent_rgb, 80), width=2)
+                    sep_x = logo_cursor_x + LOGO_GAP // 2
+                    draw.line(
+                        [(sep_x, logo_y + 10), (sep_x, logo_y + LOGO_MAX_H - 10)],
+                        fill=(*accent_rgb, 70), width=2,
+                    )
                     logo_cursor_x += LOGO_GAP
                 paste_y = logo_y + (LOGO_MAX_H - lh) // 2
                 img.paste(logo_img, (logo_cursor_x, paste_y), logo_img)
