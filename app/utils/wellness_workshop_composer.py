@@ -47,26 +47,26 @@ CONTENT_H = CANVAS_H - CONTENT_Y   # 910
 
 # ── Text column ────────────────────────────────────────────────────────────────
 TEXT_X     = 48
-TEXT_MAX_W = 490   # stays within left column before person zone
+TEXT_MAX_W = 468   # stays within left column before person zone
 
 # ── Person image ───────────────────────────────────────────────────────────────
-PERSON_X     = 560   # left edge of person zone
-PERSON_MAX_W = CANVAS_W - PERSON_X   # 520
+PERSON_X     = 530   # left edge of person zone
+PERSON_MAX_W = CANVAS_W - PERSON_X   # 550
 
 # ── Logo row (bottom of content area) ──────────────────────────────────────────
-LOGO_Y_FROM_BOTTOM = 50
-LOGO_MAX_H = 160
-LOGO_MAX_W = 340
-LOGO_GAP   = 52
+LOGO_Y_FROM_BOTTOM = 18
+LOGO_MAX_H = 110
+LOGO_MAX_W = 220
+LOGO_GAP   = 44
 
 # ── Font sizes ─────────────────────────────────────────────────────────────────
 LABEL_SIZE  = 28   # event label inside white box
 DATE_SIZE   = 30   # date inside white box
 TITLE_MAX   = 82   # display title — large but leaves room for person
 TITLE_MIN   = 38
-TIP_SIZE    = 42
-VENUE_SIZE  = 28   # venue / platform line below tips
-DOT_R       = 13   # radius of bullet dot
+TIP_SIZE    = 36
+VENUE_SIZE  = 26   # venue / platform line below tips
+DOT_R       = 10   # radius of bullet dot
 
 # ── White event box (overlaps collage bottom) ───────────────────────────────────
 BOX_X       = 48
@@ -324,12 +324,11 @@ async def compose(
                 if bbox:
                     person_img = person_img.crop(bbox)
 
-                # Use the LARGER of the two scales so the person fills either
-                # full zone width OR full content height — whichever is bigger.
-                # This makes the person as large as possible within the zone.
+                # Scale to fill the zone width OR full content height, then
+                # add a 1.15× boost so the person appears prominently large.
                 scale_h = CONTENT_H / person_img.height
                 scale_w = PERSON_MAX_W / person_img.width
-                scale = max(scale_h, scale_w)
+                scale = max(scale_h, scale_w) * 1.15
                 pw = int(person_img.width * scale)
                 ph = int(person_img.height * scale)
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
@@ -340,8 +339,8 @@ async def compose(
                     person_img = person_img.crop((left, 0, left + PERSON_MAX_W, ph))
                     pw = PERSON_MAX_W
 
-                # Keep only top 52% — head + chest + waist (half-body)
-                crop_h = int(ph * 0.52)
+                # Keep top 60% — head + chest + waist (generous half-body)
+                crop_h = int(ph * 0.60)
                 person_img = person_img.crop((0, 0, pw, crop_h))
 
                 paste_x = PERSON_X + (PERSON_MAX_W - pw) // 2
