@@ -203,13 +203,35 @@ def _build_photo_prompt(
     composition = random.choice(_COMPOSITION_VARIATIONS)
     lighting = random.choice(_LIGHTING_VARIATIONS)
 
+    headline = text_fields.get("headline", topic)
+    tip_body = text_fields.get("tip_body", "")
+    after_state = text_fields.get("after_state", "")
+    question = text_fields.get("question", topic)
+    result = text_fields.get("result", "")
+    fact = text_fields.get("fact", "")
+
     scene_direction = {
-        "tip-card": f"A calm, focused health/wellness scene evoking the concept: '{topic}'.",
-        "did-you-know": f"A striking health awareness scene that visually represents: '{topic}'.",
-        "before-after-teaser": f"A transformation story — show the 'after' state: someone confident and empowered in a health context related to: '{topic}'.",
-        "question-hook": f"An intimate, relatable moment of a person reflecting on their health. Context: '{topic}'.",
-        "testimonial-card": f"A warm, authentic portrait of a satisfied client in a wellness setting. Topic: '{topic}'.",
-    }.get(template_key, f"Professional wellness/health scene related to: '{topic}'.")
+        "tip-card": (
+            f"A health/wellness scene that visually embodies this idea: '{headline}'. "
+            + (f"The mood should reflect: {tip_body}" if tip_body else "")
+        ),
+        "did-you-know": (
+            f"A striking visual that makes someone stop scrolling — representing the concept: '{headline}'. "
+            + (f"The scene should evoke: {fact}" if fact else "")
+        ),
+        "before-after-teaser": (
+            f"A transformation moment — someone confident and empowered, representing this outcome: '{after_state or topic}'. "
+            f"The 'after' energy: freedom, strength, vitality."
+        ),
+        "question-hook": (
+            f"An intimate, reflective moment that makes the viewer think: '{question}'. "
+            f"Personal, relatable, emotionally honest."
+        ),
+        "testimonial-card": (
+            f"A warm, authentic portrait of a satisfied wellness client. "
+            + (f"Their story: '{result}'" if result else f"Topic context: {topic}")
+        ),
+    }.get(template_key, f"Professional wellness/health scene that visually represents: '{topic}'.")
 
     return f"""NO FOOTER WATERMARK: Do NOT reserve space for a logo footer or watermark.
 
@@ -504,12 +526,25 @@ def build_wellness_workshop_background_prompt(
     identity = brand.get("visual_identity") or "clean, modern, health-focused"
     color = brand.get("brand_color_primary") or "#1A9E8F"
 
-    scene_options = [
-        f"A close-up of hands guiding a yoga or stretching pose in {env}.",
-        f"A person demonstrating a gentle stretch or exercise for back and hip relief in {env}. {subject}.",
-        f"Serene wellness environment — foam roller, yoga mat, or fitness props with natural light. {identity} aesthetic.",
-    ]
-    scene = scene_options[(slot - 1) % len(scene_options)]
+    tip_1 = text_fields.get("tip_1", "")
+    tip_2 = text_fields.get("tip_2", "")
+    tip_3 = text_fields.get("tip_3", "")
+
+    slot_scenes = {
+        1: (
+            f"A wellness scene that visually represents '{tip_1 or title}'. "
+            f"Setting: {env}. Warm, inviting, photorealistic close-up."
+        ),
+        2: (
+            f"A health/movement scene embodying '{tip_2 or title}'. "
+            f"Setting: {env}. {subject}. Medium shot, natural light."
+        ),
+        3: (
+            f"A serene wellness environment representing '{tip_3 or title}'. "
+            f"Props: yoga mat, foam roller, or stretching equipment. {identity} aesthetic."
+        ),
+    }
+    scene = slot_scenes.get(slot, slot_scenes[1])
 
     return (
         f"High quality photorealistic image for a wellness workshop promotional flyer. "

@@ -245,10 +245,15 @@ The JSON must have this exact shape:
 }}
 
 COPY RULES:
-1. Text fields: match the character limits in the spec. Be punchy and specific.
-2. Caption: open with a hook that differs from the headline, add 2-3 sentences of value, end with the CTA, then 5 niche hashtags on the last line.
-3. Voice: {brand_voice}. Never use generic wellness platitudes.
-4. All copy must feel authentic for {brand_name}.
+1. Text fields: match the character limits in the spec. Be punchy and specific to the topic.
+2. Caption — CRITICAL: Write AFTER you have mentally finalized the text_fields. The caption must:
+   - Open with a scroll-stopping hook that DIRECTLY references the main idea from text_fields (not a generic line).
+   - Add 2-3 sentences that EXPAND on the specific content in text_fields — give the "why it matters" behind the headline/tip/myth/stat/etc.
+   - End with the brand CTA: {cta}
+   - Last line: exactly 5 niche hashtags relevant to the topic and brand.
+   - NEVER repeat the exact wording of a text_field — add context, not duplication.
+3. Voice: {brand_voice}. No generic wellness platitudes.
+4. All copy — text_fields AND caption — must feel like one coherent piece about the same topic.
 5. Write in the same language as the topic below."""
 
         user_message = f"Topic: {topic}\nTemplate: {template_key}"
