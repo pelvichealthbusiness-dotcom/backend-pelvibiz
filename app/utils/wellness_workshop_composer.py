@@ -54,10 +54,10 @@ PERSON_X     = 600   # left edge of person zone
 PERSON_MAX_W = CANVAS_W - PERSON_X   # 480
 
 # ── Logo row (bottom of content area) ──────────────────────────────────────────
-LOGO_Y_FROM_BOTTOM = 70
-LOGO_MAX_H = 64
-LOGO_MAX_W = 160
-LOGO_GAP   = 24
+LOGO_Y_FROM_BOTTOM = 60
+LOGO_MAX_H = 100
+LOGO_MAX_W = 220
+LOGO_GAP   = 40
 
 # ── Font sizes ─────────────────────────────────────────────────────────────────
 LABEL_SIZE  = 22
@@ -328,9 +328,9 @@ async def compose(
         # ── 9. Logos (bottom of content area) ────────────────────────────────
         logo_y = CANVAS_H - LOGO_Y_FROM_BOTTOM - LOGO_MAX_H
         logo_cursor_x = TEXT_X
+        first_logo_placed = False
 
-        for logo_data in [(logo_bytes, "primary logo"), (second_logo_bytes, "second logo")]:
-            lbytes, lname = logo_data
+        for lbytes, lname in [(logo_bytes, "primary logo"), (second_logo_bytes, "second logo")]:
             if lbytes is None:
                 continue
             try:
@@ -339,9 +339,17 @@ async def compose(
                 lw = int(logo_img.width * scale)
                 lh = int(logo_img.height * scale)
                 logo_img = logo_img.resize((lw, lh), Image.Resampling.LANCZOS)
+                # Vertical separator between the two logos
+                if first_logo_placed:
+                    sep_x = logo_cursor_x + LOGO_GAP // 2 - 1
+                    sep_top = logo_y + 8
+                    sep_bot = logo_y + LOGO_MAX_H - 8
+                    draw.line([(sep_x, sep_top), (sep_x, sep_bot)], fill=(*accent_rgb, 80), width=2)
+                    logo_cursor_x += LOGO_GAP
                 paste_y = logo_y + (LOGO_MAX_H - lh) // 2
                 img.paste(logo_img, (logo_cursor_x, paste_y), logo_img)
-                logo_cursor_x += lw + LOGO_GAP
+                logo_cursor_x += lw
+                first_logo_placed = True
             except Exception as exc:
                 logger.warning("Could not paste %s: %s", lname, exc)
 
