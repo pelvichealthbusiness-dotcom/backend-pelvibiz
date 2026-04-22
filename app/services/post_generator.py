@@ -412,6 +412,7 @@ class PostGeneratorService:
             tip_2=tf.get("tip_2", ""),
             tip_3=tf.get("tip_3", ""),
             tip_4=tf.get("tip_4", ""),
+            venue=tf.get("venue", ""),
             brand_color_primary=brand_color,
             brand_color_secondary=brand_color_sec,
         )

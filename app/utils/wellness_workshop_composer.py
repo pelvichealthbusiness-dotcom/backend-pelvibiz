@@ -54,22 +54,23 @@ PERSON_X     = 600   # left edge of person zone
 PERSON_MAX_W = CANVAS_W - PERSON_X   # 480
 
 # ── Logo row (bottom of content area) ──────────────────────────────────────────
-LOGO_Y_FROM_BOTTOM = 60
-LOGO_MAX_H = 130
-LOGO_MAX_W = 280
-LOGO_GAP   = 48
+LOGO_Y_FROM_BOTTOM = 50
+LOGO_MAX_H = 160
+LOGO_MAX_W = 340
+LOGO_GAP   = 52
 
 # ── Font sizes ─────────────────────────────────────────────────────────────────
 LABEL_SIZE  = 28   # event label inside white box
 DATE_SIZE   = 30   # date inside white box
 TITLE_MAX   = 82   # display title — large but leaves room for person
 TITLE_MIN   = 38
-TIP_SIZE    = 34
-DOT_R       = 10   # radius of bullet dot
+TIP_SIZE    = 42
+VENUE_SIZE  = 28   # venue / platform line below tips
+DOT_R       = 13   # radius of bullet dot
 
 # ── White event box (overlaps collage bottom) ───────────────────────────────────
 BOX_X       = 48
-BOX_OVERLAP = 100  # how many px the box overlaps into the collage from below
+BOX_OVERLAP = 150  # how many px the box overlaps into the collage from below
 BOX_PAD_H   = 28   # horizontal padding inside box
 BOX_PAD_V   = 20   # vertical padding inside box
 BOX_RADIUS  = 20
@@ -235,6 +236,7 @@ async def compose(
     tip_2: str,
     tip_3: str,
     tip_4: str,
+    venue: str,
     brand_color_primary: str,
     brand_color_secondary: str,
 ) -> bytes:
@@ -242,7 +244,8 @@ async def compose(
 
     font_label = await get_montserrat("bold", LABEL_SIZE)
     font_date  = await get_montserrat("bold", DATE_SIZE)
-    font_tip   = await get_montserrat("regular", TIP_SIZE)
+    font_tip   = await get_montserrat("semibold", TIP_SIZE)
+    font_venue = await get_montserrat("regular", VENUE_SIZE)
 
     def _sync_compose() -> bytes:
         primary_rgb = _hex_to_rgb(brand_color_primary)
@@ -298,7 +301,20 @@ async def compose(
             draw.text((box_x + BOX_PAD_H, ty), line, font=font_date, fill=(30, 30, 30, 255))
             ty += draw.textbbox((0,0), line, font=font_date)[3] - draw.textbbox((0,0), line, font=font_date)[1] + 4
 
-        # ── 4. Person image (right zone, bottom-anchored) ─────────────────────
+        # ── 3b. Subtle content-area background (bg1 at low opacity) ─────────────
+        if bg1_bytes is not None:
+            try:
+                bg_content = Image.open(io.BytesIO(bg1_bytes)).convert("RGBA")
+                bg_content = bg_content.resize((CANVAS_W, CONTENT_H), Image.Resampling.LANCZOS)
+                r_ch, g_ch, b_ch, a_ch = bg_content.split()
+                a_ch = a_ch.point([int(i * 0.15) for i in range(256)])
+                bg_content = Image.merge("RGBA", (r_ch, g_ch, b_ch, a_ch))
+                img.paste(bg_content, (0, COLLAGE_H), bg_content)
+                draw = ImageDraw.Draw(img)
+            except Exception as exc:
+                logger.warning("Could not paste content background: %s", exc)
+
+        # ── 4. Person image — half body (head + torso), right zone ───────────
         if person_bytes is not None:
             try:
                 person_img = Image.open(io.BytesIO(person_bytes)).convert("RGBA")
@@ -306,7 +322,9 @@ async def compose(
                 if bbox:
                     person_img = person_img.crop(bbox)
 
-                target_h = int(CONTENT_H * 0.70)
+                # Scale to full content height so cropping top 57% gives a
+                # large, natural-looking half-body portrait.
+                target_h = CONTENT_H
                 scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
                 ph = target_h
@@ -315,17 +333,21 @@ async def compose(
                     ph = int(person_img.height * (pw / person_img.width))
                 person_img = person_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
+                # Crop to upper 57% — head + torso + some waist (half-body look)
+                crop_h = int(ph * 0.57)
+                person_img = person_img.crop((0, 0, pw, crop_h))
+
                 paste_x = PERSON_X + (PERSON_MAX_W - pw) // 2
-                paste_y = CANVAS_H - ph - 10
+                paste_y = CANVAS_H - crop_h - 15
                 img.paste(person_img, (paste_x, paste_y), person_img)
-                draw = ImageDraw.Draw(img)  # refresh after paste
+                draw = ImageDraw.Draw(img)
             except Exception as exc:
                 logger.warning("Could not paste person image: %s", exc)
 
         # ── 5. Title (large display, starts below the white box) ──────────────
         y = box_y + box_h + 32
         if title:
-            title_max_w = CANVAS_W - TEXT_X * 2  # full width minus margins
+            title_max_w = CANVAS_W - TEXT_X * 2
             font_title, title_lines = _auto_fit_title(draw, title, title_max_w)
             for line in title_lines:
                 bb = draw.textbbox((0, 0), line, font=font_title)
@@ -342,10 +364,28 @@ async def compose(
                 [(dot_cx - DOT_R, dot_cy - DOT_R), (dot_cx + DOT_R, dot_cy + DOT_R)],
                 fill=(*accent_rgb, 230),
             )
-            tip_x = TEXT_X + DOT_R * 2 + 14
+            tip_x = TEXT_X + DOT_R * 2 + 16
             tip_max_w = TEXT_MAX_W - (tip_x - TEXT_X)
-            y = _draw_wrapped(draw, tip, font_tip, tip_x, int(y), (255, 255, 255, 220), tip_max_w, line_gap=4)
-            y += 16
+            y = _draw_wrapped(draw, tip, font_tip, tip_x, int(y), (255, 255, 255, 230), tip_max_w, line_gap=4)
+            y += 18
+
+        # ── 6b. Venue line (below tips) ───────────────────────────────────────
+        if venue and venue.strip():
+            y += 4
+            venue_dot_r = 6
+            venue_dot_cx = TEXT_X + venue_dot_r
+            venue_dot_cy = y + VENUE_SIZE // 2 + 2
+            draw.ellipse(
+                [(venue_dot_cx - venue_dot_r, venue_dot_cy - venue_dot_r),
+                 (venue_dot_cx + venue_dot_r, venue_dot_cy + venue_dot_r)],
+                fill=(*accent_rgb, 180),
+            )
+            venue_x = TEXT_X + venue_dot_r * 2 + 12
+            venue_max_w = TEXT_MAX_W - (venue_x - TEXT_X)
+            y = _draw_wrapped(
+                draw, venue.strip(), font_venue, venue_x, int(y),
+                (*accent_rgb, 200), venue_max_w, line_gap=4,
+            )
 
         # ── 7. Logos (bottom left) ────────────────────────────────────────────
         logo_y = CANVAS_H - LOGO_Y_FROM_BOTTOM - LOGO_MAX_H

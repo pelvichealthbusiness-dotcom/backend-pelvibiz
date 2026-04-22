@@ -107,6 +107,7 @@ _TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
         "tip_2": "Second topic or benefit (max 60 chars)",
         "tip_3": "Third topic or benefit (max 60 chars)",
         "tip_4": "Fourth topic or benefit — optional, leave empty if not needed (max 60 chars)",
+        "venue": "Where the event takes place, e.g. 'Online via Zoom' or 'Downtown Wellness Studio' (max 50 chars)",
     },
 }
 

@@ -55,6 +55,7 @@ class TestTemplateFields:
         assert "tip_2" in fields
         assert "tip_3" in fields
         assert "tip_4" in fields
+        assert "venue" in fields
 
     def test_tip_card_has_headline_and_tip_body(self):
         fields = _TEMPLATE_FIELDS["tip-card"]
