@@ -210,27 +210,23 @@ class PostContentAgent(BaseStreamingAgent):
 
 PATIENT-STORY SPECIAL RULES:
 section_label is the HEADLINE EMOTION of this specific story. Rules:
-- It must feel EARNED by the testimonial — read it first, then pick the label.
-- NEVER use 'PATIENT STORIES' or 'CLIENT WINS' — they are boring and generic.
-- The label should make someone stop scrolling. Think: what's the ONE feeling this story creates?
-  Transformation → 'THE TURNING POINT' / 'BEFORE & AFTER'
-  Surprise/shock  → 'SHE DIDN'T EXPECT THIS' / 'UNFILTERED'
-  Pride/comeback  → 'THE COMEBACK' / 'SHE HEALED' / 'SHE DID IT'
-  Validation      → 'HER WORDS NOT OURS' / 'PROOF IT WORKS'
-  Emotion         → 'THIS IS WHY WE DO IT' / 'FROM HER HEART'
+- Read the testimonial first, then pick the label that best matches its emotional arc.
+- You have a FULL POOL of options — rotate through them, never default to the same one.
+  FULL POOL (pick based on the story's energy):
+  Classic:        'PATIENT STORIES' / 'CLIENT WINS'
+  Transformation: 'THE TURNING POINT' / 'BEFORE & AFTER' / 'GAME CHANGER'
+  Surprise:       'SHE DIDN'T EXPECT THIS' / 'UNFILTERED' / 'REAL TALK'
+  Pride/comeback: 'THE COMEBACK' / 'SHE HEALED' / 'SHE DID IT' / 'PROOF IT WORKS'
+  Emotion:        'THIS IS WHY WE DO IT' / 'FROM HER HEART' / 'HER WORDS NOT OURS'
+  Results:        'REAL RESULTS' / 'LIFE CHANGING' / 'THE NUMBERS DON'T LIE'
+- CRITICAL: if the topic or previous context suggests 'PATIENT STORIES' or 'CLIENT WINS' were already used, pick something different from the pool.
 - Max 30 chars. ALL CAPS. No period.
 
 testimonial rules:
 - Write in first person as if the client is speaking.
 - Include ONE specific number, date, or measurable detail (e.g. "6 weeks", "2x", "finally").
 - Emotional arc: struggle → turning point → outcome. Don't skip the struggle.
-- NEVER use: "amazing", "wonderful", "great", "incredible", "life-changing" (show, don't tell).
-
-BANNED labels (never use):
-- PATIENT STORIES
-- CLIENT WINS
-- TESTIMONIAL
-- SUCCESS STORY"""
+- NEVER use: "amazing", "wonderful", "great", "incredible", "life-changing" (show, don't tell)."""
 
         hero_extra = ""
         if template_key == "hero-title":
