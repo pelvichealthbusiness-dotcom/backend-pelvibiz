@@ -73,6 +73,10 @@ class PostGeneratorService:
         if request.template_key == "wellness-workshop":
             return await self._generate_wellness_workshop(request, user_id, brand)
 
+        # Patient-story: gradient background + editorial title + testimonial card
+        if request.template_key == "patient-story":
+            return await self._generate_patient_story(request, user_id, brand)
+
         # 3. Build the image generation prompt
         prompt = build_post_image_prompt(
             template_key=request.template_key,
@@ -428,6 +432,54 @@ class PostGeneratorService:
             tip_3=tf.get("tip_3", ""),
             tip_4=tf.get("tip_4", ""),
             venue=tf.get("venue", ""),
+            brand_color_primary=brand_color,
+            brand_color_secondary=brand_color_sec,
+        )
+
+        upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        image_url = await self._storage.upload_image(upload_b64, user_id)
+
+        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        ContentService._invalidate_cache(user_id)
+
+        try:
+            await self._credits.increment_credits(user_id)
+        except Exception as exc:
+            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+
+        return image_url, request.caption
+
+    async def _generate_patient_story(
+        self,
+        request: PostGenerateRequest,
+        user_id: str,
+        brand: dict,
+    ) -> tuple[str, str]:
+        """Patient-story: gradient bg + editorial title + testimonial card (Pillow only)."""
+        from app.utils.patient_story_composer import compose as compose_story
+
+        tf = request.text_fields
+        brand_color = brand.get("brand_color_primary") or "#1A9E8F"
+        brand_color_sec = brand.get("brand_color_secondary") or "#FFFFFF"
+
+        # Logo
+        logo_bytes: bytes | None = None
+        logo_url = request.logo_url or brand.get("logo_url")
+        if logo_url:
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(logo_url)
+                    resp.raise_for_status()
+                    logo_bytes = resp.content
+            except Exception as exc:
+                logger.warning("Could not fetch logo: %s", exc)
+
+        image_bytes = await compose_story(
+            logo_bytes=logo_bytes,
+            section_label=tf.get("section_label", "patient stories"),
+            testimonial=tf.get("testimonial", ""),
+            client_name=tf.get("client_name", ""),
+            result=tf.get("result", ""),
             brand_color_primary=brand_color,
             brand_color_secondary=brand_color_sec,
         )

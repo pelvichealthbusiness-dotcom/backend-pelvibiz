@@ -99,6 +99,12 @@ _TEMPLATE_FIELDS: dict[str, dict[str, str]] = {
         "via": "Platform or host detail, e.g. 'Register via link in bio' (max 50 chars)",
         "cta": "Action CTA for the button, e.g. 'Secure Your Spot' (max 30 chars)",
     },
+    "patient-story": {
+        "section_label": "Category label above the title, e.g. 'PATIENT STORIES' or 'CLIENT WINS' (max 30 chars, ALL CAPS)",
+        "testimonial": "Authentic client testimonial — specific, vivid, emotionally resonant. Reference a real transformation or outcome (max 380 chars)",
+        "client_name": "Client identifier, e.g. 'Sarah M. — postpartum mom' or 'María G., 3 months postpartum' (max 60 chars)",
+        "result": "Key measurable outcome, e.g. 'Leak-free in 6 sessions' or 'Back at the gym in 8 weeks' (max 60 chars, optional — leave empty if testimonial already states the result)",
+    },
     "wellness-workshop": {
         "event_label": "Short uppercase event label, e.g. 'FREE WELLNESS WORKSHOP' or 'LIVE MOVEMENT CLASS' (max 40 chars, ALL CAPS)",
         "date_time": "Date and time, e.g. 'Sunday, Jan. 11 @ 11:30 AM' (max 60 chars)",

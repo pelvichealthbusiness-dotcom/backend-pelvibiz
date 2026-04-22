@@ -42,9 +42,16 @@ class TestTemplateFields:
             "hero-title", "tip-card", "myth-vs-fact", "quote-card", "did-you-know",
             "offer-flyer", "event-banner", "testimonial-card", "before-after-teaser",
             "service-spotlight", "checklist-post", "question-hook", "stat-callout",
-            "masterclass-banner", "wellness-workshop",
+            "masterclass-banner", "wellness-workshop", "patient-story",
         }
         assert set(_TEMPLATE_FIELDS.keys()) == expected
+
+    def test_patient_story_has_required_fields(self):
+        fields = _TEMPLATE_FIELDS["patient-story"]
+        assert "section_label" in fields
+        assert "testimonial" in fields
+        assert "client_name" in fields
+        assert "result" in fields
 
     def test_wellness_workshop_has_required_fields(self):
         fields = _TEMPLATE_FIELDS["wellness-workshop"]
