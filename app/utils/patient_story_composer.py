@@ -240,7 +240,6 @@ async def compose(
 ) -> bytes:
     """Compose a patient-story card and return PNG bytes."""
 
-    font_label  = await get_montserrat("semibold", LABEL_SIZE)
     font_title1 = await get_montserrat("script",   TITLE_1_SIZE)
     font_client = await get_montserrat("semibold",  CLIENT_SIZE)
     font_result = await get_montserrat("semibold",  RESULT_SIZE)
@@ -248,19 +247,13 @@ async def compose(
     def _sync_compose() -> bytes:
         primary_rgb = _hex_to_rgb(brand_color_primary)
         white       = (255, 255, 255, 255)
-        white_soft  = (255, 255, 255, 110)   # subtle label
         dark_text   = (28, 28, 28, 255)
         gold        = (220, 178, 60, 200)    # golden ellipse
 
-        # ── 1. Gradient background ─────────────────────────────────────────
-        img  = _make_gradient_bg(CANVAS_W, CANVAS_H, primary_rgb).convert("RGBA")
+        # ── 1. Solid brand color background ────────────────────────────────
+        vibrant_rgb = _ensure_vibrant(primary_rgb)
+        img  = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*vibrant_rgb, 255))
         draw = ImageDraw.Draw(img)
-
-        # ── 2. Section label (very subtle, above title) ────────────────────
-        lbl = (section_label or "patient stories").upper()
-        lb  = draw.textbbox((0, 0), lbl, font=font_label)
-        lbl_x = (CANVAS_W - (lb[2] - lb[0])) // 2
-        draw.text((lbl_x, LABEL_Y), lbl, font=font_label, fill=white_soft)
 
         # ── 3. Script title lines ──────────────────────────────────────────
         words    = (section_label or "patient stories").lower().split()
