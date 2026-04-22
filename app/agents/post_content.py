@@ -242,17 +242,25 @@ The JSON must have this exact shape:
   "text_fields": {{
 {fields_spec}
   }},
-  "caption": "<Instagram caption — hook line, 2-3 sentence body, CTA, 5 relevant hashtags>"
+  "caption": "<full caption with \\n\\n between sections>"
 }}
 
 COPY RULES:
 1. Text fields: match the character limits in the spec. Be punchy and specific to the topic.
-2. Caption — CRITICAL: Write AFTER you have mentally finalized the text_fields. The caption must:
-   - Open with a scroll-stopping hook that DIRECTLY references the main idea from text_fields (not a generic line).
-   - Add 2-3 sentences that EXPAND on the specific content in text_fields — give the "why it matters" behind the headline/tip/myth/stat/etc.
-   - End with the brand CTA: {cta}
-   - Last line: exactly 5 niche hashtags relevant to the topic and brand.
-   - NEVER repeat the exact wording of a text_field — add context, not duplication.
+2. Caption — CRITICAL format and content rules:
+   STRUCTURE (use \\n\\n between each section — NOT one solid block):
+   Line 1: scroll-stopping hook that DIRECTLY references the main idea from text_fields.
+   \\n\\n
+   2-3 short sentences that EXPAND on the specific content — the "why it matters". Each sentence on its own line or grouped naturally.
+   \\n\\n
+   Brand CTA line: {cta}
+   \\n\\n
+   Exactly 3 hashtags (no more — Instagram penalizes caption spam). Niche, relevant to the topic.
+
+   CONTENT rules:
+   - Hook must reference the specific text_fields content, not a generic opener.
+   - Body adds context, NEVER duplicates exact wording from text_fields.
+   - 3 hashtags MAX — quality over quantity.
 3. Voice: {brand_voice}. No generic wellness platitudes.
 4. All copy — text_fields AND caption — must feel like one coherent piece about the same topic.
 5. Write in the same language as the topic below."""
