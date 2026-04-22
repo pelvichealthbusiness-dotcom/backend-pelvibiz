@@ -55,21 +55,21 @@ PERSON_MAX_W = CANVAS_W - PERSON_X   # 480
 
 # ── Logo row (bottom of content area) ──────────────────────────────────────────
 LOGO_Y_FROM_BOTTOM = 60
-LOGO_MAX_H = 100
-LOGO_MAX_W = 220
-LOGO_GAP   = 40
+LOGO_MAX_H = 130
+LOGO_MAX_W = 280
+LOGO_GAP   = 48
 
 # ── Font sizes ─────────────────────────────────────────────────────────────────
 LABEL_SIZE  = 28   # event label inside white box
 DATE_SIZE   = 30   # date inside white box
-TITLE_MAX   = 112  # large display title
-TITLE_MIN   = 52
-TIP_SIZE    = 36
-DOT_R       = 11   # radius of bullet dot
+TITLE_MAX   = 82   # display title — large but leaves room for person
+TITLE_MIN   = 38
+TIP_SIZE    = 34
+DOT_R       = 10   # radius of bullet dot
 
 # ── White event box (overlaps collage bottom) ───────────────────────────────────
 BOX_X       = 48
-BOX_OVERLAP = 70   # how many px the box overlaps into the collage from below
+BOX_OVERLAP = 100  # how many px the box overlaps into the collage from below
 BOX_PAD_H   = 28   # horizontal padding inside box
 BOX_PAD_V   = 20   # vertical padding inside box
 BOX_RADIUS  = 20
@@ -306,7 +306,7 @@ async def compose(
                 if bbox:
                     person_img = person_img.crop(bbox)
 
-                target_h = CONTENT_H
+                target_h = int(CONTENT_H * 0.70)
                 scale = target_h / person_img.height
                 pw = int(person_img.width * scale)
                 ph = target_h
