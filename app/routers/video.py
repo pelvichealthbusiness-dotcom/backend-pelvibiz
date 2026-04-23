@@ -265,6 +265,7 @@ async def generate_video(
     reply_text = caption_text or "Your video is ready!"
 
     supabase = get_supabase_admin()
+    _saved = False
     try:
         supabase.table("requests_log").upsert(
             {
@@ -280,14 +281,16 @@ async def generate_video(
             },
             on_conflict="id",
         ).execute()
+        _saved = True
     except Exception as e:
         logger.error("Failed to save video to requests_log: %s", e)
 
     # ---- Increment credits ------------------------------------------------
-    try:
-        await credits_service.increment_credits(user_id)
-    except Exception as e:
-        logger.error("Failed to increment credits: %s", e)
+    if _saved:
+        try:
+            await credits_service.increment_credits(user_id, "reels-edited-by-ai")
+        except Exception as e:
+            logger.error("Failed to increment credits: %s", e)
 
     # ---- Response ---------------------------------------------------------
     return GenerateVideoResponse(
@@ -514,6 +517,7 @@ async def generate_video_stream(
             reply_text = caption_text or "Your video is ready!"
 
             supabase = get_supabase_admin()
+            _saved = False
             try:
                 supabase.table("requests_log").upsert(
                     {
@@ -529,14 +533,16 @@ async def generate_video_stream(
                     },
                     on_conflict="id",
                 ).execute()
+                _saved = True
             except Exception as e:
                 logger.error("Failed to save video to requests_log: %s", e)
 
             # ---- Increment credits -----------------------------------------
-            try:
-                await credits_service.increment_credits(user_id)
-            except Exception as e:
-                logger.error("Failed to increment credits: %s", e)
+            if _saved:
+                try:
+                    await credits_service.increment_credits(user_id, "reels-edited-by-ai")
+                except Exception as e:
+                    logger.error("Failed to increment credits: %s", e)
 
             # ---- Emit: done ------------------------------------------------
             yield f'data: {json.dumps({"type": "done", "media_urls": [public_url], "reply": reply_text, "caption": caption_text, "message_id": request.message_id})}\n\n'

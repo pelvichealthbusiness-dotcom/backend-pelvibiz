@@ -23,6 +23,7 @@ _WEIGHT_MAP: dict[str, str] = {
     "bold_italic": "Montserrat-BoldItalic.ttf",
     "black": "Montserrat-Black.ttf",
     "script": "GreatVibes-Regular.ttf",
+    "display": "BebasNeue-Regular.ttf",
 }
 
 _FALLBACK: dict[str, str] = {

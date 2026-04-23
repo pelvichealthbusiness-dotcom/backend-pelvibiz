@@ -353,6 +353,7 @@ class ChatAgent:
 
         # Save to requests_log
         msg_id = str(uuid4())
+        _saved = False
         try:
             self.supabase.table("requests_log").upsert(
                 {
@@ -367,14 +368,16 @@ class ChatAgent:
                 },
                 on_conflict="id",
             ).execute()
+            _saved = True
         except Exception:
             pass
 
         # Increment credits
-        try:
-            await credits.increment_credits(user_id)
-        except Exception:
-            pass
+        if _saved:
+            try:
+                await credits.increment_credits(user_id, "ai-carousel")
+            except Exception:
+                pass
 
         return {
             "media_urls": media_urls,

@@ -44,6 +44,9 @@ class PostGenerateRequest(BaseModel):
     # Optional second logo slot (wellness-workshop — sponsor / partner)
     second_logo_url: Optional[str] = None
 
+    # Patient-story: screenshot passthrough (no AI composition — image used directly)
+    screenshot_url: Optional[str] = None
+
     # Brand identity (sent from client; backend re-fetches from profile but
     # uses these as fallback if the DB field is empty)
     brand_name: Optional[str] = None

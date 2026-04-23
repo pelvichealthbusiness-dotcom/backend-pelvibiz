@@ -253,6 +253,7 @@ class CarouselP1Agent(BaseStreamingAgent):
             # Save to requests_log
             message_id = str(uuid.uuid4())
             supabase = get_supabase_admin()
+            _saved = False
             try:
                 supabase.table("requests_log").upsert(
                     {
@@ -267,13 +268,15 @@ class CarouselP1Agent(BaseStreamingAgent):
                     },
                     on_conflict="id",
                 ).execute()
+                _saved = True
             except Exception as e:
                 logger.error("Failed to save to requests_log: %s", e)
 
-            try:
-                await credits_service.increment_credits(user_id)
-            except Exception as e:
-                logger.error("Failed to increment credits: %s", e)
+            if _saved:
+                try:
+                    await credits_service.increment_credits(user_id, "real-carousel")
+                except Exception as e:
+                    logger.error("Failed to increment credits: %s", e)
 
             return {
                 "status": "success",

@@ -1087,6 +1087,7 @@ class PelvibizAiAgent(BaseStreamingAgent):
                 logger.error("AI carousel slide failed: %s", exc)
 
         msg_id = str(uuid4())
+        _saved = False
         try:
             supabase.table("requests_log").upsert(
                 {
@@ -1101,13 +1102,15 @@ class PelvibizAiAgent(BaseStreamingAgent):
                 },
                 on_conflict="id",
             ).execute()
+            _saved = True
         except Exception as exc:
             logger.warning("Failed to save carousel to requests_log: %s", exc)
 
-        try:
-            await credits.increment_credits(user_id)
-        except Exception:
-            pass
+        if _saved:
+            try:
+                await credits.increment_credits(user_id, "ai-carousel")
+            except Exception:
+                pass
 
         return {
             "content_id": msg_id,
@@ -1227,6 +1230,7 @@ class PelvibizAiAgent(BaseStreamingAgent):
         # Save to DB
         supabase = get_supabase_admin()
         content_id = str(uuid4())
+        _saved = False
         try:
             supabase.table("requests_log").upsert(
                 {
@@ -1241,13 +1245,15 @@ class PelvibizAiAgent(BaseStreamingAgent):
                 },
                 on_conflict="id",
             ).execute()
+            _saved = True
         except Exception as exc:
             logger.warning("Failed to save video to DB: %s", exc)
 
-        try:
-            await credits.increment_credits(user_id)
-        except Exception:
-            pass
+        if _saved:
+            try:
+                await credits.increment_credits(user_id, "reels-edited-by-ai")
+            except Exception:
+                pass
 
         return {
             "content_id": content_id,
@@ -1685,6 +1691,7 @@ class PelvibizAiAgent(BaseStreamingAgent):
 
         msg_id = str(uuid4())
         caption = args.get("caption") or getattr(plan, "caption", "")
+        _saved = False
         try:
             supabase.table("requests_log").upsert(
                 {
@@ -1699,13 +1706,15 @@ class PelvibizAiAgent(BaseStreamingAgent):
                 },
                 on_conflict="id",
             ).execute()
+            _saved = True
         except Exception as exc:
             logger.warning("Failed to save real carousel: %s", exc)
 
-        try:
-            await credits.increment_credits(user_id)
-        except Exception:
-            pass
+        if _saved:
+            try:
+                await credits.increment_credits(user_id, "real-carousel")
+            except Exception:
+                pass
 
         return {
             "content_id": msg_id,

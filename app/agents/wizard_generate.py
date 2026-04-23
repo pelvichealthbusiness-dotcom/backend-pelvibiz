@@ -238,6 +238,7 @@ class WizardGenerateAgent:
             return
 
         # ── 7. Save to requests_log ──────────────────────────────────
+        _saved = False
         try:
             supabase = get_supabase_admin()
             slide_metadata = {
@@ -265,14 +266,16 @@ class WizardGenerateAgent:
                 },
                 on_conflict="id",
             ).execute()
+            _saved = True
         except Exception as e:
             logger.error("Failed to save to requests_log: %s", e)
 
         # ── 8. Increment credits ─────────────────────────────────────
-        try:
-            await credits_service.increment_credits(self.user_id)
-        except Exception as e:
-            logger.error("Failed to increment credits: %s", e)
+        if _saved:
+            try:
+                await credits_service.increment_credits(self.user_id, self.agent_type)
+            except Exception as e:
+                logger.error("Failed to increment credits: %s", e)
 
         # ── 9. Emit done event ───────────────────────────────────────
         failed_count = len(failed_slides)

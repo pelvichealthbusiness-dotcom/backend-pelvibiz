@@ -100,6 +100,7 @@ async def generate_carousel(
 
     # 5. Save to requests_log
     supabase = get_supabase_admin()
+    _saved = False
     try:
         supabase.table("requests_log").upsert(
             {
@@ -114,15 +115,17 @@ async def generate_carousel(
             },
             on_conflict="id",
         ).execute()
+        _saved = True
     except Exception as e:
         logger.error(f"Failed to save to requests_log: {e}")
         # Don't fail the request — carousel was generated
 
     # 6. Increment credits
-    try:
-        await credits_service.increment_credits(user_id)
-    except Exception as e:
-        logger.error(f"Failed to increment credits: {e}")
+    if _saved:
+        try:
+            await credits_service.increment_credits(user_id, "real-carousel")
+        except Exception as e:
+            logger.error(f"Failed to increment credits: {e}")
 
     # 7. Build reply with warning if partial
     reply = content_plan.reply
@@ -315,6 +318,7 @@ async def generate_carousel_stream(
 
         # 3. Save to DB + increment credits
         supabase = get_supabase_admin()
+        _saved = False
         try:
             supabase.table("requests_log").upsert({
                 "id": request.message_id,
@@ -326,13 +330,15 @@ async def generate_carousel_stream(
                 "media_urls": media_urls,
                 "published": False,
             }, on_conflict="id").execute()
+            _saved = True
         except Exception as e:
             logger.error(f"Stream: failed to save requests_log: {e}")
 
-        try:
-            await credits_service.increment_credits(user_id)
-        except Exception as e:
-            logger.error(f"Stream: failed to increment credits: {e}")
+        if _saved:
+            try:
+                await credits_service.increment_credits(user_id, "real-carousel")
+            except Exception as e:
+                logger.error(f"Stream: failed to increment credits: {e}")
 
         # 4. Final event
         yield f"data: {json.dumps({'type': 'done', 'media_urls': media_urls, 'reply': content_plan.reply, 'caption': content_plan.caption, 'message_id': request.message_id})}\n\n"

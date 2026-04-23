@@ -36,7 +36,7 @@ class CreditsService:
         Non-tracked agents are always allowed (returns (0, CREDIT_LIMIT)).
         Auto-resets credits when the 30-day period expires.
         """
-        if agent_type and agent_type not in TRACKED_AGENTS:
+        if agent_type is not None and agent_type not in TRACKED_AGENTS:
             return (0, CREDIT_LIMIT)
 
         result = (
@@ -76,7 +76,7 @@ class CreditsService:
 
         Returns new credits_used value (0 if agent is not tracked).
         """
-        if agent_type and agent_type not in TRACKED_AGENTS:
+        if agent_type is not None and agent_type not in TRACKED_AGENTS:
             return 0
 
         result = (

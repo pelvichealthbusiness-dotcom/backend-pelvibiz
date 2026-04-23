@@ -492,6 +492,47 @@ def build_masterclass_person_prompt(brand: dict) -> str:
     )
 
 
+def build_wellness_workshop_person_prompt(text_fields: dict, brand: dict) -> str:
+    """Person image for wellness-workshop.
+
+    If the user wrote a custom person_prompt, wrap it in technical photography instructions.
+    Otherwise, derive a specific activity scene from the post content (title + tips).
+    Always avoids gender bias — uses 'a person' or 'people', never assumes gender.
+    """
+    user_prompt = (text_fields.get("person_prompt") or "").strip()
+    identity = brand.get("visual_identity") or "modern, clean, health-focused"
+
+    if user_prompt:
+        # User described exactly what they want — honour it, add only technical framing
+        scene = user_prompt
+    else:
+        # Auto-derive a specific activity scene from the post text
+        title = text_fields.get("title", "wellness exercise")
+        tips = " | ".join(
+            t for t in [
+                text_fields.get("tip_1", ""),
+                text_fields.get("tip_2", ""),
+                text_fields.get("tip_3", ""),
+            ] if t.strip()
+        )
+        context = f"{title}. Topics: {tips}" if tips else title
+        scene = (
+            f"A person or group of people actively performing an exercise or movement "
+            f"directly related to: '{context}'. "
+            f"The scene should visually represent the exact activity — for example if the topic is "
+            f"about core or pelvic floor strength during exercise, show someone mid-movement at a gym or studio. "
+            f"Dynamic, realistic action — NOT standing still, NOT posing."
+        )
+
+    return (
+        f"High quality photorealistic photograph. {scene} "
+        f"Visual style: {identity}, energetic and relatable, natural lighting. "
+        f"Framing: FULL BODY from head to toe, centered, VERTICAL PORTRAIT orientation (2:3 aspect ratio). "
+        f"Background: solid white or very light neutral — clean, minimal. "
+        f"High quality, photorealistic. NO text, NO watermarks, NO logos."
+    )
+
+
 def build_masterclass_face_mode_prompt(brand: dict) -> str:
     """Face mode: generates full-body professional character preserving the reference face."""
     outfit = brand.get("visual_subject_outfit_face") or brand.get("visual_subject_outfit_generic") or "business casual professional attire"

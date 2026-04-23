@@ -285,6 +285,7 @@ class VideoP3Agent(BaseStreamingAgent):
             message_id = str(uuid.uuid4())
             reply_text = caption or "Your video is ready!"
             supabase = get_supabase_admin()
+            _saved = False
             try:
                 supabase.table("requests_log").upsert(
                     {
@@ -300,14 +301,16 @@ class VideoP3Agent(BaseStreamingAgent):
                     },
                     on_conflict="id",
                 ).execute()
+                _saved = True
             except Exception as e:
                 logger.error("Failed to save video to requests_log: %s", e)
 
             # Increment credits
-            try:
-                await credits_service.increment_credits(user_id)
-            except Exception as e:
-                logger.error("Failed to increment credits: %s", e)
+            if _saved:
+                try:
+                    await credits_service.increment_credits(user_id, "reels-edited-by-ai")
+                except Exception as e:
+                    logger.error("Failed to increment credits: %s", e)
 
             return {
                 "status": "success",

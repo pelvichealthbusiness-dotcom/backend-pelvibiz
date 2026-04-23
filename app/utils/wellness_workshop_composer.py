@@ -31,6 +31,11 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.utils.fonts import get_montserrat, get_montserrat_sync
 
+# ── Spacing constants ──────────────────────────────────────────────────────────
+TITLE_LINE_GAP   = 14   # between title lines
+TITLE_BOTTOM_PAD = 44   # after title block before tips
+TIP_BOTTOM_PAD   = 28   # after each tip row
+
 logger = logging.getLogger(__name__)
 
 # ── Canvas ─────────────────────────────────────────────────────────────────────
@@ -240,6 +245,8 @@ async def compose(
     venue: str,
     brand_color_primary: str,
     brand_color_secondary: str,
+    title_color: str | None = None,
+    date_color: str | None = None,
 ) -> bytes:
     """Compose wellness-workshop flyer and return PNG bytes."""
 
@@ -248,10 +255,12 @@ async def compose(
     font_tip   = await get_montserrat("semibold", TIP_SIZE)
     font_venue = await get_montserrat("regular", VENUE_SIZE)
 
-    def _sync_compose() -> bytes:
-        primary_rgb = _hex_to_rgb(brand_color_primary)
-        accent_rgb  = _ensure_visible_on_dark(brand_color_primary)
-        dark_bg     = _darken(primary_rgb, 0.78)
+    def _sync_compose() -> bytes:  # noqa: C901
+        primary_rgb  = _hex_to_rgb(brand_color_primary)
+        accent_rgb   = _ensure_visible_on_dark(brand_color_primary)
+        dark_bg      = _darken(primary_rgb, 0.78)
+        title_rgb    = _hex_to_rgb(title_color) if title_color else (255, 255, 255)
+        date_rgb     = _hex_to_rgb(date_color)  if date_color  else accent_rgb
 
         # ── 1. Base canvas (dark background) ─────────────────────────────────
         img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (*dark_bg, 255))
@@ -289,10 +298,10 @@ async def compose(
             fill=(255, 255, 255, 248),
         )
 
-        # event_label — brand accent color inside box
+        # event_label — date_rgb color inside box
         ty = box_y + BOX_PAD_V
         for line in label_lines:
-            draw.text((box_x + BOX_PAD_H, ty), line, font=font_label, fill=(*accent_rgb, 255))
+            draw.text((box_x + BOX_PAD_H, ty), line, font=font_label, fill=(*date_rgb, 255))
             ty += draw.textbbox((0,0), line, font=font_label)[3] - draw.textbbox((0,0), line, font=font_label)[1] + 4
 
         ty += inner_gap
@@ -350,17 +359,30 @@ async def compose(
             except Exception as exc:
                 logger.warning("Could not paste person image: %s", exc)
 
-        # ── 5. Title (large display, starts below the white box) ──────────────
-        # Safeguard: never let the title start inside the collage photo area
-        y = max(box_y + box_h + 32, COLLAGE_H + 20)
+        # ── 5. Title (Bebas Neue display font, starts below the white box) ─────
+        y = max(box_y + box_h + 44, COLLAGE_H + 24)
         if title:
             title_max_w = TEXT_MAX_W
-            font_title, title_lines = _auto_fit_title(draw, title, title_max_w)
+            # Use Bebas Neue (display); auto-fit size then fall back to Montserrat Black
+            def _fit_display(size: int) -> tuple:
+                try:
+                    f = get_montserrat_sync("display", size)
+                except FileNotFoundError:
+                    f = get_montserrat_sync("black", size)
+                lines = _wrap_text(draw, title, f, title_max_w)
+                return f, lines
+
+            font_title, title_lines = _fit_display(TITLE_MAX)
+            for size in range(TITLE_MAX, TITLE_MIN - 1, -6):
+                font_title, title_lines = _fit_display(size)
+                if len(title_lines) <= 3:
+                    break
+
             for line in title_lines:
                 bb = draw.textbbox((0, 0), line, font=font_title)
-                draw.text((TEXT_X, y), line, font=font_title, fill=(255, 255, 255, 255))
-                y += int(bb[3] - bb[1]) + 8
-            y += 24
+                draw.text((TEXT_X, y), line, font=font_title, fill=(*title_rgb, 255))
+                y += int(bb[3] - bb[1]) + TITLE_LINE_GAP
+            y += TITLE_BOTTOM_PAD
 
         # ── 6. Checklist tips ─────────────────────────────────────────────────
         tips = [t for t in [tip_1, tip_2, tip_3, tip_4] if t.strip()]
@@ -374,7 +396,7 @@ async def compose(
             tip_x = TEXT_X + DOT_R * 2 + 16
             tip_max_w = TEXT_MAX_W - (tip_x - TEXT_X)
             y = _draw_wrapped(draw, tip, font_tip, tip_x, int(y), (255, 255, 255, 230), tip_max_w, line_gap=4)
-            y += 18
+            y += TIP_BOTTOM_PAD
 
         # ── 6b. Venue line (below tips) ───────────────────────────────────────
         if venue and venue.strip():

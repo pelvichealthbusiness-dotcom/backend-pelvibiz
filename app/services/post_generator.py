@@ -103,18 +103,18 @@ class PostGeneratorService:
         image_url = await self._storage.upload_image(upload_b64, user_id)
 
         # 7. Save to requests_log
-        self._save_to_requests_log(
+        saved = self._save_to_requests_log(
             request=request,
             user_id=user_id,
             image_url=image_url,
         )
-        ContentService._invalidate_cache(user_id)
 
         # 8. Increment credits
-        try:
-            await self._credits.increment_credits(user_id)
-        except Exception as exc:
-            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+        if saved:
+            try:
+                await self._credits.increment_credits(user_id, "ai-post-generator")
+            except Exception as exc:
+                logger.error("Failed to increment credits for %s: %s", user_id, exc)
 
         return image_url, request.caption
 
@@ -123,8 +123,12 @@ class PostGeneratorService:
         request: PostGenerateRequest,
         user_id: str,
         image_url: str,
-    ) -> None:
-        """Upsert a row into requests_log using message_id as idempotency key."""
+    ) -> bool:
+        """Upsert a row into requests_log using message_id as idempotency key.
+
+        Returns True if the save succeeded, False otherwise.
+        Also invalidates the content cache on success.
+        """
         try:
             self._supabase.table("requests_log").upsert(
                 {
@@ -139,8 +143,11 @@ class PostGeneratorService:
                 },
                 on_conflict="id",
             ).execute()
+            ContentService._invalidate_cache(user_id)
+            return True
         except Exception as exc:
             logger.error("Failed to save post to requests_log: %s", exc)
+            return False
 
 
 # ---------------------------------------------------------------------------
@@ -194,13 +201,12 @@ class PostGeneratorService:
         upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
         image_url = await self._storage.upload_image(upload_b64, user_id)
 
-        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
-        ContentService._invalidate_cache(user_id)
-
-        try:
-            await self._credits.increment_credits(user_id)
-        except Exception as exc:
-            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+        saved = self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        if saved:
+            try:
+                await self._credits.increment_credits(user_id, "ai-post-generator")
+            except Exception as exc:
+                logger.error("Failed to increment credits for %s: %s", user_id, exc)
 
         return image_url, request.caption
 
@@ -300,13 +306,12 @@ class PostGeneratorService:
         upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
         image_url = await self._storage.upload_image(upload_b64, user_id)
 
-        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
-        ContentService._invalidate_cache(user_id)
-
-        try:
-            await self._credits.increment_credits(user_id)
-        except Exception as exc:
-            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+        saved = self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        if saved:
+            try:
+                await self._credits.increment_credits(user_id, "ai-post-generator")
+            except Exception as exc:
+                logger.error("Failed to increment credits for %s: %s", user_id, exc)
 
         return image_url, request.caption
 
@@ -366,7 +371,7 @@ class PostGeneratorService:
         # ── Person image ──────────────────────────────────────────────────────
         from app.prompts.post_generate import (
             build_masterclass_face_mode_prompt,
-            build_masterclass_person_prompt,
+            build_wellness_workshop_person_prompt,
         )
 
         mode = (request.person_image_mode or "ai").lower()
@@ -382,7 +387,7 @@ class PostGeneratorService:
                     resp.raise_for_status()
                     person_bytes = resp.content
             else:
-                person_prompt = build_masterclass_person_prompt(brand)
+                person_prompt = build_wellness_workshop_person_prompt(request.text_fields, brand)
                 person_b64 = await self._image_gen.generate_from_prompt(person_prompt)
                 person_bytes = base64.b64decode(person_b64)
         except Exception as exc:
@@ -434,18 +439,19 @@ class PostGeneratorService:
             venue=tf.get("venue", ""),
             brand_color_primary=brand_color,
             brand_color_secondary=brand_color_sec,
+            title_color=tf.get("title_color") or None,
+            date_color=tf.get("date_color") or None,
         )
 
         upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
         image_url = await self._storage.upload_image(upload_b64, user_id)
 
-        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
-        ContentService._invalidate_cache(user_id)
-
-        try:
-            await self._credits.increment_credits(user_id)
-        except Exception as exc:
-            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+        saved = self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        if saved:
+            try:
+                await self._credits.increment_credits(user_id, "ai-post-generator")
+            except Exception as exc:
+                logger.error("Failed to increment credits for %s: %s", user_id, exc)
 
         return image_url, request.caption
 
@@ -455,7 +461,21 @@ class PostGeneratorService:
         user_id: str,
         brand: dict,
     ) -> tuple[str, str]:
-        """Patient-story: gradient bg + editorial title + testimonial card (Pillow only)."""
+        """Patient-story: gradient bg + editorial title + testimonial card (Pillow only).
+
+        Screenshot mode: screenshot_url is used directly as the final image — no composition.
+        """
+        # Screenshot passthrough — no image composition needed
+        if request.screenshot_url:
+            image_url = request.screenshot_url
+            saved = self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+            if saved:
+                try:
+                    await self._credits.increment_credits(user_id, "ai-post-generator")
+                except Exception as exc:
+                    logger.error("Failed to increment credits for %s: %s", user_id, exc)
+            return image_url, request.caption
+
         from app.utils.patient_story_composer import compose as compose_story
 
         tf = request.text_fields
@@ -487,13 +507,12 @@ class PostGeneratorService:
         upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
         image_url = await self._storage.upload_image(upload_b64, user_id)
 
-        self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
-        ContentService._invalidate_cache(user_id)
-
-        try:
-            await self._credits.increment_credits(user_id)
-        except Exception as exc:
-            logger.error("Failed to increment credits for %s: %s", user_id, exc)
+        saved = self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
+        if saved:
+            try:
+                await self._credits.increment_credits(user_id, "ai-post-generator")
+            except Exception as exc:
+                logger.error("Failed to increment credits for %s: %s", user_id, exc)
 
         return image_url, request.caption
 
