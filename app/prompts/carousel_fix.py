@@ -13,6 +13,7 @@ def build_fix_slide_prompt(
     color_secondary: str | None = None,
     color_background: str | None = None,
     topic: str = "",
+    text_position: str | None = None,
 ) -> str:
     if new_text_content:
         text_rule = f"REPLACE the text with EXACTLY this text: {new_text_content}"
@@ -43,14 +44,23 @@ The text on this slide must be relevant to this topic. If generating new text, i
 - Weight: Bold 700
 - Color: {validated_text}"""
 
+    pos_lower = (text_position or "").lower()
+    if "top" in pos_lower:
+        position_rule = "PLACE the text box at the TOP of the image — vertically centered in the top 25% of the canvas."
+    elif pos_lower in ("center", "centre", "middle"):
+        position_rule = "PLACE the text box at the CENTER of the image — vertically centered on the canvas."
+    else:
+        position_rule = "PLACE the text box near the BOTTOM of the image — in the lower 30% of the canvas."
+
     return f"""You are fixing a single slide from an existing carousel. Output: 1080x1350 portrait (4:5).
 {topic_block}
 RULE: The original photograph MUST remain IDENTICAL. Do NOT regenerate, move, crop, filter, or alter ANY part of the photo. Only upscale/fit to canvas and overlay text.
+IMPORTANT: If the input image already contains a text overlay, REMOVE IT completely before placing the new text box. The final slide must have exactly ONE text box.
 
 TEXT RULES: {text_rule}
 
 Text box: {effective_bg} rectangular box with ROUNDED CORNERS (radius 15px), 80 percent width, centered.
-YOU choose the best position based on image composition. Bottom 120px reserved for logo.
+{position_rule} Bottom 120px reserved for logo.
 
 Typography:
 {typography_block}

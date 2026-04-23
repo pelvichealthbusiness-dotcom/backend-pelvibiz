@@ -210,6 +210,7 @@ async def fix_slide(
         color_secondary=effective_profile.get("brand_color_secondary"),
         color_background=effective_profile.get("brand_color_background"),
         topic=topic,
+        text_position=request.New_Text_Position,
     )
 
     # 4. Generate with Gemini

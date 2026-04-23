@@ -348,41 +348,61 @@ class CarouselP1Agent(BaseStreamingAgent):
                     "error": f"Slide {slide_number} out of range (1-{len(original_urls)})"
                 }
 
-            # Resolve the base image: prefer explicit new_image_url, then fall
-            # back to the original source photo saved at generation time. If
-            # neither is available, abort rather than re-render over a slide
-            # that already has text baked in.
+            # Resolve the base image and render strategy.
+            # - new_image_url provided: always use it, SlideRenderer path
+            # - metadata.source_image_urls available: clean original photo, SlideRenderer path
+            # - old carousel without source_image_urls: fall back to Gemini AI path using
+            #   the rendered slide as base (Gemini will remove old text and reposition)
+            use_gemini_fallback = False
             if not new_image_url:
                 row_data: dict = result.data  # type: ignore[assignment]
                 raw_meta = row_data.get("metadata")
-                metadata: dict = raw_meta if isinstance(raw_meta, dict) else {}
-                source_urls = metadata.get("source_image_urls", [])
+                meta: dict = raw_meta if isinstance(raw_meta, dict) else {}
+                source_urls = meta.get("source_image_urls", [])
                 if slide_idx < len(source_urls):
                     new_image_url = source_urls[slide_idx]
                 else:
-                    return {
-                        "error": (
-                            "No source image found for this slide. "
-                            "Please provide the original photo URL via new_image_url."
-                        )
-                    }
+                    # Old carousel — no original photo stored. Use rendered slide
+                    # as Gemini input and let AI re-render at the requested position.
+                    new_image_url = original_urls[slide_idx]
+                    use_gemini_fallback = True
 
-            renderer = SlideRenderer()
             storage = StorageService()
 
-            image_bytes = await renderer.download_image(new_image_url)
-            if not image_bytes:
-                return {"error": f"Failed to download image from {new_image_url}"}
-            slide_bytes = renderer.render_slide(
-                image_bytes=image_bytes,
-                text=new_text or topic or "Fixed Slide",
-                position=text_position,
-                font_style=profile.get("font_style", "editorial-mixed"),
-                color_primary=profile.get("brand_color_primary", "#000000"),
-                color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
-                color_background=profile.get("brand_color_background"),
-            )
-            generated_base64 = base64.b64encode(slide_bytes).decode()
+            if use_gemini_fallback:
+                from app.services.image_generator import ImageGeneratorService
+                from app.prompts.carousel_fix import build_fix_slide_prompt
+                prompt = build_fix_slide_prompt(
+                    new_text_content=new_text or None,
+                    font_prompt=profile.get("font_prompt", "Clean bold sans-serif"),
+                    font_style=profile.get("font_style", "editorial-mixed"),
+                    color_primary=profile.get("brand_color_primary", "#000000"),
+                    color_secondary=profile.get("brand_color_secondary"),
+                    color_background=profile.get("brand_color_background"),
+                    topic=topic,
+                    text_position=text_position,
+                )
+                image_gen = ImageGeneratorService()
+                image_base64 = await image_gen.download_image_as_base64(new_image_url)
+                if not image_base64:
+                    return {"error": f"Failed to download image from {new_image_url}"}
+                generated_base64 = await image_gen.generate_slide(prompt, image_base64)
+            else:
+                renderer = SlideRenderer()
+                image_bytes = await renderer.download_image(new_image_url)
+                if not image_bytes:
+                    return {"error": f"Failed to download image from {new_image_url}"}
+                slide_bytes = renderer.render_slide(
+                    image_bytes=image_bytes,
+                    text=new_text or topic or "Fixed Slide",
+                    position=text_position,
+                    font_style=profile.get("font_style", "editorial-mixed"),
+                    color_primary=profile.get("brand_color_primary", "#000000"),
+                    color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
+                    color_background=profile.get("brand_color_background"),
+                )
+                generated_base64 = base64.b64encode(slide_bytes).decode()
+
             public_url = await storage.upload_image(generated_base64, user_id)
 
             updated_urls = list(original_urls)
