@@ -141,6 +141,14 @@ class CarouselP1Agent(BaseStreamingAgent):
                         type="STRING",
                         description="URL of the new image for the slide",
                     ),
+                    "text_position": types.Schema(
+                        type="STRING",
+                        description=(
+                            "Where to place the text on the slide. "
+                            "Accepted values: 'Top Center', 'Center', 'Bottom Center'. "
+                            "Defaults to 'Bottom Center' if not specified."
+                        ),
+                    ),
                 },
                 required=["row_id", "slide_number", "new_image_url"],
             ),
@@ -304,6 +312,7 @@ class CarouselP1Agent(BaseStreamingAgent):
         slide_number = args.get("slide_number", 1)
         new_text = args.get("new_text")
         new_image_url = args.get("new_image_url")
+        text_position = args.get("text_position", "Bottom Center")
 
         if not row_id or not new_image_url:
             return {"error": "row_id and new_image_url are required for fixing a slide"}
@@ -343,7 +352,7 @@ class CarouselP1Agent(BaseStreamingAgent):
             slide_bytes = renderer.render_slide(
                 image_bytes=image_bytes,
                 text=new_text or topic or "Fixed Slide",
-                position="Bottom Center",
+                position=text_position,
                 font_style=profile.get("font_style", "editorial-mixed"),
                 color_primary=profile.get("brand_color_primary", "#000000"),
                 color_secondary=profile.get("brand_color_secondary", "#FFFFFF"),
