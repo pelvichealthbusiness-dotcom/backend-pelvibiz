@@ -139,7 +139,11 @@ class CarouselP1Agent(BaseStreamingAgent):
                     ),
                     "new_image_url": types.Schema(
                         type="STRING",
-                        description="URL of the new image for the slide",
+                        description=(
+                            "URL of a new background photo for the slide. "
+                            "OMIT this parameter when only changing text or text position — "
+                            "the system will automatically use the original source photo."
+                        ),
                     ),
                     "text_position": types.Schema(
                         type="STRING",
@@ -150,7 +154,7 @@ class CarouselP1Agent(BaseStreamingAgent):
                         ),
                     ),
                 },
-                required=["row_id", "slide_number", "new_image_url"],
+                required=["row_id", "slide_number"],
             ),
         )
 
@@ -273,6 +277,7 @@ class CarouselP1Agent(BaseStreamingAgent):
                         "caption": content_plan.caption,
                         "media_urls": media_urls,
                         "published": False,
+                        "metadata": {"source_image_urls": image_urls},
                     },
                     on_conflict="id",
                 ).execute()
@@ -314,8 +319,8 @@ class CarouselP1Agent(BaseStreamingAgent):
         new_image_url = args.get("new_image_url")
         text_position = args.get("text_position", "Bottom Center")
 
-        if not row_id or not new_image_url:
-            return {"error": "row_id and new_image_url are required for fixing a slide"}
+        if not row_id:
+            return {"error": "row_id is required for fixing a slide"}
 
         try:
             brand_service = BrandService()
@@ -324,7 +329,7 @@ class CarouselP1Agent(BaseStreamingAgent):
             supabase = get_supabase_admin()
             result = (
                 supabase.table("requests_log")
-                .select("id, media_urls, user_id, title")
+                .select("id, media_urls, user_id, title, metadata")
                 .eq("id", row_id)
                 .single()
                 .execute()
@@ -342,6 +347,25 @@ class CarouselP1Agent(BaseStreamingAgent):
                 return {
                     "error": f"Slide {slide_number} out of range (1-{len(original_urls)})"
                 }
+
+            # Resolve the base image: prefer explicit new_image_url, then fall
+            # back to the original source photo saved at generation time. If
+            # neither is available, abort rather than re-render over a slide
+            # that already has text baked in.
+            if not new_image_url:
+                row_data: dict = result.data  # type: ignore[assignment]
+                raw_meta = row_data.get("metadata")
+                metadata: dict = raw_meta if isinstance(raw_meta, dict) else {}
+                source_urls = metadata.get("source_image_urls", [])
+                if slide_idx < len(source_urls):
+                    new_image_url = source_urls[slide_idx]
+                else:
+                    return {
+                        "error": (
+                            "No source image found for this slide. "
+                            "Please provide the original photo URL via new_image_url."
+                        )
+                    }
 
             renderer = SlideRenderer()
             storage = StorageService()
