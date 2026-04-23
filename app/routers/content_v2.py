@@ -43,7 +43,7 @@ class CreateContentRequest(BaseModel):
     id: Optional[str] = Field(None, description="Client-generated content ID")
     agent_type: str = Field(..., description="Agent type that generated this content")
     title: Optional[str] = Field(None, max_length=500)
-    caption: Optional[str] = Field(None, max_length=5000)
+    caption: Optional[str] = Field(None)
     reply: Optional[str] = Field(None, description="Full AI reply text")
     media_urls: Optional[list[str]] = Field(None, description="Generated media URLs")
     reel_category: Optional[str] = Field(None, max_length=100)
@@ -52,7 +52,7 @@ class CreateContentRequest(BaseModel):
 
 class UpdateContentV2Request(BaseModel):
     title: Optional[str] = Field(None, max_length=500)
-    caption: Optional[str] = Field(None, max_length=5000)
+    caption: Optional[str] = Field(None)
     published: Optional[bool] = Field(None, description="Publish status")
     scheduled_date: Optional[str] = Field(None, description="ISO datetime for scheduling")
 
@@ -60,7 +60,7 @@ class UpdateContentV2Request(BaseModel):
 class ScheduleContentRequest(BaseModel):
     scheduled_date: str = Field(..., description="ISO datetime string for scheduling")
     timezone: str = Field("UTC", description="User's timezone")
-    caption: Optional[str] = Field(None, max_length=5000)
+    caption: Optional[str] = Field(None)
 
 
 class RescheduleRequest(BaseModel):

@@ -25,7 +25,7 @@ class ContentListResponse(BaseModel):
 
 class UpdateContentRequest(BaseModel):
     title: Optional[str] = Field(default=None, max_length=500)
-    caption: Optional[str] = Field(default=None, max_length=5000)
+    caption: Optional[str] = Field(default=None)
 
 
 class PublishRequest(BaseModel):
