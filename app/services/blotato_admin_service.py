@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from app.config import get_settings
 from app.core.exceptions import NotFoundError, DatabaseError
 from app.core.supabase_client import get_service_client
 from app.services.blotato import fetch_blotato_accounts, normalize_blotato_connections
+from app.services.blotato_client import BlotatoClient, BlotatoAPIError, BlotatoScheduleNotFound
+from app.services.blotato_publisher import derive_publish_status
+
+logger = logging.getLogger(__name__)
 
 # Platforms that need subaccount fetch to get pageId/playlistIds
 _SUBACCOUNT_PLATFORMS = {"facebook", "linkedin", "youtube"}
@@ -214,3 +219,92 @@ async def unassign_account(*, user_id: str, platform: str) -> dict[str, Any]:
         raise DatabaseError("Failed to update blotato_connections")
 
     return {"user_id": user_id, "blotato_connections": connections}
+
+
+# ---------------------------------------------------------------------------
+# Blotato status sync
+# ---------------------------------------------------------------------------
+
+# Blotato → internal status mapping (best-effort)
+_BLOTATO_STATUS_MAP: dict[str, str] = {
+    "scheduled": "scheduled",
+    "published": "published",
+    "failed": "failed",
+}
+
+
+async def sync_content_publish_status(content_id: str, api_key: str) -> dict[str, Any]:
+    """Sync Blotato schedule status for all platforms of a content item.
+
+    For each platform entry in blotato_post_ids that has a non-null id:
+    - Calls GET /schedules/{id}
+    - Maps Blotato status to internal status
+    - 404 → treats as "published" (post was published and schedule expired)
+    - Other errors → logs WARNING, keeps existing status, records in errors dict
+
+    Updates blotato_post_ids and publish_status in requests_log.
+    Returns a summary dict: content_id, synced_platforms, errors, updated_blotato_post_ids.
+    Raises KeyError if content_id is not found.
+    """
+    db = get_service_client()
+    row_result = (
+        db.table("requests_log")
+        .select("blotato_post_ids")
+        .eq("id", content_id)
+        .maybe_single()
+        .execute()
+    )
+    if not row_result or not row_result.data:
+        raise KeyError(f"Content {content_id} not found")
+
+    blotato_post_ids: dict[str, Any] = row_result.data.get("blotato_post_ids") or {}
+    updated_ids: dict[str, Any] = dict(blotato_post_ids)
+    synced: list[str] = []
+    errors: dict[str, str] = {}
+
+    blotato = BlotatoClient(api_key=api_key, max_retries=2)
+    try:
+        for platform, entry in blotato_post_ids.items():
+            schedule_id = entry.get("id") if isinstance(entry, dict) else entry
+            if not schedule_id:
+                continue
+            try:
+                data = await blotato.get_schedule(schedule_id)
+                blotato_status = data.get("status", "")
+                existing_status = entry.get("status") if isinstance(entry, dict) else "scheduled"
+                internal_status = _BLOTATO_STATUS_MAP.get(blotato_status, existing_status)
+                if isinstance(updated_ids[platform], dict):
+                    updated_ids[platform] = {**updated_ids[platform], "status": internal_status}
+                synced.append(platform)
+                logger.info(
+                    "sync_status: %s/%s blotato_status=%s → internal=%s",
+                    content_id, platform, blotato_status, internal_status,
+                )
+            except BlotatoScheduleNotFound:
+                logger.info(
+                    "Schedule %s for platform %s returned 404 — treating as published",
+                    schedule_id, platform,
+                )
+                if isinstance(updated_ids[platform], dict):
+                    updated_ids[platform] = {**updated_ids[platform], "status": "published"}
+                synced.append(platform)
+            except BlotatoAPIError as exc:
+                logger.warning(
+                    "sync_status failed for %s/%s: %s", content_id, platform, exc
+                )
+                errors[platform] = str(exc)
+    finally:
+        await blotato.aclose()
+
+    new_status = derive_publish_status(updated_ids) if updated_ids else None
+    update_payload: dict[str, Any] = {"blotato_post_ids": updated_ids}
+    if new_status:
+        update_payload["publish_status"] = new_status
+    db.table("requests_log").update(update_payload).eq("id", content_id).execute()
+
+    return {
+        "content_id": content_id,
+        "synced_platforms": synced,
+        "errors": errors,
+        "updated_blotato_post_ids": updated_ids,
+    }

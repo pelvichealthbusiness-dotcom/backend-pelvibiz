@@ -29,6 +29,16 @@ def agent_type_to_media_type(agent_type: str | None) -> str:
     return _AGENT_TYPE_MEDIA_TYPE.get(agent_type, "IMAGE")
 
 
+def get_account_for_platform(connections: dict, platform: str) -> dict:
+    """Return the connection dict for a given platform.
+
+    Raises KeyError if the platform is not present in connections.
+    """
+    if platform not in connections:
+        raise KeyError(f"No connection for platform: {platform}")
+    return connections[platform]
+
+
 def build_blotato_connections(profile: dict | None = None) -> dict | None:
     """Return structured Blotato connections, falling back to legacy IDs."""
     p = profile or {}

@@ -44,9 +44,16 @@ class PaginatedResponse(BaseModel, Generic[T]):
 # Helper functions
 # ---------------------------------------------------------------------------
 
-def success(data: Any, meta: dict | None = None) -> dict:
-    """Wrap data in standard success response."""
-    return {"data": data, "error": None, "meta": meta}
+def success(data: Any, meta: dict | None = None, warnings: list[str] | None = None) -> dict:
+    """Wrap data in standard success response.
+
+    When warnings is a non-empty list, includes a 'warnings' key in the envelope.
+    When None or empty, the 'warnings' key is omitted entirely.
+    """
+    envelope: dict = {"data": data, "error": None, "meta": meta}
+    if warnings:
+        envelope["warnings"] = warnings
+    return envelope
 
 
 def paginated(data: list, total: int, page: int, limit: int) -> dict:

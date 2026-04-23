@@ -7,21 +7,30 @@ Operates on the requests_log table. Coexists with legacy content.py router.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone as dt_timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.auth import UserContext, get_current_user
 from app.core.pagination import PaginationParams, pagination_params
 from app.core.responses import success, paginated
-from app.core.exceptions import ValidationError
+from app.core.exceptions import ValidationError, ExternalServiceError
 from app.core.supabase_client import get_service_client
+from app.config import get_settings
 from app.services.blotato import build_blotato_connections, agent_type_to_media_type
+from app.services.blotato_client import BlotatoAPIError, BlotatoClient
+from app.services.blotato_publisher import (
+    publish_content as blotato_publish,
+    reschedule_all_platforms,
+    cancel_all_platforms,
+    validate_connections,
+    derive_publish_status,
+)
 from app.services.content_crud import ContentCRUD
-import asyncio
-import os
-import httpx
+from app.services.publish_audit import log_attempt as audit_log_attempt
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/content", tags=["content-v2"])
@@ -172,90 +181,313 @@ async def delete_content_detail(
     content_id: str,
     user: UserContext = Depends(get_current_user),
 ):
-    """Delete content item and associated storage files."""
+    """Delete content item and associated storage files.
+
+    Cancels any scheduled Blotato posts before deleting (best-effort).
+    """
+    settings = get_settings()
     crud = ContentCRUD()
+    content = crud.get_content(content_id, user.user_id)
+
+    blotato_post_ids: dict = content.get("blotato_post_ids") or {}
+    is_scheduled = content.get("published") and content.get("scheduled_date")
+    if blotato_post_ids and is_scheduled and settings.blotato_api_key:
+        blotato = BlotatoClient(
+            api_key=settings.blotato_api_key,
+            max_retries=settings.blotato_max_retries,
+        )
+        try:
+            await cancel_all_platforms(client=blotato, blotato_post_ids=blotato_post_ids)
+        except BlotatoAPIError as exc:
+            logger.warning("Blotato cancel failed for %s: %s", content_id, exc)
+            try:
+                db = get_service_client()
+                db.table("pending_cancellations").insert({
+                    "content_id": content_id,
+                    "user_id": str(user.user_id),
+                    "blotato_schedule_ids": blotato_post_ids,
+                    "last_error": str(exc),
+                }).execute()
+            except Exception as insert_exc:
+                logger.error("Failed to insert pending_cancellation for %s: %s", content_id, insert_exc)
+        finally:
+            await blotato.aclose()
+
     crud.delete_content(content_id, user.user_id)
     return success({"deleted": True})
 
-@router.post("/{content_id}/schedule")
+async def _do_schedule_background(
+    content_id: str,
+    user_id: str,
+    media_urls: list,
+    caption: str,
+    connections: dict,
+    scheduled_date: str,
+    timezone: str,
+    media_type: str,
+    settings,
+    update_caption: bool,
+    original_caption: str | None,
+) -> None:
+    """Background task: call Blotato, then update the DB record."""
+    crud = ContentCRUD()
+    blotato = BlotatoClient(
+        api_key=settings.blotato_api_key,
+        max_retries=settings.blotato_max_retries,
+    )
+    try:
+        valid_connections, stale_platforms = await validate_connections(blotato, connections)
+        if not valid_connections:
+            raise ValueError(f"All connected accounts are stale: {stale_platforms}")
+
+        post_ids = await blotato_publish(
+            client=blotato,
+            media_urls=media_urls,
+            caption=caption,
+            connections=valid_connections,
+            scheduled_date=scheduled_date,
+            timezone=timezone,
+            media_type=media_type,
+        )
+        overall_status = derive_publish_status(post_ids)
+        updates: dict = {
+            "published": True,
+            "scheduled_date": scheduled_date,
+            "blotato_post_ids": post_ids,
+            "publish_status": overall_status,
+            "publish_error": None,
+            "published_at": datetime.now(dt_timezone.utc).isoformat(),
+        }
+        if update_caption and original_caption is not None:
+            updates["caption"] = original_caption
+            updates["reply"] = original_caption
+        crud.update_content(content_id, user_id, updates)
+        for platform, entry in post_ids.items():
+            try:
+                await audit_log_attempt(
+                    content_id=content_id, user_id=user_id,
+                    action="schedule", platform=platform,
+                    status=entry["status"], error=entry.get("error"),
+                    blotato_post_id=entry.get("id"),
+                )
+            except Exception:
+                pass
+    except (ValueError, BlotatoAPIError) as exc:
+        error_detail = str(exc)
+        logger.error("Background schedule failed content=%s: %s", content_id, error_detail)
+        try:
+            crud.update_content(content_id, user_id, {
+                "publish_status": "failed",
+                "publish_error": error_detail,
+            })
+        except Exception:
+            pass
+        try:
+            await audit_log_attempt(
+                content_id=content_id, user_id=user_id,
+                action="schedule", platform="all",
+                status="failed", error=error_detail,
+            )
+        except Exception:
+            pass
+    finally:
+        await blotato.aclose()
+
+
+@router.post("/{content_id}/schedule", status_code=202)
 async def schedule_content(
     content_id: str,
     body: ScheduleContentRequest,
+    background_tasks: BackgroundTasks,
     user: UserContext = Depends(get_current_user),
 ):
-    """Schedule content for publishing via n8n → Blotato pipeline.
-    
-    Calls the n8n blotato-native-publisher webhook, then updates
-    the content record with published=True, scheduled_date, and caption.
+    """Schedule content for publishing via Blotato API (async, returns 202).
+
+    Validation runs synchronously. The Blotato API call is dispatched as a
+    background task so the response is immediate.
     """
+    settings = get_settings()
+    if not settings.blotato_api_key:
+        raise ExternalServiceError("blotato", "BLOTATO_API_KEY is not configured")
+
     crud = ContentCRUD()
-    # Verify ownership
     content = crud.get_content(content_id, user.user_id)
+
+    # Idempotency: same date + already fully scheduled → return 200 early
+    if (
+        content.get("published") is True
+        and content.get("publish_status") == "scheduled"
+        and content.get("scheduled_date") == body.scheduled_date
+    ):
+        result = dict(content)
+        result["idempotent"] = True
+        return JSONResponse(status_code=200, content=success(result))
 
     admin = get_service_client()
     profile_result = (
         admin.table("profiles")
-        .select("blotato_connections")
+        .select("blotato_connections, timezone")
         .eq("id", user.user_id)
         .maybe_single()
         .execute()
     )
-    profile = profile_result.data or {}
+    raw_profile = profile_result.data if profile_result else None
+    profile: dict = raw_profile if isinstance(raw_profile, dict) else {}
     blotato_connections = build_blotato_connections(profile)
 
-    # Derive Blotato media_type from the content's agent_type
+    if not blotato_connections:
+        raise ValidationError(
+            "No social media account connected. Go to Settings → Social Accounts to connect Instagram or Facebook."
+        )
+
     content_agent_type = content.get("agent_type", "")
     media_type = agent_type_to_media_type(content_agent_type)
+    caption = body.caption or content.get("reply", "")
+    timezone = profile.get("timezone") or body.timezone or "UTC"
 
-    # Build n8n payload (same format as Vercel Edge Function)
-    # media_urls is explicitly included so n8n always gets the current (potentially fixed) URLs
-    n8n_payload = {
-        "client_id": user.user_id,
-        "asset_id": content_id,
-        "media_urls": content.get("media_urls") or [],
-        "scheduled_date": body.scheduled_date,
-        "timezone": body.timezone,
-        "caption": body.caption or content.get("reply", ""),
-        "action": "schedule_post",
-        "blotato_connections": blotato_connections,
-        "agent_type": content_agent_type,
-        "media_type": media_type,
+    # Account validation — synchronous, runs before dispatching background task
+    blotato_client_for_validation = BlotatoClient(
+        api_key=settings.blotato_api_key,
+        max_retries=settings.blotato_max_retries,
+    )
+    try:
+        valid_connections, stale_platforms = await validate_connections(
+            blotato_client_for_validation, blotato_connections
+        )
+    finally:
+        await blotato_client_for_validation.aclose()
+
+    if not valid_connections:
+        raise ValidationError(
+            "All connected social accounts are stale. Go to Settings to reconnect."
+        )
+
+    warnings: list[str] = [
+        f"{p} account is stale and was skipped. Go to Settings to reconnect."
+        for p in stale_platforms
+    ]
+
+    background_tasks.add_task(
+        _do_schedule_background,
+        content_id=content_id,
+        user_id=str(user.user_id),
+        media_urls=content.get("media_urls") or [],
+        caption=caption,
+        connections=valid_connections,
+        scheduled_date=body.scheduled_date,
+        timezone=timezone,
+        media_type=media_type,
+        settings=settings,
+        update_caption=body.caption is not None,
+        original_caption=body.caption,
+    )
+
+    envelope = success(
+        {"status": "queued", "content_id": content_id},
+        warnings=warnings or None,
+    )
+    return JSONResponse(status_code=202, content=envelope)
+
+
+@router.post("/{content_id}/republish")
+async def republish_content(
+    content_id: str,
+    user: UserContext = Depends(get_current_user),
+):
+    """Retry publishing for failed or partially failed content.
+
+    Identifies platforms with status='failed' in blotato_post_ids and retries
+    only those. Merges new results and re-derives overall publish_status.
+    """
+    settings = get_settings()
+    if not settings.blotato_api_key:
+        raise ExternalServiceError("blotato", "BLOTATO_API_KEY is not configured")
+
+    crud = ContentCRUD()
+    content = crud.get_content(content_id, user.user_id)
+
+    publish_status = content.get("publish_status")
+    if publish_status not in ("failed", "partial"):
+        if publish_status == "scheduled":
+            raise ValidationError("Content is already scheduled")
+        raise ValidationError("No failed platforms to retry")
+
+    admin = get_service_client()
+    profile_result = (
+        admin.table("profiles")
+        .select("blotato_connections, timezone")
+        .eq("id", user.user_id)
+        .maybe_single()
+        .execute()
+    )
+    raw_profile = profile_result.data if profile_result else None
+    profile: dict = raw_profile if isinstance(raw_profile, dict) else {}
+    blotato_connections = build_blotato_connections(profile)
+
+    if not blotato_connections:
+        raise ValidationError(
+            "No social media account connected. Go to Settings → Social Accounts to connect Instagram or Facebook."
+        )
+
+    existing: dict = content.get("blotato_post_ids") or {}
+
+    # Filter to only platforms that failed or are missing from existing results
+    failed_connections = {
+        platform: conn
+        for platform, conn in blotato_connections.items()
+        if existing.get(platform, {}).get("status") != "scheduled"
     }
 
-    # Call n8n webhook with retry
-    n8n_url = os.environ.get("N8N_PUBLISHER_WEBHOOK_URL", "")
-    if not n8n_url:
-        logger.warning("N8N_PUBLISHER_WEBHOOK_URL not set — skipping n8n call")
-    else:
-        last_error: Exception | None = None
-        for attempt in range(3):
-            try:
-                async with httpx.AsyncClient(timeout=35.0) as client:
-                    resp = await client.post(n8n_url, json=n8n_payload)
-                    resp.raise_for_status()
-                    break
-            except httpx.HTTPStatusError as exc:
-                logger.error("n8n webhook HTTP error (attempt %d): %s", attempt + 1, exc)
-                last_error = exc
-                if attempt < 2:
-                    await asyncio.sleep(2 ** attempt)
-            except Exception as exc:
-                logger.error("n8n webhook error (attempt %d): %s", attempt + 1, exc)
-                last_error = exc
-                if attempt < 2:
-                    await asyncio.sleep(2 ** attempt)
-        else:
-            raise ValidationError(f"Failed to reach publisher: {last_error}")
+    if not failed_connections:
+        raise ValidationError("No failed platforms to retry")
 
-    # Update content record
-    updates = {
-        "published": True,
-        "scheduled_date": body.scheduled_date,
+    content_agent_type = content.get("agent_type", "")
+    media_type = agent_type_to_media_type(content_agent_type)
+    caption = content.get("reply") or ""
+    scheduled_date = content.get("scheduled_date") or ""
+    timezone = profile.get("timezone") or "UTC"
+
+    blotato = BlotatoClient(
+        api_key=settings.blotato_api_key,
+        max_retries=settings.blotato_max_retries,
+    )
+    try:
+        new_results = await blotato_publish(
+            client=blotato,
+            media_urls=content.get("media_urls") or [],
+            caption=caption,
+            connections=failed_connections,
+            scheduled_date=scheduled_date,
+            timezone=timezone,
+            media_type=media_type,
+        )
+    except BlotatoAPIError as exc:
+        error_detail = str(exc)
+        logger.error(
+            "Blotato republish failed for content=%s user=%s: %s",
+            content_id, user.user_id, error_detail,
+        )
+        raise ExternalServiceError("blotato", error_detail)
+    finally:
+        await blotato.aclose()
+
+    for platform, entry in new_results.items():
+        try:
+            await audit_log_attempt(
+                content_id=content_id, user_id=user.user_id,
+                action="republish", platform=platform,
+                status=entry["status"], error=entry.get("error"),
+                blotato_post_id=entry.get("id"),
+            )
+        except Exception:
+            pass
+
+    merged = {**existing, **new_results}
+    updates: dict = {
+        "blotato_post_ids": merged,
+        "publish_status": derive_publish_status(merged),
+        "publish_error": None,
     }
-    if body.caption is not None:
-        updates["caption"] = body.caption
-        updates["reply"] = body.caption
-
     updated = crud.update_content(content_id, user.user_id, updates)
     return success(updated)
 
@@ -268,15 +500,72 @@ async def reschedule_content(
 ):
     """Update the scheduled_date of an already-scheduled post.
 
-    Only changes scheduled_date — does not touch published, caption, or media_urls.
+    Calls Blotato to update the schedule if IDs are stored (soft failure — DB is
+    source of truth). Always updates scheduled_date in DB.
     """
+    settings = get_settings()
     crud = ContentCRUD()
-    # Verify ownership — raises 404/403 if not found or wrong user
-    crud.get_content(content_id, user.user_id)
+    content = crud.get_content(content_id, user.user_id)
 
-    updated = crud.update_content(
-        content_id,
-        user.user_id,
-        {"scheduled_date": body.scheduled_date},
+    admin = get_service_client()
+    profile_result = (
+        admin.table("profiles")
+        .select("timezone")
+        .eq("id", user.user_id)
+        .maybe_single()
+        .execute()
     )
-    return success(updated)
+    raw_profile = profile_result.data if profile_result else None
+    _tz_raw = (raw_profile if isinstance(raw_profile, dict) else {}).get("timezone")
+    profile_tz: str = str(_tz_raw) if _tz_raw else "UTC"
+
+    blotato_post_ids: dict = content.get("blotato_post_ids") or {}
+    reschedule_results: dict[str, str | None] = {}
+    if blotato_post_ids and settings.blotato_api_key:
+        blotato = BlotatoClient(
+            api_key=settings.blotato_api_key,
+            max_retries=settings.blotato_max_retries,
+        )
+        try:
+            reschedule_results = await reschedule_all_platforms(
+                client=blotato,
+                blotato_post_ids=blotato_post_ids,
+                new_scheduled_date=body.scheduled_date,
+                timezone=profile_tz,
+            )
+        finally:
+            await blotato.aclose()
+
+    # Merge reschedule_error into blotato_post_ids entries
+    updated_ids = dict(blotato_post_ids)
+    for platform, err in reschedule_results.items():
+        if platform in updated_ids and isinstance(updated_ids[platform], dict):
+            updated_ids[platform] = {**updated_ids[platform], "reschedule_error": err}
+
+    db_updates: dict = {"scheduled_date": body.scheduled_date}
+    if updated_ids:
+        db_updates["blotato_post_ids"] = updated_ids
+
+    warnings = [
+        f"Blotato reschedule failed for {p}: {err}"
+        for p, err in reschedule_results.items()
+        if err is not None
+    ]
+
+    for platform, err in reschedule_results.items():
+        try:
+            await audit_log_attempt(
+                content_id=content_id, user_id=user.user_id,
+                action="reschedule", platform=platform,
+                status="failed" if err else "success", error=err,
+                blotato_post_id=(
+                    blotato_post_ids.get(platform, {}).get("id")
+                    if isinstance(blotato_post_ids.get(platform), dict)
+                    else blotato_post_ids.get(platform)
+                ),
+            )
+        except Exception:
+            pass
+
+    updated = crud.update_content(content_id, user.user_id, db_updates)
+    return success(updated, warnings=warnings or None)

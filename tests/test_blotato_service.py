@@ -1,4 +1,10 @@
-from app.services.blotato import build_blotato_connections, normalize_blotato_connections
+import pytest
+
+from app.services.blotato import (
+    build_blotato_connections,
+    normalize_blotato_connections,
+    get_account_for_platform,
+)
 
 
 def test_build_blotato_connections_prefers_structured_data():
@@ -43,3 +49,36 @@ def test_normalize_blotato_connections_maps_platforms():
     assert result["instagram"]["accountId"] == "ig-1"
     assert result["facebook"]["accountId"] == "fb-1"
     assert result["youtube"]["accountId"] == "yt-1"
+
+
+# ---------------------------------------------------------------------------
+# get_account_for_platform
+# ---------------------------------------------------------------------------
+
+def test_get_account_for_platform_returns_connection_dict():
+    connections = {
+        "instagram": {"accountId": "ig-001"},
+        "facebook": {"accountId": "fb-acc-1", "pageId": "fb-page-99"},
+    }
+
+    result = get_account_for_platform(connections, "instagram")
+
+    assert result == {"accountId": "ig-001"}
+
+
+def test_get_account_for_platform_returns_facebook_with_page_id():
+    connections = {
+        "facebook": {"accountId": "fb-acc-1", "pageId": "fb-page-99"},
+    }
+
+    result = get_account_for_platform(connections, "facebook")
+
+    assert result["accountId"] == "fb-acc-1"
+    assert result["pageId"] == "fb-page-99"
+
+
+def test_get_account_for_platform_raises_key_error_for_missing_platform():
+    connections = {"instagram": {"accountId": "ig-001"}}
+
+    with pytest.raises(KeyError, match="twitter"):
+        get_account_for_platform(connections, "twitter")

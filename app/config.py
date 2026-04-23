@@ -64,9 +64,6 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_anon_key: str = ""
 
-    # n8n publisher webhook
-    n8n_publisher_webhook_url: str = ""
-
     # Brave Search
     brave_search_api_key: str = ""
 
@@ -76,6 +73,9 @@ class Settings(BaseSettings):
 
     # Blotato
     blotato_api_key: str = ""
+    blotato_poll_interval: int = 2
+    blotato_poll_timeout: int = 60
+    blotato_max_retries: int = 3
 
     # Internal service-to-service auth (bypasses JWT for backend→backend calls)
     internal_api_key: str = "pelvi-internal-service-key-2024"
