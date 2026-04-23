@@ -222,8 +222,7 @@ async def list_publish_logs(
         .select(
             "id, user_id, agent_type, title, caption, media_urls, "
             "scheduled_date, publish_status, publish_error, published_at, "
-            "blotato_post_ids, created_at, "
-            "profiles!inner(email, full_name, brand_name)"
+            "blotato_post_ids, created_at"
         )
         .not_.is_("publish_status", "null")
         .order("published_at", desc=True)
