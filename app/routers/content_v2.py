@@ -10,8 +10,7 @@ import logging
 from datetime import datetime, timezone as dt_timezone
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.core.auth import UserContext, get_current_user
@@ -294,17 +293,15 @@ async def _do_schedule_background(
         await blotato.aclose()
 
 
-@router.post("/{content_id}/schedule", status_code=202)
+@router.post("/{content_id}/schedule")
 async def schedule_content(
     content_id: str,
     body: ScheduleContentRequest,
-    background_tasks: BackgroundTasks,
     user: UserContext = Depends(get_current_user),
 ):
-    """Schedule content for publishing via Blotato API (async, returns 202).
+    """Schedule content for publishing via Blotato API.
 
-    Validation runs synchronously. The Blotato API call is dispatched as a
-    background task so the response is immediate.
+    Calls Blotato synchronously and returns the updated content record.
     """
     settings = get_settings()
     if not settings.blotato_api_key:
@@ -313,7 +310,7 @@ async def schedule_content(
     crud = ContentCRUD()
     content = crud.get_content(content_id, user.user_id)
 
-    # Idempotency: same date + already fully scheduled → return 200 early
+    # Idempotency: same date + already fully scheduled → return early
     if (
         content.get("published") is True
         and content.get("publish_status") == "scheduled"
@@ -321,7 +318,7 @@ async def schedule_content(
     ):
         result = dict(content)
         result["idempotent"] = True
-        return JSONResponse(status_code=200, content=success(result))
+        return success(result)
 
     admin = get_service_client()
     profile_result = (
@@ -345,48 +342,60 @@ async def schedule_content(
     caption = body.caption or content.get("reply", "")
     timezone = profile.get("timezone") or body.timezone or "UTC"
 
-    # Account validation — synchronous, runs before dispatching background task
-    blotato_client_for_validation = BlotatoClient(
+    blotato = BlotatoClient(
         api_key=settings.blotato_api_key,
         max_retries=settings.blotato_max_retries,
     )
     try:
-        valid_connections, stale_platforms = await validate_connections(
-            blotato_client_for_validation, blotato_connections
+        valid_connections, stale_platforms = await validate_connections(blotato, blotato_connections)
+
+        if not valid_connections:
+            raise ValidationError(
+                "All connected social accounts are stale. Go to Settings to reconnect."
+            )
+
+        post_ids = await blotato_publish(
+            client=blotato,
+            media_urls=content.get("media_urls") or [],
+            caption=caption,
+            connections=valid_connections,
+            scheduled_date=body.scheduled_date,
+            timezone=timezone,
+            media_type=media_type,
         )
     finally:
-        await blotato_client_for_validation.aclose()
+        await blotato.aclose()
 
-    if not valid_connections:
-        raise ValidationError(
-            "All connected social accounts are stale. Go to Settings to reconnect."
-        )
+    overall_status = derive_publish_status(post_ids)
+    updates: dict = {
+        "published": True,
+        "scheduled_date": body.scheduled_date,
+        "blotato_post_ids": post_ids,
+        "publish_status": overall_status,
+        "publish_error": None,
+        "published_at": datetime.now(dt_timezone.utc).isoformat(),
+    }
+    if body.caption is not None:
+        updates["caption"] = body.caption
+        updates["reply"] = body.caption
+    updated = crud.update_content(content_id, user.user_id, updates)
+
+    for platform, entry in post_ids.items():
+        try:
+            await audit_log_attempt(
+                content_id=content_id, user_id=str(user.user_id),
+                action="schedule", platform=platform,
+                status=entry["status"], error=entry.get("error"),
+                blotato_post_id=entry.get("id"),
+            )
+        except Exception:
+            pass
 
     warnings: list[str] = [
         f"{p} account is stale and was skipped. Go to Settings to reconnect."
         for p in stale_platforms
     ]
-
-    background_tasks.add_task(
-        _do_schedule_background,
-        content_id=content_id,
-        user_id=str(user.user_id),
-        media_urls=content.get("media_urls") or [],
-        caption=caption,
-        connections=valid_connections,
-        scheduled_date=body.scheduled_date,
-        timezone=timezone,
-        media_type=media_type,
-        settings=settings,
-        update_caption=body.caption is not None,
-        original_caption=body.caption,
-    )
-
-    envelope = success(
-        {"status": "queued", "content_id": content_id},
-        warnings=warnings or None,
-    )
-    return JSONResponse(status_code=202, content=envelope)
+    return success(updated, warnings=warnings or None)
 
 
 @router.post("/{content_id}/republish")
