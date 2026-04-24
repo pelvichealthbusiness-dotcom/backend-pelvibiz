@@ -322,7 +322,14 @@ Structure the script as 4 beats:
 
 Also provide:
 - filming_card: a compact director's note (what to show on camera, setting, energy)
-- caption: Instagram caption with hook, value, and hashtags
+- caption: Instagram caption. Format EXACTLY as:
+  Line 1: hook sentence (under 100 chars)
+  [blank line]
+  2-3 body sentences
+  [blank line]
+  CTA sentence
+  [blank line]
+  Maximum 3 relevant hashtags on the last line (no generic ones like #motivation #success)
 - cta: the standalone CTA sentence
 
 Respond ONLY with a valid JSON object. No markdown, no explanation. Schema:

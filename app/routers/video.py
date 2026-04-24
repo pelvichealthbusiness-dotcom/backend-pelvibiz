@@ -29,6 +29,7 @@ import inspect
 import os
 from app.templates.brand_theme import resolve_theme
 from app.templates.renderscript_builders import RENDERSCRIPT_BUILDERS
+from app.utils.caption_utils import format_caption
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ async def generate_video(
     )
 
     # ---- Save to requests_log ---------------------------------------------
-    caption_text = request.caption or ""
+    caption_text = format_caption(request.caption or "")
     reply_text = caption_text or "Your video is ready!"
 
     supabase = get_supabase_admin()
@@ -515,7 +516,7 @@ async def generate_video_stream(
             )
 
             # ---- Save to requests_log --------------------------------------
-            caption_text = request.caption or ""
+            caption_text = format_caption(request.caption or "")
             reply_text = caption_text or "Your video is ready!"
 
             supabase = get_supabase_admin()
