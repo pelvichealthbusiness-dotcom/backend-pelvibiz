@@ -164,8 +164,9 @@ async def generate_video(
     phrase_blocks = []
     needs_analysis = config.get("needs_analysis", False)
 
-    # Only transcribe for Talking Head — B-roll templates must not caption their own audio
-    if request.enable_captions and effective_video_urls and template_enum == VideoTemplate.TALKING_HEAD:
+    # Only transcribe for Talking Head templates — B-roll templates must not caption their own audio
+    _is_talking_head = template_enum in (VideoTemplate.TALKING_HEAD, VideoTemplate.TALKING_HEAD_V2)
+    if request.enable_captions and effective_video_urls and _is_talking_head:
         # OpusClip subtitle pipeline: transcribe speech → phrase blocks
         phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
 
@@ -179,7 +180,7 @@ async def generate_video(
             analysis_result = await analysis_service.analyze_for_testimonial(
                 effective_video_urls[0],
             )
-        elif template_enum == VideoTemplate.TALKING_HEAD and not phrase_blocks:
+        elif _is_talking_head and not phrase_blocks:
             # Only run legacy Gemini analysis when captions pipeline didn't run
             analysis_result = await analysis_service.analyze_for_talking_head(
                 effective_video_urls[0],
@@ -352,8 +353,9 @@ async def generate_video_stream(
             phrase_blocks = []
             needs_analysis = config.get("needs_analysis", False)
 
-            # Only transcribe for Talking Head — B-roll templates must not caption their own audio
-            if request.enable_captions and effective_video_urls and template_enum == VideoTemplate.TALKING_HEAD:
+            # Only transcribe for Talking Head templates — B-roll templates must not caption their own audio
+            _is_talking_head = template_enum in (VideoTemplate.TALKING_HEAD, VideoTemplate.TALKING_HEAD_V2)
+            if request.enable_captions and effective_video_urls and _is_talking_head:
                 yield f'data: {json.dumps({"type": "progress", "phase": "transcribing", "message": "Transcribing audio for captions..."})}\n\n'
                 # Run transcription concurrently and send SSE keepalives every 8s so
                 # browsers / network proxies don't close the idle stream (Files API
@@ -380,7 +382,7 @@ async def generate_video_stream(
                     analysis_result = await analysis_service.analyze_for_testimonial(
                         effective_video_urls[0],
                     )
-                elif template_enum == VideoTemplate.TALKING_HEAD and not phrase_blocks:
+                elif _is_talking_head and not phrase_blocks:
                     analysis_result = await analysis_service.analyze_for_talking_head(
                         effective_video_urls[0],
                     )

@@ -999,6 +999,207 @@ def build_edu_steps(
     return source
 
 
+# ── Talking Head v2 ───────────────────────────────────────────────────────
+#
+# Layout:
+#   CENTER → Title card: appears for 3s then disappears
+#   CENTER → Karaoke captions: word-by-word, clean Poppins font, starts after title
+#   Audio:  video audio ON (person is speaking)
+
+_V2_CAPTION_FONT = "Poppins"
+_V2_TITLE_DURATION = 3.0
+
+
+def _caption_elem_v2(
+    track: int,
+    text: str,
+    time: float,
+    duration: float,
+    y: str = "50%",
+    font_family: str | None = None,
+    fill_color: str = "#FFFFFF",
+) -> dict:
+    """Talking Head v2 karaoke word element.
+
+    Poppins Bold, centered, large text with thin stroke and dark pill background.
+    No letter-spacing — clean and readable.
+    """
+    return {
+        "type": "text", "track": track, "name": f"Sub-{track}",
+        "text": text, "time": round(time, 3),
+        "duration": round(max(duration - 0.05, 0.1), 3),
+        "x": "50%", "y": y, "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%", "width": "88%",
+        "font_family": font_family or _V2_CAPTION_FONT,
+        "font_weight": "800",
+        "font_size": "11 vmin",
+        "letter_spacing": "0%",
+        "fill_color": fill_color,
+        "stroke_color": "#000000",
+        "stroke_width": "1.0 vmin",
+        "background_color": "rgba(0,0,0,0.65)",
+        "background_x_padding": "8%",
+        "background_y_padding": "5%",
+    }
+
+
+def _append_karaoke_v2(
+    elements: list,
+    phrase_blocks: list[PhraseBlock],
+    y: str = "50%",
+    base_track: int = 500,
+    font_family: str | None = None,
+    fill_color: str = "#FFFFFF",
+    title_end: float = 0.0,
+) -> None:
+    """Append word-by-word karaoke caption elements for Talking Head v2.
+
+    Each phrase block is split into individual words with proportional timing.
+    Blocks that fall within the title intro window are trimmed or skipped.
+    """
+    track = base_track
+    for block in phrase_blocks:
+        # Skip blocks completely inside the title window
+        if title_end > 0 and block.end <= title_end:
+            continue
+
+        words = block.text.split()
+        if not words:
+            continue
+
+        # Trim block start if it overlaps the title
+        block_start = max(block.start, title_end)
+        remaining_dur = max(block.end - block_start, 0)
+        if remaining_dur <= 0:
+            continue
+
+        word_dur = remaining_dur / len(words)
+        cursor = block_start
+
+        for word in words:
+            word = word.strip()
+            if not word:
+                cursor += word_dur
+                continue
+            actual_dur = min(word_dur, block.end - cursor)
+            if actual_dur <= 0:
+                break
+            elements.append(_caption_elem_v2(
+                track=track,
+                text=word,
+                time=cursor,
+                duration=actual_dur,
+                y=y,
+                font_family=font_family,
+                fill_color=fill_color,
+            ))
+            cursor += word_dur
+            track += 1
+
+
+def build_talking_head_v2(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    # Duration: real video duration from analysis or phrase blocks, else target
+    if analysis and analysis.duration_seconds:
+        dur = float(analysis.duration_seconds)
+    elif phrase_blocks:
+        dur = phrase_blocks[-1].end + 0.5 if phrase_blocks else 30.0
+    else:
+        dur = _resolve_target_duration(request, 30.0)
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    # Video — full duration, audio ON (person is speaking)
+    url = request.video_urls[0] if request.video_urls else ""
+    if url:
+        els.append(_video_elem("Video", 1, url, 0.0, dur, volume="100%"))
+
+    # TITLE card — centered on screen, shows _V2_TITLE_DURATION seconds then disappears
+    hook = (request.text_1 or "").strip()
+    title_end = min(_V2_TITLE_DURATION, dur) if hook else 0.0
+    if hook:
+        els.append({
+            "type": "text", "track": 20, "name": "Title",
+            "text": hook,
+            "time": 0.0, "duration": title_end,
+            "x": "50%", "y": "50%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%",
+            "width": "88%",
+            "font_family": "Poppins",
+            "font_weight": "700",
+            "font_size": "7.5 vmin",
+            "fill_color": "#FFFFFF",
+            "stroke_color": "#000000",
+            "stroke_width": "0.5 vmin",
+            "background_color": "rgba(0,0,0,0.72)",
+            "background_x_padding": "8%",
+            "background_y_padding": "5%",
+        })
+
+    # CAPTIONS — centered, word-by-word karaoke, starts after title
+    caption_font = getattr(request, "caption_font", None) or _V2_CAPTION_FONT
+    caption_color = getattr(request, "caption_color", None) or "#FFFFFF"
+    caption_y = "50%"
+
+    if phrase_blocks:
+        _append_karaoke_v2(
+            els, phrase_blocks,
+            y=caption_y, base_track=500,
+            font_family=caption_font,
+            fill_color=caption_color,
+            title_end=title_end,
+        )
+    elif analysis and analysis.transcript_segments:
+        # Legacy Gemini segments fallback
+        for i, seg in enumerate(analysis.transcript_segments):
+            text = seg.get("text", "").strip()
+            if not text:
+                continue
+            t_start = max(float(seg.get("start", 0)), title_end)
+            t_end = float(seg.get("end", t_start + 0.5))
+            seg_dur = max(t_end - t_start - 0.05, 0.1)
+            if t_start >= t_end:
+                continue
+            els.append(_caption_elem_v2(
+                track=30 + i,
+                text=text,
+                time=t_start,
+                duration=seg_dur,
+                y=caption_y,
+                font_family=caption_font,
+                fill_color=caption_color,
+            ))
+    else:
+        # No analysis — split text_2 into evenly-timed word groups
+        caption_text = (request.text_2 or "").strip()
+        if caption_text:
+            caption_start = title_end
+            caption_dur = max(dur - caption_start - 0.5, 1.0)
+            chunks = _word_chunks(caption_text, 2)
+            chunk_dur = caption_dur / len(chunks)
+            for i, chunk in enumerate(chunks):
+                els.append(_caption_elem_v2(
+                    track=30 + i,
+                    text=chunk,
+                    time=round(caption_start + i * chunk_dur, 3),
+                    duration=round(chunk_dur - 0.08, 3),
+                    y=caption_y,
+                    font_family=caption_font,
+                    fill_color=caption_color,
+                ))
+
+    if theme.music_url:
+        els.append(_audio_elem(theme, dur, track=200))
+
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1013,6 +1214,7 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.OFFER_DROP: build_offer_drop,
     VideoTemplate.BULLET_REEL: build_bullet_reel,
     VideoTemplate.TALKING_HEAD: build_talking_head,
+    VideoTemplate.TALKING_HEAD_V2: build_talking_head_v2,
     VideoTemplate.HOOK_REVEAL: build_hook_reveal,
     VideoTemplate.EDU_STEPS: build_edu_steps,
 }

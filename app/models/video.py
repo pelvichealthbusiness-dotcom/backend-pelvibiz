@@ -39,6 +39,7 @@ class VideoTemplate(str, Enum):
     # New social-first templates
     BULLET_REEL = "bullet-reel"
     TALKING_HEAD = "talking-head"
+    TALKING_HEAD_V2 = "talking-head-v2"
     HOOK_REVEAL = "hook-reveal"
     EDU_STEPS = "edu-steps"
 
@@ -151,6 +152,15 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "creatomate_id": "RENDERSCRIPT",
         "required_videos": 1,
         "required_text_count": 1,   # text_1=Hook (optional); captions auto-generated from audio
+        "needs_analysis": True,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.TALKING_HEAD_V2: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 1,
+        "required_text_count": 1,   # text_1=Title (optional); captions auto-generated from audio
         "needs_analysis": True,
         "output_format": "mp4",
         "width": 1080,

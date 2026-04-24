@@ -23,6 +23,7 @@ from app.templates.renderscript_builders import (
     _append_captions,
     build_bullet_reel,
     build_talking_head,
+    build_talking_head_v2,
     build_hook_reveal,
     build_edu_steps,
     RENDERSCRIPT_BUILDERS,
@@ -778,3 +779,111 @@ class TestTalkingHeadCaptionFont:
         captions = [el for el in source["elements"] if el.get("type") == "text" and el.get("font_family") == "Anton"]
 
         assert len(captions) >= 1, "Should default to Anton when no caption_font specified"
+
+
+# ── Talking Head v2 ───────────────────────────────────────────────────────
+
+def _v2_captions(source: dict) -> list[dict]:
+    """Extract karaoke caption elements from a v2 renderscript (named Sub-NNN)."""
+    return [
+        el for el in source["elements"]
+        if el.get("type") == "text" and (el.get("name") or "").startswith("Sub-")
+    ]
+
+
+class TestTalkingHeadV2:
+    """Verify Talking Head Pro (v2) builder: title card + word-by-word karaoke."""
+
+    def test_title_is_centered_and_lasts_3s(self):
+        request = _make_request(template="talking-head-v2", clip_count=1, text_1="My title here")
+        theme = _make_theme()
+
+        source = build_talking_head_v2(request, theme)
+        title_els = [el for el in source["elements"] if el.get("name") == "Title"]
+
+        assert len(title_els) == 1
+        title = title_els[0]
+        assert title["y"] == "50%", "Title must be vertically centered"
+        assert title["x"] == "50%", "Title must be horizontally centered"
+        assert title["duration"] == pytest.approx(3.0), "Title must show for 3s"
+
+    def test_no_title_element_when_text1_empty(self):
+        request = _make_request(template="talking-head-v2", clip_count=1, text_1="")
+        theme = _make_theme()
+
+        source = build_talking_head_v2(request, theme)
+        title_els = [el for el in source["elements"] if el.get("name") == "Title"]
+
+        assert len(title_els) == 0
+
+    def test_captions_centered_on_screen(self):
+        request = _make_request(template="talking-head-v2", clip_count=1)
+        theme = _make_theme()
+        blocks = [
+            PhraseBlock(text="Hello world", start=4.0, end=5.5),
+            PhraseBlock(text="Testing now", start=5.5, end=7.0),
+        ]
+
+        source = build_talking_head_v2(request, theme, phrase_blocks=blocks)
+        captions = _v2_captions(source)
+
+        for el in captions:
+            assert el["y"] == "50%", f"Caption y={el['y']} must be centered (50%)"
+
+    def test_captions_use_poppins_by_default(self):
+        request = _make_request(template="talking-head-v2", clip_count=1)
+        theme = _make_theme()
+        blocks = [PhraseBlock(text="Hello everyone", start=4.0, end=5.5)]
+
+        source = build_talking_head_v2(request, theme, phrase_blocks=blocks)
+        captions = _v2_captions(source)
+
+        assert len(captions) >= 1
+        for el in captions:
+            assert el["font_family"] == "Poppins", f"Expected Poppins, got {el['font_family']}"
+
+    def test_captions_skip_title_window(self):
+        """Phrase blocks inside the 3s title window must not appear as captions."""
+        request = _make_request(template="talking-head-v2", clip_count=1, text_1="Title")
+        theme = _make_theme()
+        blocks = [
+            PhraseBlock(text="Too early", start=0.5, end=2.0),   # inside 0-3s title window
+            PhraseBlock(text="After title", start=3.5, end=5.0),  # after title → should appear
+        ]
+
+        source = build_talking_head_v2(request, theme, phrase_blocks=blocks)
+        captions = _v2_captions(source)
+
+        # No caption should start before 3.0s
+        for el in captions:
+            assert el["time"] >= 3.0, f"Caption at {el['time']}s falls inside title window"
+
+    def test_captions_are_word_level(self):
+        """Each phrase block must be split into individual word elements."""
+        request = _make_request(template="talking-head-v2", clip_count=1, text_1="")
+        theme = _make_theme()
+        # 3 words → expect 3 caption elements
+        blocks = [PhraseBlock(text="one two three", start=0.0, end=3.0)]
+
+        source = build_talking_head_v2(request, theme, phrase_blocks=blocks)
+        captions = _v2_captions(source)
+
+        assert len(captions) == 3, f"Expected 3 word elements, got {len(captions)}"
+        texts = [el["text"] for el in captions]
+        assert texts == ["one", "two", "three"]
+
+    def test_caption_font_respected(self):
+        request = _make_request(template="talking-head-v2", clip_count=1, caption_font="Montserrat")
+        theme = _make_theme()
+        blocks = [PhraseBlock(text="Hello world", start=4.0, end=5.5)]
+
+        source = build_talking_head_v2(request, theme, phrase_blocks=blocks)
+        captions = _v2_captions(source)
+
+        assert len(captions) >= 1
+        for el in captions:
+            assert el["font_family"] == "Montserrat"
+
+    def test_registered_in_dispatch_table(self):
+        from app.models.video import VideoTemplate
+        assert VideoTemplate.TALKING_HEAD_V2 in RENDERSCRIPT_BUILDERS
