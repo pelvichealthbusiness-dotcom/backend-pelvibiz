@@ -27,6 +27,9 @@ from app.templates.renderscript_builders import (
     build_hook_reveal,
     build_edu_steps,
     RENDERSCRIPT_BUILDERS,
+    DEFAULT_CAPTION_COLOR,
+    DEFAULT_CAPTION_STROKE,
+    CAPTION_STROKE_MAP,
 )
 
 
@@ -887,3 +890,94 @@ class TestTalkingHeadV2:
     def test_registered_in_dispatch_table(self):
         from app.models.video import VideoTemplate
         assert VideoTemplate.TALKING_HEAD_V2 in RENDERSCRIPT_BUILDERS
+
+
+# ── Caption color and stroke propagation ──────────────────────────────────
+
+def _get_talking_head_captions(source: dict) -> list[dict]:
+    """Extract caption elements from a talking-head renderscript (Anton font or Sub- name)."""
+    return [
+        el for el in source["elements"]
+        if el.get("type") == "text" and (
+            el.get("font_family") == "Anton"
+            or (el.get("name") or "").startswith("Sub-")
+        )
+    ]
+
+
+class TestCaptionColorAndStroke:
+    def test_caption_color_propagates_to_creatomate(self):
+        request = _make_request(
+            template="talking-head", clip_count=1, caption_color="#FF00FF"
+        )
+        theme = _make_theme()
+        blocks = [
+            PhraseBlock(text="Doctor explica cómo", start=0.0, end=1.5),
+            PhraseBlock(text="funciona el suelo", start=1.5, end=3.0),
+        ]
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = _get_talking_head_captions(source)
+
+        assert len(captions) >= 1
+        for el in captions:
+            assert el.get("fill_color") != DEFAULT_CAPTION_COLOR, (
+                f"Caption still has hardcoded {DEFAULT_CAPTION_COLOR}"
+            )
+            assert el.get("fill_color") == "#FF00FF", (
+                f"Expected #FF00FF, got {el.get('fill_color')}"
+            )
+
+    def test_caption_stroke_thin_maps_to_1vmin(self):
+        request = _make_request(
+            template="talking-head", clip_count=1, caption_stroke="thin"
+        )
+        theme = _make_theme()
+        blocks = [
+            PhraseBlock(text="Thin stroke test", start=0.0, end=1.5),
+        ]
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = _get_talking_head_captions(source)
+
+        assert len(captions) >= 1
+        for el in captions:
+            assert el.get("stroke_width") == CAPTION_STROKE_MAP["thin"], (
+                f"Expected {CAPTION_STROKE_MAP['thin']}, got {el.get('stroke_width')}"
+            )
+
+    def test_caption_stroke_thick_maps_to_2vmin(self):
+        request = _make_request(
+            template="talking-head", clip_count=1, caption_stroke="thick"
+        )
+        theme = _make_theme()
+        blocks = [
+            PhraseBlock(text="Thick stroke test", start=0.0, end=1.5),
+        ]
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = _get_talking_head_captions(source)
+
+        assert len(captions) >= 1
+        for el in captions:
+            assert el.get("stroke_width") == CAPTION_STROKE_MAP["thick"], (
+                f"Expected {CAPTION_STROKE_MAP['thick']}, got {el.get('stroke_width')}"
+            )
+
+    def test_legacy_request_without_stroke_uses_default(self):
+        request = _make_request(
+            template="talking-head", clip_count=1
+        )
+        theme = _make_theme()
+        blocks = [
+            PhraseBlock(text="Default stroke test", start=0.0, end=1.5),
+        ]
+
+        source = build_talking_head(request, theme, phrase_blocks=blocks)
+        captions = _get_talking_head_captions(source)
+
+        assert len(captions) >= 1
+        for el in captions:
+            assert el.get("stroke_width") == DEFAULT_CAPTION_STROKE, (
+                f"Expected {DEFAULT_CAPTION_STROKE}, got {el.get('stroke_width')}"
+            )

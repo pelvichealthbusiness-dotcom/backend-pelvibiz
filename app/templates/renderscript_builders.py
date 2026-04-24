@@ -6,6 +6,15 @@ from app.templates.brand_theme import BrandTheme, CAPTION_FONT
 
 logger = logging.getLogger(__name__)
 
+# ── Caption defaults ───────────────────────────────────────────────────────
+DEFAULT_CAPTION_COLOR = "#FFE600"
+DEFAULT_CAPTION_STROKE = "1.5 vmin"
+CAPTION_STROKE_MAP: dict[str, str] = {
+    "thin": "1 vmin",
+    "medium": "1.5 vmin",
+    "thick": "2 vmin",
+}
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _base_source(duration: float, width: int = 1080, height: int = 1920) -> dict:
@@ -470,6 +479,7 @@ def _caption_elem(
     font_family: str | None = None,
     fill_color: str = "#FFFFFF",
     font_weight: str = "900",
+    stroke_width: str = DEFAULT_CAPTION_STROKE,
 ) -> dict:
     """OpusClip-style caption element.
 
@@ -489,7 +499,7 @@ def _caption_elem(
         "letter_spacing": "20%",
         "fill_color": fill_color,
         "stroke_color": "#000000",
-        "stroke_width": "1.8 vmin",
+        "stroke_width": stroke_width,
         "background_color": "rgba(0,0,0,0.80)",
         "background_x_padding": "6%",
         "background_y_padding": "4%",
@@ -536,6 +546,7 @@ def _append_captions(
     highlight_color: str | None = None,
     fill_color: str = "#FFFFFF",
     font_weight: str = "900",
+    stroke_width: str = DEFAULT_CAPTION_STROKE,
 ) -> None:
     """Append OpusClip-style caption elements to `elements` in-place."""
     track = base_track
@@ -546,7 +557,7 @@ def _append_captions(
             elem = _caption_elem(
                 track, sub.text, sub.start, duration,
                 y=y, font_family=font_family, fill_color=color,
-                font_weight=font_weight,
+                font_weight=font_weight, stroke_width=stroke_width,
             )
             elements.append(elem)
             track += 1
@@ -608,8 +619,11 @@ def build_talking_head(
     # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
     caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
     caption_font = getattr(request, 'caption_font', None) or CAPTION_FONT
-    caption_color = getattr(request, 'caption_color', None) or "#FFE600"
+    caption_color = getattr(request, 'caption_color', None) or DEFAULT_CAPTION_COLOR
     caption_weight = getattr(request, 'caption_weight', None) or "900"
+    caption_stroke = CAPTION_STROKE_MAP.get(
+        getattr(request, 'caption_stroke', None) or "", DEFAULT_CAPTION_STROKE
+    )
 
     if phrase_blocks:
         # New pipeline: OpusClip-style phrase blocks from TranscriptionService
@@ -617,9 +631,10 @@ def build_talking_head(
             els, phrase_blocks,
             y="75%", base_track=500,
             font_family=caption_font,
-            highlight_color="#FFE600",
+            highlight_color=caption_color,
             fill_color=caption_color,
             font_weight=caption_weight,
+            stroke_width=caption_stroke,
         )
     elif analysis and analysis.transcript_segments:
         # Legacy: raw Gemini segments (3-5 word chunks, no grouping)
@@ -639,6 +654,7 @@ def build_talking_head(
                 font_family=caption_font,
                 fill_color=caption_color,
                 font_weight=caption_weight,
+                stroke_width=caption_stroke,
             ))
     else:
         # Fallback: manual text_2 split into timed groups (no analysis available)
