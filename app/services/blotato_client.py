@@ -57,18 +57,22 @@ class BlotatoClient:
         For scheduled posts, Blotato returns immediately — no polling required.
         """
         post: dict = {
-            "accountId": account_id,
-            "platform": platform,
-            "text": text,
-            "mediaUrls": media_urls,
+            "content": {
+                "text": text,
+                "mediaUrls": media_urls,
+            },
+            "target": {
+                "platform": platform,
+                "accountId": account_id,
+            },
             "scheduledTime": scheduled_time,
         }
         if page_id is not None:
-            post["pageId"] = page_id
+            post["target"]["pageId"] = page_id
         if playlist_ids:
-            post["playlistIds"] = playlist_ids
+            post["target"]["playlistIds"] = playlist_ids
         if media_type is not None:
-            post["mediaType"] = media_type
+            post["content"]["mediaType"] = media_type
 
         resp = await self._post_with_retry("/posts", {"post": post})
         data = resp.json()
