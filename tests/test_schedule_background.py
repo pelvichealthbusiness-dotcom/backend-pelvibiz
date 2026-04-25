@@ -65,6 +65,9 @@ class _FakeBlotatoClient:
     def __init__(self):
         self.closed = False
 
+    async def create_post(self, **kwargs):
+        return "sub-1"
+
     async def aclose(self):
         self.closed = True
 
@@ -351,18 +354,17 @@ async def test_schedule_returns_202_with_queued_body(monkeypatch):
     monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: _FakeBlotatoClient())
     monkeypatch.setattr("app.routers.content_v2.validate_connections",
                         AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, [])))
+    monkeypatch.setattr(
+        "app.routers.content_v2.blotato_publish",
+        AsyncMock(return_value={"instagram": {"id": "sub-1", "status": "scheduled", "error": None}}),
+    )
 
     bg = BackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, bg, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    # Must be a JSONResponse with status 202
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 202
-    import json
-    data = json.loads(result.body)
-    assert data["data"]["status"] == "queued"
-    assert data["data"]["content_id"] == "content-1"
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
 
 
 async def test_schedule_idempotent_returns_200(monkeypatch):
@@ -380,16 +382,13 @@ async def test_schedule_idempotent_returns_200(monkeypatch):
 
     monkeypatch.setattr("app.routers.content_v2.get_settings", lambda: _FakeSettings())
     monkeypatch.setattr("app.routers.content_v2.ContentCRUD", lambda: fake_crud)
+    monkeypatch.setattr("app.routers.content_v2.fetch_blotato_connections", AsyncMock(return_value={}))
 
     bg = BackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-05-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, bg, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 200
-    import json
-    data = json.loads(result.body)
-    assert data["data"]["idempotent"] is True
+    assert result["data"]["idempotent"] is True
 
 
 async def test_schedule_no_connections_returns_422(monkeypatch):
@@ -408,12 +407,13 @@ async def test_schedule_no_connections_returns_422(monkeypatch):
         "app.routers.content_v2.get_service_client",
         lambda: _FakeSupabaseClient({"blotato_connections": None, "timezone": "UTC"}),
     )
+    monkeypatch.setattr("app.routers.content_v2.fetch_blotato_connections", AsyncMock(return_value={}))
 
     bg = BackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
 
     with pytest.raises(ValidationError):
-        await schedule_content("content-1", body, bg, _USER)
+        await schedule_content("content-1", body, _USER)
 
 
 async def test_schedule_no_api_key_returns_503(monkeypatch):
@@ -427,11 +427,11 @@ async def test_schedule_no_api_key_returns_503(monkeypatch):
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
 
     with pytest.raises(ExternalServiceError):
-        await schedule_content("content-1", body, bg, _USER)
+        await schedule_content("content-1", body, _USER)
 
 
-async def test_schedule_all_stale_returns_422(monkeypatch):
-    """validate_connections returns empty valid dict → 422 before dispatching background task."""
+async def test_schedule_all_stale_still_attempts_publish(monkeypatch):
+    """Stale validation should not block the publish attempt."""
     fake_crud = _FakeCRUD({
         "id": "content-1",
         "agent_type": "real-carousel",
@@ -453,12 +453,19 @@ async def test_schedule_all_stale_returns_422(monkeypatch):
     monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: _FakeBlotatoClient())
     monkeypatch.setattr("app.routers.content_v2.validate_connections",
                         AsyncMock(return_value=({}, ["instagram"])))
+    monkeypatch.setattr("app.routers.content_v2.fetch_blotato_connections", AsyncMock(return_value={}))
+    monkeypatch.setattr(
+        "app.routers.content_v2.blotato_publish",
+        AsyncMock(return_value={"instagram": {"id": "sub-1", "status": "scheduled", "error": None}}),
+    )
 
     bg = BackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
 
-    with pytest.raises(ValidationError, match="stale"):
-        await schedule_content("content-1", body, bg, _USER)
+    result = await schedule_content("content-1", body, _USER)
+
+    assert result["error"] is None
+    assert fake_crud.updates[-1]["publish_status"] == "scheduled"
 
 
 async def test_schedule_some_stale_returns_202_with_warnings(monkeypatch):
@@ -489,18 +496,18 @@ async def test_schedule_some_stale_returns_202_with_warnings(monkeypatch):
     # instagram valid, facebook stale
     monkeypatch.setattr("app.routers.content_v2.validate_connections",
                         AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, ["facebook"])))
+    monkeypatch.setattr(
+        "app.routers.content_v2.blotato_publish",
+        AsyncMock(return_value={"instagram": {"id": "sub-1", "status": "scheduled", "error": None}}),
+    )
 
     bg = BackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, bg, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 202
-    import json
-    data = json.loads(result.body)
-    assert data["data"]["status"] == "queued"
-    # Warnings must mention facebook
-    warnings = data.get("warnings") or []
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
+    warnings = result.get("warnings") or []
     assert any("facebook" in w for w in warnings)
 
 
@@ -533,10 +540,13 @@ async def test_schedule_dispatches_background_task(monkeypatch):
     monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: _FakeBlotatoClient())
     monkeypatch.setattr("app.routers.content_v2.validate_connections",
                         AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, [])))
+    monkeypatch.setattr(
+        "app.routers.content_v2.blotato_publish",
+        AsyncMock(return_value={"instagram": {"id": "sub-1", "status": "scheduled", "error": None}}),
+    )
 
-    bg = _SpyBackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
-    await schedule_content("content-1", body, bg, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert len(added_tasks) == 1
-    assert added_tasks[0]["func"].__name__ == "_do_schedule_background"
+    assert result["error"] is None
+    assert fake_crud.updates[-1]["publish_status"] == "scheduled"

@@ -375,16 +375,17 @@ async def schedule_content(
             if imported and imported != blotato_connections:
                 valid_connections, stale_platforms = await validate_connections(blotato, imported)
 
-        if not valid_connections:
+        publish_connections = valid_connections or blotato_connections
+        if not publish_connections:
             raise ValidationError(
-                "All connected social accounts are stale. Go to Settings to reconnect."
+                "No social media account connected. Go to Settings → Social Accounts to connect Instagram or Facebook."
             )
 
         post_ids = await blotato_publish(
             client=blotato,
             media_urls=content.get("media_urls") or [],
             caption=caption,
-            connections=valid_connections,
+            connections=publish_connections,
             scheduled_date=body.scheduled_date,
             timezone=timezone,
             media_type=media_type,
@@ -473,7 +474,8 @@ async def republish_content(
         if existing.get(platform, {}).get("status") != "scheduled"
     }
 
-    if not failed_connections:
+    publish_connections = failed_connections or blotato_connections
+    if not publish_connections:
         raise ValidationError("No failed platforms to retry")
 
     content_agent_type = content.get("agent_type", "")
@@ -491,7 +493,7 @@ async def republish_content(
             client=blotato,
             media_urls=content.get("media_urls") or [],
             caption=caption,
-            connections=failed_connections,
+            connections=publish_connections,
             scheduled_date=scheduled_date,
             timezone=timezone,
             media_type=media_type,
