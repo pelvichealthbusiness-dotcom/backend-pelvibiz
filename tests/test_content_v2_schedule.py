@@ -257,3 +257,40 @@ async def test_schedule_proceeds_when_publish_status_is_partial(monkeypatch):
 
     assert result["error"] is None
     assert result["data"]["publish_status"] == "scheduled"
+
+
+async def test_schedule_publishes_partial_when_one_platform_is_missing(monkeypatch):
+    fake_client = _FakeBlotatoClient()
+    fake_crud = _FakeCRUD({
+        "id": "content-1",
+        "published": False,
+        "publish_status": None,
+        "scheduled_date": None,
+        "blotato_post_ids": {},
+        "reply": "Caption",
+        "media_urls": ["https://example.com/img.jpg"],
+        "agent_type": "real-carousel",
+    })
+
+    monkeypatch.setattr("app.routers.content_v2.get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr("app.routers.content_v2.ContentCRUD", lambda: fake_crud)
+    monkeypatch.setattr(
+        "app.routers.content_v2.get_service_client",
+        lambda: _FakeSupabaseClient({
+            "blotato_connections": {
+                "instagram": {"accountId": "ig-001"},
+                "facebook": {"accountId": ""},
+            },
+            "timezone": "UTC",
+        }),
+    )
+    monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: fake_client)
+    monkeypatch.setattr("app.routers.content_v2.validate_connections",
+                        AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, ["facebook"])))
+
+    body = ScheduleContentRequest(scheduled_date="2026-05-01T15:00:00", timezone="UTC")
+    result = await schedule_content("content-1", body, _USER)
+
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
+    assert any(call["platform"] == "instagram" for call in fake_client.create_calls)
