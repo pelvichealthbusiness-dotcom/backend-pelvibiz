@@ -49,6 +49,7 @@ class BlotatoClient:
         media_urls: list[str],
         scheduled_time: str,
         page_id: str | None = None,
+        playlist_ids: list[str] | None = None,
         media_type: str | None = None,
     ) -> str:
         """Schedule a post on Blotato. Returns the post submission ID.
@@ -64,6 +65,8 @@ class BlotatoClient:
         }
         if page_id is not None:
             payload["pageId"] = page_id
+        if playlist_ids:
+            payload["playlistIds"] = playlist_ids
         if media_type is not None:
             payload["mediaType"] = media_type
 

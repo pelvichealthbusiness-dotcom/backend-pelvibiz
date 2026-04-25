@@ -84,6 +84,7 @@ async def publish_content(
                 media_urls=media_urls,
                 scheduled_time=scheduled_time,
                 page_id=conn.get("pageId") or None,
+                playlist_ids=conn.get("playlistIds") or None,
                 media_type=media_type_for_platform(platform, media_type),
             )
             results[platform] = {"id": sub_id, "status": "scheduled", "error": None}

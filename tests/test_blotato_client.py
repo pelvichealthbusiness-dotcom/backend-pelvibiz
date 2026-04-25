@@ -107,6 +107,25 @@ async def test_create_post_includes_page_id_for_facebook():
     assert sent["accountId"] == "fb-acc-1"
 
 
+async def test_create_post_includes_playlist_ids_for_youtube():
+    client, transport = _make_client(
+        1,
+        _response(200, {"id": "sub-yt-1"}),
+    )
+
+    await client.create_post(
+        platform="youtube",
+        account_id="yt-acc-1",
+        text="YouTube post",
+        media_urls=["https://example.com/video.mp4"],
+        scheduled_time="2026-05-01T20:00:00Z",
+        playlist_ids=["pl-1", "pl-2"],
+    )
+
+    sent = transport.requests[0]["body"]
+    assert sent["playlistIds"] == ["pl-1", "pl-2"]
+
+
 async def test_create_post_omits_optional_fields_when_not_provided():
     client, transport = _make_client(
         1,

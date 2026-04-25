@@ -23,7 +23,7 @@ class _FakeBlotatoClient:
         self.closed = False
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
         self.create_calls.append({"platform": platform})
         r = self._responses.get(platform, f"sub-{platform}-retry")
         if isinstance(r, Exception):

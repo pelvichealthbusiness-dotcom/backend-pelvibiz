@@ -37,7 +37,7 @@ class _FakeClient:
         self.calls: list[dict] = []
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
         self.calls.append({
             "platform": platform,
             "account_id": account_id,
@@ -45,6 +45,7 @@ class _FakeClient:
             "media_urls": media_urls,
             "scheduled_time": scheduled_time,
             "page_id": page_id,
+            "playlist_ids": playlist_ids,
             "media_type": media_type,
         })
         if self._by_platform is not None:

@@ -27,7 +27,7 @@ class _FakeBlotatoClient:
         self.closed = False
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
         self.create_calls.append({"platform": platform})
         return f"sub-{platform}-new"
 
@@ -106,16 +106,11 @@ async def test_schedule_is_idempotent_for_same_date_and_scheduled_status(monkeyp
     monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: fake_client)
 
     body = ScheduleContentRequest(scheduled_date="2026-05-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, _BG, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    # Idempotent path returns 200 JSONResponse
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 200
-    data = json.loads(result.body)
-    # No Blotato call made
+    assert result["error"] is None
+    assert result["data"]["idempotent"] is True
     assert fake_client.create_calls == []
-    # Response includes idempotent flag
-    assert data["data"]["idempotent"] is True
 
 
 async def test_schedule_idempotent_response_has_no_blotato_update(monkeypatch):
@@ -136,7 +131,7 @@ async def test_schedule_idempotent_response_has_no_blotato_update(monkeypatch):
     monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: fake_client)
 
     body = ScheduleContentRequest(scheduled_date="2026-05-01T15:00:00", timezone="UTC")
-    await schedule_content("content-1", body, _BG, _USER)
+    await schedule_content("content-1", body, _USER)
 
     # No DB update was made (no new schedule)
     assert fake_crud.updates == []
@@ -174,13 +169,11 @@ async def test_schedule_proceeds_for_different_date(monkeypatch):
 
     # Different date — should proceed and return 202
     body = ScheduleContentRequest(scheduled_date="2026-07-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, _BG, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 202
-    data = json.loads(result.body)
-    assert data["data"]["status"] == "queued"
-    assert data["data"].get("idempotent") is not True
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
+    assert result["data"].get("idempotent") is not True
 
 
 # ---------------------------------------------------------------------------
@@ -214,12 +207,10 @@ async def test_schedule_proceeds_when_publish_status_is_failed(monkeypatch):
                         AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, [])))
 
     body = ScheduleContentRequest(scheduled_date="2026-05-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, _BG, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 202
-    data = json.loads(result.body)
-    assert data["data"]["status"] == "queued"
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
 
 
 # ---------------------------------------------------------------------------
@@ -262,9 +253,7 @@ async def test_schedule_proceeds_when_publish_status_is_partial(monkeypatch):
                         )))
 
     body = ScheduleContentRequest(scheduled_date="2026-05-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, _BG, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 202
-    data = json.loads(result.body)
-    assert data["data"]["status"] == "queued"
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"

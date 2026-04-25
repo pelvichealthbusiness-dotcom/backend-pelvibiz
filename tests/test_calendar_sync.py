@@ -50,7 +50,7 @@ class _FakeBlotatoClient:
         self.closed = False
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
         return self._post_ids.get(platform, f"sub-{platform}-default")
 
     async def reschedule_post(self, schedule_id: str, new_scheduled_time: str) -> None:
@@ -121,15 +121,11 @@ async def test_schedule_content_returns_202_queued(monkeypatch):
                             "facebook": {"accountId": "fb-001", "pageId": "pg-001"},
                         }, [])))
 
-    bg = BackgroundTasks()
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
-    result = await schedule_content("content-1", body, bg, _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert isinstance(result, JSONResponse)
-    assert result.status_code == 202
-    data = json.loads(result.body)
-    assert data["data"]["status"] == "queued"
-    assert data["data"]["content_id"] == "content-1"
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
 
 
 async def test_schedule_content_dispatches_background_task(monkeypatch):
@@ -161,9 +157,11 @@ async def test_schedule_content_dispatches_background_task(monkeypatch):
                         AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, [])))
 
     body = ScheduleContentRequest(scheduled_date="2026-06-01T15:00:00", timezone="UTC")
-    await schedule_content("content-1", body, _SpyBG(), _USER)
+    result = await schedule_content("content-1", body, _USER)
 
-    assert added_tasks == ["_do_schedule_background"]
+    assert result["error"] is None
+    assert result["data"]["publish_status"] == "scheduled"
+    assert added_tasks == []
 
 
 # ---------------------------------------------------------------------------
