@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock
 from app.routers.content_v2 import (
     schedule_content,
     reschedule_content,
+    pause_content,
     delete_content_detail,
     ScheduleContentRequest,
     RescheduleRequest,
@@ -240,6 +241,35 @@ async def test_reschedule_content_skips_blotato_when_no_post_ids(monkeypatch):
 
     assert fake_client.reschedule_calls == []
     assert fake_crud.updates[-1]["scheduled_date"] == "2026-07-01T15:00:00"
+
+
+# ---------------------------------------------------------------------------
+# pause_content — cancels Blotato + clears scheduled date
+# ---------------------------------------------------------------------------
+
+async def test_pause_content_cancels_blotato_and_clears_schedule(monkeypatch):
+    fake_client = _FakeBlotatoClient()
+    fake_crud = _FakeCRUD({
+        "id": "content-1",
+        "published": True,
+        "scheduled_date": "2026-05-01T15:00:00",
+        "blotato_post_ids": {"instagram": "sub-ig-old", "facebook": "sub-fb-old"},
+    })
+
+    monkeypatch.setattr("app.routers.content_v2.get_settings", lambda: _FakeSettings())
+    monkeypatch.setattr("app.routers.content_v2.ContentCRUD", lambda: fake_crud)
+    monkeypatch.setattr(
+        "app.routers.content_v2.get_service_client",
+        lambda: _FakeSupabaseClient({"timezone": "UTC"}),
+    )
+    monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: fake_client)
+
+    result = await pause_content("content-1", _USER)
+
+    assert set(fake_client.cancel_calls) == {"sub-ig-old", "sub-fb-old"}
+    assert fake_crud.updates[-1]["published"] is False
+    assert fake_crud.updates[-1]["scheduled_date"] is None
+    assert result["data"]["published"] is False
 
 
 # ---------------------------------------------------------------------------

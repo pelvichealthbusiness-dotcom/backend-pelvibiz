@@ -245,6 +245,40 @@ async def delete_content_detail(
     crud.delete_content(content_id, user.user_id)
     return success({"deleted": True})
 
+
+@router.patch("/{content_id}/pause")
+async def pause_content(
+    content_id: str,
+    user: UserContext = Depends(get_current_user),
+):
+    """Pause a scheduled publication by cancelling Blotato and clearing schedule state."""
+    settings = get_settings()
+    crud = ContentCRUD()
+    content = crud.get_content(content_id, user.user_id)
+
+    blotato_post_ids: dict = content.get("blotato_post_ids") or {}
+    if blotato_post_ids and content.get("scheduled_date") and settings.blotato_api_key:
+        blotato = BlotatoClient(
+            api_key=settings.blotato_api_key,
+            max_retries=settings.blotato_max_retries,
+        )
+        try:
+            await cancel_all_platforms(client=blotato, blotato_post_ids=blotato_post_ids)
+        except BlotatoAPIError as exc:
+            logger.warning("Blotato pause cancel failed for %s: %s", content_id, exc)
+        finally:
+            await blotato.aclose()
+
+    updates = {
+        "published": False,
+        "scheduled_date": None,
+        "publish_status": None,
+        "publish_error": None,
+        "blotato_post_ids": {},
+    }
+    updated = crud.update_content(content_id, user.user_id, updates)
+    return success(updated)
+
 async def _do_schedule_background(
     content_id: str,
     user_id: str,

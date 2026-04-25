@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 from app.config import get_settings
-from app.core.exceptions import NotFoundError, DatabaseError
+from app.core.exceptions import ConflictError, NotFoundError, DatabaseError
 from app.core.supabase_client import get_service_client
 from app.services.blotato import fetch_blotato_accounts, normalize_blotato_connections
 from app.services.blotato_client import BlotatoClient, BlotatoAPIError, BlotatoScheduleNotFound
@@ -164,6 +164,22 @@ async def assign_account(
         raise DatabaseError(f"Unsupported platform: {platform}")
 
     client = get_service_client()
+
+    # Prevent assigning the same Blotato account to multiple users.
+    profiles_result = client.table("profiles").select("id, full_name, blotato_connections").execute()
+    profiles: list[dict[str, Any]] = profiles_result.data or []
+    for profile in profiles:
+        if str(profile.get("id") or "") == user_id:
+            continue
+        connections: dict[str, Any] = profile.get("blotato_connections") or {}
+        for conn in connections.values():
+            if not isinstance(conn, dict):
+                continue
+            existing_account_id = str(conn.get("accountId") or "").strip()
+            existing_page_id = str(conn.get("pageId") or "").strip()
+            if existing_account_id == account_id or (page_id and existing_page_id == page_id):
+                owner = profile.get("full_name") or profile.get("id") or "another user"
+                raise ConflictError(f"Blotato account is already assigned to {owner}")
 
     # Fetch current connections
     result = client.table("profiles").select("id, blotato_connections").eq("id", user_id).execute()
