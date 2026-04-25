@@ -35,10 +35,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/content", tags=["content-v2"])
 
 
-async def _load_blotato_connections_for_user(profile: dict, user_id: str) -> dict | None:
-    """Return the user's Blotato connections, refreshing from master account if needed."""
+async def _load_blotato_connections_for_user(profile: dict, user_id: str, *, force_refresh: bool = False) -> dict | None:
+    """Return the user's Blotato connections, optionally forcing a refresh from Blotato."""
     current = build_blotato_connections(profile) or {}
-    if current:
+    if current and not force_refresh:
         return current
 
     settings = get_settings()
@@ -371,7 +371,7 @@ async def schedule_content(
         valid_connections, stale_platforms = await validate_connections(blotato, blotato_connections)
 
         if not valid_connections:
-            imported = await _load_blotato_connections_for_user(profile, user.user_id)
+            imported = await _load_blotato_connections_for_user(profile, user.user_id, force_refresh=True)
             if imported and imported != blotato_connections:
                 valid_connections, stale_platforms = await validate_connections(blotato, imported)
 

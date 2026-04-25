@@ -119,3 +119,42 @@ async def test_schedule_refreshes_missing_connections_and_succeeds(monkeypatch):
     assert response["data"]["publish_status"] == "scheduled"
     assert fake_client.profile_table.updated_payload == {"blotato_connections": {"instagram": {"accountId": "ig-001"}}}
     assert fake_crud.updates[-1]["publish_status"] == "scheduled"
+
+
+@pytest.mark.asyncio
+async def test_schedule_forces_refresh_when_existing_connections_are_stale(monkeypatch):
+    fake_crud = FakeCRUD({
+        "id": "content-2",
+        "agent_type": "real-carousel",
+        "media_urls": ["https://example.com/image.jpg"],
+        "reply": "Caption",
+        "published": False,
+        "publish_status": None,
+        "scheduled_date": None,
+    })
+    fake_client = FakeSupabaseClient({"timezone": "America/New_York", "blotato_connections": {"instagram": {"accountId": "old-ig"}}})
+
+    monkeypatch.setattr("app.routers.content_v2.get_settings", lambda: FakeSettings())
+    monkeypatch.setattr("app.routers.content_v2.ContentCRUD", lambda: fake_crud)
+    monkeypatch.setattr("app.routers.content_v2.get_service_client", lambda: fake_client)
+    monkeypatch.setattr(
+        "app.routers.content_v2.fetch_blotato_connections",
+        AsyncMock(return_value={"instagram": {"accountId": "new-ig"}}),
+    )
+    monkeypatch.setattr(
+        "app.routers.content_v2.validate_connections",
+        AsyncMock(side_effect=[({} , ["instagram"]), ({"instagram": {"accountId": "new-ig"}}, [])]),
+    )
+    monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: FakeBlotatoClient())
+    monkeypatch.setattr(
+        "app.routers.content_v2.blotato_publish",
+        AsyncMock(return_value={"instagram": {"id": "sub-1", "status": "scheduled", "error": None}}),
+    )
+    monkeypatch.setattr("app.routers.content_v2.audit_log_attempt", AsyncMock())
+
+    body = ScheduleContentRequest(scheduled_date="2030-06-15T14:00:00", timezone="America/New_York")
+    response = await schedule_content("content-2", body, USER)
+
+    assert response["error"] is None
+    assert response["data"]["publish_status"] == "scheduled"
+    assert fake_client.profile_table.updated_payload == {"blotato_connections": {"instagram": {"accountId": "new-ig"}}}
