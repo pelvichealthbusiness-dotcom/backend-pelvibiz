@@ -19,7 +19,7 @@ from app.core.responses import success, paginated
 from app.core.exceptions import ValidationError, ExternalServiceError
 from app.core.supabase_client import get_service_client
 from app.config import get_settings
-from app.services.blotato import build_blotato_connections, agent_type_to_media_type
+from app.services.blotato import build_blotato_connections, fetch_blotato_connections, agent_type_to_media_type
 from app.services.blotato_client import BlotatoAPIError, BlotatoClient
 from app.services.blotato_publisher import (
     publish_content as blotato_publish,
@@ -33,6 +33,27 @@ from app.services.publish_audit import log_attempt as audit_log_attempt
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/content", tags=["content-v2"])
+
+
+async def _load_blotato_connections_for_user(profile: dict, user_id: str) -> dict | None:
+    """Return the user's Blotato connections, refreshing from master account if needed."""
+    current = build_blotato_connections(profile) or {}
+    if current:
+        return current
+
+    settings = get_settings()
+    if not settings.blotato_api_key:
+        return None
+
+    imported = await fetch_blotato_connections(settings.blotato_api_key)
+    if not imported:
+        return None
+
+    admin = get_service_client()
+    merged = {**current, **imported}
+    admin.table("profiles").update({"blotato_connections": merged}).eq("id", user_id).execute()
+    profile["blotato_connections"] = merged
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +351,7 @@ async def schedule_content(
     )
     raw_profile = profile_result.data if profile_result else None
     profile: dict = raw_profile if isinstance(raw_profile, dict) else {}
-    blotato_connections = build_blotato_connections(profile)
+    blotato_connections = await _load_blotato_connections_for_user(profile, user.user_id)
 
     if not blotato_connections:
         raise ValidationError(
@@ -348,6 +369,11 @@ async def schedule_content(
     )
     try:
         valid_connections, stale_platforms = await validate_connections(blotato, blotato_connections)
+
+        if not valid_connections:
+            imported = await _load_blotato_connections_for_user(profile, user.user_id)
+            if imported and imported != blotato_connections:
+                valid_connections, stale_platforms = await validate_connections(blotato, imported)
 
         if not valid_connections:
             raise ValidationError(
@@ -431,7 +457,7 @@ async def republish_content(
     )
     raw_profile = profile_result.data if profile_result else None
     profile: dict = raw_profile if isinstance(raw_profile, dict) else {}
-    blotato_connections = build_blotato_connections(profile)
+    blotato_connections = await _load_blotato_connections_for_user(profile, user.user_id)
 
     if not blotato_connections:
         raise ValidationError(
