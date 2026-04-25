@@ -167,19 +167,34 @@ async def validate_connections(
         valid: dict = {}
         stale: list[str] = []
         for platform, conn in connections.items():
-            candidates = {
-                str(conn.get("accountId") or "").strip(),
-                str(conn.get("pageId") or "").strip(),
-            }
-            for playlist_id in conn.get("playlistIds") or []:
-                value = str(playlist_id or "").strip()
-                if value:
-                    candidates.add(value)
+            account_id = str(conn.get("accountId") or "").strip()
+            if account_id not in valid_account_ids:
+                stale.append(platform)
+                continue
 
-            if any(candidate and candidate in valid_account_ids for candidate in candidates):
+            if platform in {"facebook", "linkedin", "youtube"}:
+                subaccounts = await client.list_subaccounts(account_id)
+                valid_subaccount_ids = {
+                    str(item.get("id") or item.get("pageId") or item.get("playlistId") or item.get("subaccountId") or "").strip()
+                    for item in subaccounts
+                }
+                valid_subaccount_ids.discard("")
+
+                if platform == "youtube":
+                    expected_playlists = {str(pid or "").strip() for pid in conn.get("playlistIds") or []}
+                    expected_playlists.discard("")
+                    if expected_playlists and not expected_playlists.intersection(valid_subaccount_ids):
+                        stale.append(platform)
+                        continue
+                else:
+                    page_id = str(conn.get("pageId") or "").strip()
+                    if page_id and page_id not in valid_subaccount_ids:
+                        stale.append(platform)
+                        continue
+
                 valid[platform] = conn
             else:
-                stale.append(platform)
+                valid[platform] = conn
         return valid, stale
     except Exception:
         return connections, []

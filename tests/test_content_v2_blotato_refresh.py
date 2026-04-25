@@ -79,6 +79,10 @@ class FakePageAwareBlotatoClient(FakeBlotatoClient):
     async def list_accounts(self):
         return [{"id": "acct-1", "pageId": "page-1"}]
 
+    async def list_subaccounts(self, account_id: str):
+        assert account_id == "acct-1"
+        return [{"id": "page-1"}]
+
 
 @pytest.mark.asyncio
 async def test_schedule_refreshes_missing_connections_and_succeeds(monkeypatch):

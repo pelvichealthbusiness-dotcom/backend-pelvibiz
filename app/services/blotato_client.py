@@ -179,6 +179,13 @@ class BlotatoClient:
         data = resp.json()
         return data if isinstance(data, list) else data.get("accounts", [])
 
+    async def list_subaccounts(self, account_id: str) -> list[dict]:
+        """GET /users/me/accounts/{account_id}/subaccounts — returns account-specific subaccounts."""
+        resp = await self._get_with_retry(f"/users/me/accounts/{account_id}/subaccounts")
+        data = resp.json() or {}
+        items = data.get("items") if isinstance(data, dict) else []
+        return list(items or [])
+
     async def _get_with_retry(self, path: str) -> httpx.Response:
         last_error: BlotatoAPIError | None = None
 
