@@ -75,6 +75,10 @@ class FakeBlotatoClient:
         return []
 
 
+class BrokenRefreshException(Exception):
+    pass
+
+
 class FakePageAwareBlotatoClient(FakeBlotatoClient):
     async def list_accounts(self):
         return [{"id": "acct-1", "pageId": "page-1"}]
@@ -198,6 +202,43 @@ async def test_validate_connections_accepts_page_ids(monkeypatch):
 
     body = ScheduleContentRequest(scheduled_date="2030-06-15T14:00:00", timezone="America/New_York")
     response = await schedule_content("content-3", body, USER)
+
+    assert response["error"] is None
+    assert response["data"]["publish_status"] == "scheduled"
+
+
+@pytest.mark.asyncio
+async def test_refresh_failure_falls_back_to_existing_connections(monkeypatch):
+    fake_crud = FakeCRUD({
+        "id": "content-4",
+        "agent_type": "real-carousel",
+        "media_urls": ["https://example.com/image.jpg"],
+        "reply": "Caption",
+        "published": False,
+        "publish_status": None,
+        "scheduled_date": None,
+    })
+    fake_client = FakeSupabaseClient({
+        "timezone": "America/New_York",
+        "blotato_connections": {"instagram": {"accountId": "ig-001"}},
+    })
+
+    monkeypatch.setattr("app.routers.content_v2.get_settings", lambda: FakeSettings())
+    monkeypatch.setattr("app.routers.content_v2.ContentCRUD", lambda: fake_crud)
+    monkeypatch.setattr("app.routers.content_v2.get_service_client", lambda: fake_client)
+    monkeypatch.setattr(
+        "app.routers.content_v2.fetch_blotato_connections",
+        AsyncMock(side_effect=BrokenRefreshException("refresh failed")),
+    )
+    monkeypatch.setattr("app.routers.content_v2.validate_connections", AsyncMock(return_value=({}, ["instagram"])))
+    monkeypatch.setattr(
+        "app.routers.content_v2.blotato_publish",
+        AsyncMock(return_value={"instagram": {"id": "sub-1", "status": "scheduled", "error": None}}),
+    )
+    monkeypatch.setattr("app.routers.content_v2.audit_log_attempt", AsyncMock())
+
+    body = ScheduleContentRequest(scheduled_date="2030-06-15T14:00:00", timezone="America/New_York")
+    response = await schedule_content("content-4", body, USER)
 
     assert response["error"] is None
     assert response["data"]["publish_status"] == "scheduled"

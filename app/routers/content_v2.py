@@ -45,9 +45,18 @@ async def _load_blotato_connections_for_user(profile: dict, user_id: str, *, for
     if not settings.blotato_api_key:
         return None
 
-    imported = await fetch_blotato_connections(settings.blotato_api_key)
+    try:
+        imported = await fetch_blotato_connections(settings.blotato_api_key)
+    except Exception as exc:
+        logger.warning(
+            "Blotato connections refresh failed for user=%s: %s",
+            user_id,
+            exc,
+        )
+        return current or None
+
     if not imported:
-        return None
+        return current or None
 
     admin = get_service_client()
     merged = {**current, **imported}
