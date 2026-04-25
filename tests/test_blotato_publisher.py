@@ -121,6 +121,28 @@ async def test_publish_content_calls_create_post_for_each_platform():
     assert ids["facebook"]["id"] == "sub-fb-1"
 
 
+async def test_publish_content_skips_unsupported_platforms():
+    client = _FakeClient("sub-ig-1")
+    connections = {
+        "instagram": {"accountId": "ig-001"},
+        "youtube": {"accountId": "yt-001", "playlistIds": ["pl-1"]},
+    }
+
+    ids = await publish_content(
+        client=client,
+        media_urls=["https://example.com/img.jpg"],
+        caption="Test caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="IMAGE",
+    )
+
+    assert "instagram" in ids
+    assert "youtube" not in ids
+    assert len(client.calls) == 1
+
+
 async def test_publish_content_passes_page_id_for_facebook():
     client = _FakeClient("sub-fb-1")
     connections = {"facebook": {"accountId": "fb-acc-1", "pageId": "fb-page-99"}}

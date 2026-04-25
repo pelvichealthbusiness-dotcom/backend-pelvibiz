@@ -79,12 +79,13 @@ async def test_create_post_sends_correct_payload():
     )
 
     sent = transport.requests[0]["body"]
-    assert sent["post"]["target"]["accountId"] == "ig-001"
-    assert sent["post"]["target"]["platform"] == "instagram"
+    assert sent["post"]["accountId"] == "ig-001"
+    assert sent["post"]["content"]["platform"] == "instagram"
     assert sent["post"]["content"]["text"] == "Caption here"
     assert sent["post"]["content"]["mediaUrls"] == ["https://cdn.example.com/a.jpg", "https://cdn.example.com/b.jpg"]
     assert sent["post"]["scheduledTime"] == "2026-05-01T20:00:00Z"
     assert sent["post"]["content"]["mediaType"] == "reel"
+    assert sent["post"]["target"]["targetType"] == "instagram"
 
 
 async def test_create_post_includes_page_id_for_facebook():
@@ -103,8 +104,9 @@ async def test_create_post_includes_page_id_for_facebook():
     )
 
     sent = transport.requests[0]["body"]
+    assert sent["post"]["accountId"] == "fb-acc-1"
     assert sent["post"]["target"]["pageId"] == "fb-page-99"
-    assert sent["post"]["target"]["accountId"] == "fb-acc-1"
+    assert sent["post"]["target"]["targetType"] == "facebook"
 
 
 async def test_create_post_includes_playlist_ids_for_youtube():
@@ -123,7 +125,10 @@ async def test_create_post_includes_playlist_ids_for_youtube():
     )
 
     sent = transport.requests[0]["body"]
+    assert sent["post"]["accountId"] == "yt-acc-1"
     assert sent["post"]["target"]["playlistIds"] == ["pl-1", "pl-2"]
+    assert sent["post"]["content"]["platform"] == "youtube"
+    assert sent["post"]["target"]["targetType"] == "youtube"
 
 
 async def test_create_post_omits_optional_fields_when_not_provided():

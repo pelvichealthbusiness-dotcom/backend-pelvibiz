@@ -9,6 +9,9 @@ from typing import TypedDict
 from app.services.blotato_client import BlotatoAPIError, BlotatoClient
 
 
+SUPPORTED_BLOTATO_PLATFORMS = {"instagram", "facebook", "linkedin", "tiktok", "twitter"}
+
+
 class PlatformEntry(TypedDict, total=False):
     id: str | None
     status: str
@@ -72,6 +75,8 @@ async def publish_content(
     results: dict[str, PlatformEntry] = {}
 
     for platform, conn in connections.items():
+        if platform not in SUPPORTED_BLOTATO_PLATFORMS:
+            continue
         account_id = (conn.get("accountId") or "").strip()
         if not account_id:
             continue

@@ -57,13 +57,14 @@ class BlotatoClient:
         For scheduled posts, Blotato returns immediately — no polling required.
         """
         post: dict = {
+            "accountId": account_id,
             "content": {
+                "platform": platform,
                 "text": text,
                 "mediaUrls": media_urls,
             },
             "target": {
-                "platform": platform,
-                "accountId": account_id,
+                "targetType": platform,
             },
             "scheduledTime": scheduled_time,
         }
