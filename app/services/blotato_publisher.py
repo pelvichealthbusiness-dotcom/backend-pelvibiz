@@ -153,12 +153,30 @@ async def validate_connections(
     """
     try:
         accounts = await client.list_accounts()
-        valid_account_ids = {str(a.get("id", "")) for a in accounts if a.get("id")}
+        valid_account_ids: set[str] = set()
+        for account in accounts:
+            for key in ("id", "accountId", "pageId", "subaccountId", "subId"):
+                value = str(account.get(key, "") or "").strip()
+                if value:
+                    valid_account_ids.add(value)
+            for playlist_id in account.get("playlistIds") or []:
+                value = str(playlist_id or "").strip()
+                if value:
+                    valid_account_ids.add(value)
+
         valid: dict = {}
         stale: list[str] = []
         for platform, conn in connections.items():
-            account_id = (conn.get("accountId") or "").strip()
-            if account_id in valid_account_ids:
+            candidates = {
+                str(conn.get("accountId") or "").strip(),
+                str(conn.get("pageId") or "").strip(),
+            }
+            for playlist_id in conn.get("playlistIds") or []:
+                value = str(playlist_id or "").strip()
+                if value:
+                    candidates.add(value)
+
+            if any(candidate and candidate in valid_account_ids for candidate in candidates):
                 valid[platform] = conn
             else:
                 stale.append(platform)
