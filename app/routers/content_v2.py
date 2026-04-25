@@ -399,6 +399,13 @@ async def schedule_content(
             timezone=timezone,
             media_type=media_type,
         )
+    except BlotatoAPIError as exc:
+        error_detail = str(exc)
+        logger.error(
+            "Blotato schedule failed for content=%s user=%s: %s",
+            content_id, user.user_id, error_detail,
+        )
+        raise ExternalServiceError("blotato", error_detail)
     finally:
         await blotato.aclose()
 

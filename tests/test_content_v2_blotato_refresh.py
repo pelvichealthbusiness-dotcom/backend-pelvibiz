@@ -4,7 +4,9 @@ import pytest
 from unittest.mock import AsyncMock
 
 from app.core.auth import UserContext
+from app.core.exceptions import ExternalServiceError
 from app.routers.content_v2 import schedule_content, ScheduleContentRequest
+from app.services.blotato_client import BlotatoAPIError
 
 
 USER = UserContext(user_id="user-abc", email="test@example.com", role="client", token="tok")
@@ -242,3 +244,36 @@ async def test_refresh_failure_falls_back_to_existing_connections(monkeypatch):
 
     assert response["error"] is None
     assert response["data"]["publish_status"] == "scheduled"
+
+
+@pytest.mark.asyncio
+async def test_schedule_blotato_failure_surfaces_service_error(monkeypatch):
+    fake_crud = FakeCRUD({
+        "id": "content-5",
+        "agent_type": "real-carousel",
+        "media_urls": ["https://example.com/image.jpg"],
+        "reply": "Caption",
+        "published": False,
+        "publish_status": None,
+        "scheduled_date": None,
+    })
+    fake_client = FakeSupabaseClient({
+        "timezone": "America/New_York",
+        "blotato_connections": {"instagram": {"accountId": "ig-001"}},
+    })
+
+    class FailingBlotatoClient(FakeBlotatoClient):
+        async def create_post(self, **kwargs):
+            raise BlotatoAPIError("HTTP 422: invalid payload")
+
+    monkeypatch.setattr("app.routers.content_v2.get_settings", lambda: FakeSettings())
+    monkeypatch.setattr("app.routers.content_v2.ContentCRUD", lambda: fake_crud)
+    monkeypatch.setattr("app.routers.content_v2.get_service_client", lambda: fake_client)
+    monkeypatch.setattr("app.routers.content_v2.fetch_blotato_connections", AsyncMock(return_value={}))
+    monkeypatch.setattr("app.routers.content_v2.validate_connections", AsyncMock(return_value=({"instagram": {"accountId": "ig-001"}}, [])))
+    monkeypatch.setattr("app.routers.content_v2.BlotatoClient", lambda **kwargs: FailingBlotatoClient())
+
+    body = ScheduleContentRequest(scheduled_date="2030-06-15T14:00:00", timezone="America/New_York")
+
+    with pytest.raises(ExternalServiceError, match="invalid payload"):
+        await schedule_content("content-5", body, USER)
