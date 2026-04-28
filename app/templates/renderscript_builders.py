@@ -24,7 +24,8 @@ def _base_source(duration: float, width: int = 1080, height: int = 1920) -> dict
 def _video_elem(name: str, track: int, source: str, time: float, duration: float,
                 volume: str = "0%", fit: str = "cover",
                 trim_start: Optional[float] = None,
-                trim_end: Optional[float] = None) -> dict:
+                trim_end: Optional[float] = None,
+                loop: bool = False) -> dict:
     el: dict[str, Any] = {"type": "video", "track": track, "name": name,
                            "source": source, "time": time, "duration": duration,
                            "fit": fit, "volume": volume}
@@ -32,6 +33,8 @@ def _video_elem(name: str, track: int, source: str, time: float, duration: float
         el["trim_start"] = trim_start
     if trim_end is not None:
         el["trim_end"] = trim_end
+    if loop:
+        el["loop"] = True
     return el
 
 def _rect_elem(name: str, track: int, time: float, duration: float,
@@ -216,7 +219,7 @@ def build_bullet_sequence(request: GenerateVideoRequest, theme: BrandTheme, anal
     offsets = [0.0, 4.2, 8.4]
     for i, (url, t) in enumerate(zip(request.video_urls[:3], offsets), start=1):
         seg_d = dur - t if i == 3 else seg_dur
-        els.append(_video_elem(f"Video-{i}", i, url, t, seg_d))
+        els.append(_video_elem(f"Video-{i}", i, url, t, seg_d, loop=True))
 
     # Full overlay
     els.append(_rect_elem("Overlay", 4, 0, dur, theme.background_color, opacity="55%"))
@@ -330,7 +333,7 @@ def build_deep_dive(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
         # Alternate text colors for visual rhythm
         txt_color = theme.primary_color if i % 2 == 0 else theme.secondary_color
 
-        els.append(_video_elem(f"Video-{i+1}", video_track + i, url, t, seg_dur))
+        els.append(_video_elem(f"Video-{i+1}", video_track + i, url, t, seg_dur, loop=True))
         els.append(_rect_elem(f"Overlay-{i+1}", rect_track + i, t, seg_dur,
                               theme.background_color, opacity="50%"))
         els.append(_text_elem(f"Statement-{i+1}", text_track + i,
@@ -362,8 +365,8 @@ def build_social_proof_stack(request: GenerateVideoRequest, theme: BrandTheme, a
     source = _base_source(dur)
     els = source["elements"]
 
-    els.append(_video_elem("Video-1", 1, request.video_urls[0], 0, dur / 2, volume="0%"))
-    els.append(_video_elem("Video-2", 2, request.video_urls[1], dur / 2, dur / 2, volume="0%"))
+    els.append(_video_elem("Video-1", 1, request.video_urls[0], 0, dur / 2, volume="0%", loop=True))
+    els.append(_video_elem("Video-2", 2, request.video_urls[1], dur / 2, dur / 2, volume="0%", loop=True))
     els.append(_rect_elem("Overlay", 3, 0, dur, theme.background_color, opacity="58%"))
     els.append(_text_elem("Problem", 4, request.text_1 or "", 0.1, 3.0, theme, y="18%", fill_color=theme.secondary_color, font_size="4.1 vmin"))
     els.append(_text_elem("Result", 5, request.text_2 or "", 2.8, 3.0, theme, y="34%", fill_color="#FFFFFF", font_size="4.1 vmin"))
@@ -707,7 +710,7 @@ def build_bullet_reel(
         url = videos[i] if i < len(videos) else (videos[-1] if videos else "")
         if url:
             els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
-                                   round(i * clip_dur, 3), round(clip_dur, 3), volume="0%"))
+                                   round(i * clip_dur, 3), round(clip_dur, 3), volume="0%", loop=True))
 
     # Dark overlay across the whole video
     els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="52%"))
@@ -803,8 +806,8 @@ def build_hook_reveal(
 
     videos = request.video_urls or []
     if len(videos) >= 2:
-        els.append(_video_elem("Video-1", 1, videos[0], 0, hook_end, volume="0%"))
-        els.append(_video_elem("Video-2", 2, videos[1], hook_end, dur - hook_end, volume="0%"))
+        els.append(_video_elem("Video-1", 1, videos[0], 0, hook_end, volume="0%", loop=True))
+        els.append(_video_elem("Video-2", 2, videos[1], hook_end, dur - hook_end, volume="0%", loop=True))
     elif videos:
         els.append(_video_elem("Video", 1, videos[0], 0, dur, volume="0%"))
 
@@ -957,7 +960,7 @@ def build_edu_steps(
     for i in range(clip_count):
         url = videos[i]
         els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
-                               round(i * clip_dur, 3), round(clip_dur, 3), volume="0%"))
+                               round(i * clip_dur, 3), round(clip_dur, 3), volume="0%", loop=True))
 
     els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="48%"))
 
@@ -1418,8 +1421,8 @@ def build_before_after(
 
     videos = request.video_urls or []
     if len(videos) >= 2:
-        els.append(_video_elem("Before", 1, videos[0], 0, half, volume="0%"))
-        els.append(_video_elem("After", 2, videos[1], half, round(dur - half, 3), volume="0%"))
+        els.append(_video_elem("Before", 1, videos[0], 0, half, volume="0%", loop=True))
+        els.append(_video_elem("After", 2, videos[1], half, round(dur - half, 3), volume="0%", loop=True))
     elif videos:
         els.append(_video_elem("Video", 1, videos[0], 0, dur, volume="0%"))
 
