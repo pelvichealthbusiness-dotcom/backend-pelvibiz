@@ -44,6 +44,7 @@ class VideoTemplate(str, Enum):
     EDU_STEPS = "edu-steps"
     COUNTDOWN_STACK = "countdown-stack"
     MYTH_DEBUNK = "myth-debunk"
+    PATIENT_REVIEW = "patient-review"
 
 
 TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
@@ -203,6 +204,16 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "output_format": "mp4",
         "width": 1080,
         "height": 1920,
+    },
+    VideoTemplate.PATIENT_REVIEW: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 1,       # review screenshot (image URL)
+        "required_text_count": 1,   # text_1=Headline
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": 6,
     },
 }
 

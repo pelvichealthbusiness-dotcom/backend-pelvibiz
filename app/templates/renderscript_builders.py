@@ -1491,6 +1491,101 @@ def build_myth_debunk(
     return source
 
 
+# ── Patient Review ────────────────────────────────────────────────────────
+#   Accepts a screenshot image URL (via video_urls[0]) instead of a video.
+#   Layout: brand-color top strip → headline text → screenshot card → logo.
+
+def build_patient_review(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    _analysis=None,
+    _phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    dur = 6.0
+    screenshot_url = request.video_urls[0] if request.video_urls else None
+    headline = (request.text_1 or "What our patients are saying...").upper()
+
+    hook_font = request.hook_font or theme.font_family
+    hook_color = _hook_color(request, "#FFFFFF")
+    brand_primary = theme.primary_color or "#7C3AED"
+
+    els: list[dict] = []
+
+    # Full-frame dark background
+    els.append({
+        "type": "rectangle",
+        "track": 1,
+        "width": "100%",
+        "height": "100%",
+        "fill_color": "#0A0A0A",
+        "x": "50%", "x_anchor": "50%",
+        "y": "50%", "y_anchor": "50%",
+    })
+
+    # Brand-color strip — top 32%
+    els.append({
+        "type": "rectangle",
+        "track": 2,
+        "width": "100%",
+        "height": "32%",
+        "fill_color": brand_primary,
+        "x": "50%", "x_anchor": "50%",
+        "y": "0%", "y_anchor": "0%",
+    })
+
+    # Headline text centered in brand strip
+    els.append({
+        "type": "text",
+        "track": 3,
+        "text": headline,
+        "font_family": hook_font,
+        "font_size": "7.5vmin",
+        "font_weight": "900",
+        "fill_color": hook_color,
+        "width": "86%",
+        "x": "50%", "x_anchor": "50%",
+        "y": "16%", "y_anchor": "50%",
+        "x_alignment": "center",
+        "text_wrap": True,
+        "line_height": "110%",
+    })
+
+    # Review screenshot card
+    if screenshot_url:
+        els.append({
+            "type": "image",
+            "track": 4,
+            "source": screenshot_url,
+            "width": "90%",
+            "height": "56%",
+            "x": "50%", "x_anchor": "50%",
+            "y": "62%", "y_anchor": "50%",
+            "fill_mode": "contain",
+            "border_radius": "3vmin",
+        })
+
+    # Logo
+    if request.logo_url:
+        els.append({
+            "type": "image",
+            "track": 5,
+            "source": request.logo_url,
+            "width": "28%",
+            "height": "5%",
+            "x": "50%", "x_anchor": "50%",
+            "y": "94%", "y_anchor": "50%",
+            "fill_mode": "contain",
+        })
+
+    return {
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": dur,
+        "elements": els,
+    }
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1510,4 +1605,5 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.EDU_STEPS: build_edu_steps,
     VideoTemplate.COUNTDOWN_STACK: build_countdown_stack,
     VideoTemplate.MYTH_DEBUNK: build_myth_debunk,
+    VideoTemplate.PATIENT_REVIEW: build_patient_review,
 }
