@@ -267,6 +267,12 @@ class GenerateVideoRequest(BaseModel):
     brand_color_secondary: Optional[str] = None
     font_style: Optional[str] = None
 
+    # Per-role text style — hook/title vs body/bullets
+    hook_font: Optional[str] = Field(None, max_length=50, description="Font family for hook/title elements.")
+    hook_color: Optional[str] = Field(None, max_length=20, description="Hex color for hook/title text.")
+    body_font: Optional[str] = Field(None, max_length=50, description="Font family for body/bullet/sign elements.")
+    body_color: Optional[str] = Field(None, max_length=20, description="Hex color for body/bullet/sign text.")
+
 
 class GenerateVideoResponse(BaseModel):
     """Matches existing frontend expectations."""

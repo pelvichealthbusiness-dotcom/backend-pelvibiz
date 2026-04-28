@@ -15,6 +15,20 @@ CAPTION_STROKE_MAP: dict[str, str] = {
     "thick": "1.5 vmin",
 }
 
+# ── Per-role text style resolvers ──────────────────────────────────────────
+
+def _hook_font(request: GenerateVideoRequest, theme: BrandTheme) -> str:
+    return request.hook_font or theme.font_family
+
+def _hook_color(request: GenerateVideoRequest, default: str = "#FFFFFF") -> str:
+    return request.hook_color or default
+
+def _body_font(request: GenerateVideoRequest, theme: BrandTheme) -> str:
+    return request.body_font or request.caption_font or theme.font_family
+
+def _body_color(request: GenerateVideoRequest, default: str = "#FFFFFF") -> str:
+    return request.body_color or request.caption_color or default
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _base_source(duration: float, width: int = 1080, height: int = 1920) -> dict:
@@ -616,9 +630,9 @@ def build_talking_head(
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
             "width": "88%",
-            "font_family": theme.font_family, "font_weight": "800",
+            "font_family": _hook_font(request, theme), "font_weight": "800",
             "font_size": "5.0 vmin",
-            "fill_color": "#0A0A0A",
+            "fill_color": _hook_color(request, "#0A0A0A"),
             "background_color": "#FFFFFF",
             "background_x_padding": "8%",
             "background_y_padding": "4%",
@@ -627,8 +641,8 @@ def build_talking_head(
     # CAPTIONS — bottom safe zone (70–90%), never overlaps hook at top
     # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
     caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
-    caption_font = getattr(request, 'caption_font', None) or CAPTION_FONT
-    caption_color = getattr(request, 'caption_color', None) or DEFAULT_CAPTION_COLOR
+    caption_font = _body_font(request, theme) if request.body_font else (getattr(request, 'caption_font', None) or CAPTION_FONT)
+    caption_color = _body_color(request) if (request.body_color or request.caption_color) else DEFAULT_CAPTION_COLOR
     caption_weight = getattr(request, 'caption_weight', None) or "900"
     caption_stroke = CAPTION_STROKE_MAP.get(
         getattr(request, 'caption_stroke', None) or "", DEFAULT_CAPTION_STROKE
@@ -736,9 +750,9 @@ def build_bullet_reel(
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%",
                 "width": "88%",
-                "font_family": theme.font_family, "font_weight": "800",
+                "font_family": _hook_font(request, theme), "font_weight": "800",
                 "font_size": "5.5 vmin",
-                "fill_color": "#FFFFFF",
+                "fill_color": _hook_color(request),
                 "stroke_color": "#000000",
                 "stroke_width": "1.2 vmin",
                 "background_color": "rgba(0,0,0,0.55)",
@@ -759,6 +773,9 @@ def build_bullet_reel(
             t_start = clip_idx * clip_dur
             chunks = _word_chunks(raw, size=2)
             sub_dur = (clip_dur - 0.3) / len(chunks)
+            # clip 0 = hook, clips 1+ = bullets
+            font = _hook_font(request, theme) if clip_idx == 0 else _body_font(request, theme)
+            color = _hook_color(request) if clip_idx == 0 else _body_color(request)
             for k, chunk in enumerate(chunks):
                 els.append({
                     "type": "text",
@@ -771,9 +788,9 @@ def build_bullet_reel(
                     "x_anchor": "50%", "y_anchor": "50%",
                     "x_alignment": "50%",
                     "width": "88%",
-                    "font_family": theme.font_family, "font_weight": "800",
+                    "font_family": font, "font_weight": "800",
                     "font_size": "7 vmin",
-                    "fill_color": "#FFFFFF",
+                    "fill_color": color,
                     "stroke_color": "#000000",
                     "stroke_width": "1.2 vmin",
                 })
@@ -831,8 +848,8 @@ def build_hook_reveal(
                 "x": "50%", "y": text_y,
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%", "width": "88%",
-                "font_family": theme.font_family, "font_weight": "800",
-                "font_size": "7.5 vmin", "fill_color": "#FFFFFF",
+                "font_family": _hook_font(request, theme), "font_weight": "800",
+                "font_size": "7.5 vmin", "fill_color": _hook_color(request),
                 "stroke_color": "#000000", "stroke_width": "1.2 vmin",
             })
 
@@ -868,9 +885,9 @@ def build_hook_reveal(
                 "x": "50%", "y": text_y,
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%", "width": "86%",
-                "font_family": theme.font_family, "font_weight": "800",
+                "font_family": _body_font(request, theme), "font_weight": "800",
                 "font_size": "7 vmin",
-                "fill_color": "#FFFFFF",
+                "fill_color": _body_color(request),
                 "stroke_color": "#000000",
                 "stroke_width": "1.2 vmin",
             })
@@ -975,9 +992,9 @@ def build_edu_steps(
             "x": "50%", "y": "7%",
             "x_anchor": "50%", "y_anchor": "0%",
             "x_alignment": "50%", "width": "90%",
-            "font_family": theme.font_family, "font_weight": "800",
+            "font_family": _hook_font(request, theme), "font_weight": "800",
             "font_size": "4.5 vmin",
-            "fill_color": "#FFFFFF",
+            "fill_color": _hook_color(request),
             "stroke_color": "#000000", "stroke_width": "1 vmin",
             "background_color": theme.primary_color,
             "background_x_padding": "8%", "background_y_padding": "4%",
@@ -1013,8 +1030,8 @@ def build_edu_steps(
             "x": "50%", "y": step_text_y,
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%", "width": "84%",
-            "font_family": theme.font_family, "font_weight": "700",
-            "font_size": "4.8 vmin", "fill_color": "#FFFFFF",
+            "font_family": _body_font(request, theme), "font_weight": "700",
+            "font_size": "4.8 vmin", "fill_color": _body_color(request),
             "stroke_color": "#000000", "stroke_width": "1.2 vmin",
         })
 
@@ -1159,10 +1176,10 @@ def build_talking_head_v2(
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
             "width": "88%",
-            "font_family": "Poppins",
+            "font_family": request.hook_font or _V2_CAPTION_FONT,
             "font_weight": "700",
             "font_size": "6 vmin",
-            "fill_color": "#FFFFFF",
+            "fill_color": _hook_color(request),
             "stroke_color": "#000000",
             "stroke_width": "0.5 vmin",
             "background_color": "rgba(0,0,0,0.72)",
@@ -1171,8 +1188,8 @@ def build_talking_head_v2(
         })
 
     # CAPTIONS — centered, word-by-word karaoke, start from second 0
-    caption_font = getattr(request, "caption_font", None) or _V2_CAPTION_FONT
-    caption_color = getattr(request, "caption_color", None) or "#FFFFFF"
+    caption_font = request.body_font or getattr(request, "caption_font", None) or _V2_CAPTION_FONT
+    caption_color = request.body_color or getattr(request, "caption_color", None) or "#FFFFFF"
     caption_y = "50%"
     title_end = 0.0  # captions start immediately — title is at top, no spatial conflict
 
@@ -1276,10 +1293,10 @@ def build_countdown_stack(
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
             "width": "88%",
-            "font_family": theme.font_family,
+            "font_family": _hook_font(request, theme),
             "font_weight": "800",
             "font_size": "4.5 vmin",
-            "fill_color": "#FFFFFF",
+            "fill_color": _hook_color(request),
             "stroke_color": "#000000",
             "stroke_width": "0.8 vmin",
             "background_color": theme.primary_color,
@@ -1330,10 +1347,10 @@ def build_countdown_stack(
                 "x_anchor": "50%", "y_anchor": "50%",
                 "x_alignment": "50%",
                 "width": "88%",
-                "font_family": theme.font_family,
+                "font_family": _body_font(request, theme),
                 "font_weight": "800",
                 "font_size": "5.5 vmin",
-                "fill_color": "#FFFFFF",
+                "fill_color": _body_color(request),
                 "stroke_color": "#000000",
                 "stroke_width": "1.2 vmin",
                 "background_color": "rgba(0,0,0,0.65)",
