@@ -1135,21 +1135,20 @@ def build_talking_head_v2(
     if url:
         els.append(_video_elem("Video", 1, url, 0.0, dur, volume="100%"))
 
-    # TITLE card — centered on screen, shows _V2_TITLE_DURATION seconds then disappears
+    # TITLE card — pinned to TOP zone, visible the full video, never overlaps captions
     hook = (request.text_1 or "").strip()
-    title_end = min(_V2_TITLE_DURATION, dur) if hook else 0.0
     if hook:
         els.append({
             "type": "text", "track": 20, "name": "Title",
             "text": hook,
-            "time": 0.0, "duration": title_end,
-            "x": "50%", "y": "50%",
+            "time": 0.0, "duration": dur,
+            "x": "50%", "y": "15%",
             "x_anchor": "50%", "y_anchor": "50%",
             "x_alignment": "50%",
             "width": "88%",
             "font_family": "Poppins",
             "font_weight": "700",
-            "font_size": "7.5 vmin",
+            "font_size": "6 vmin",
             "fill_color": "#FFFFFF",
             "stroke_color": "#000000",
             "stroke_width": "0.5 vmin",
@@ -1158,10 +1157,11 @@ def build_talking_head_v2(
             "background_y_padding": "5%",
         })
 
-    # CAPTIONS — centered, word-by-word karaoke, starts after title
+    # CAPTIONS — centered, word-by-word karaoke, start from second 0
     caption_font = getattr(request, "caption_font", None) or _V2_CAPTION_FONT
     caption_color = getattr(request, "caption_color", None) or "#FFFFFF"
     caption_y = "50%"
+    title_end = 0.0  # captions start immediately — title is at top, no spatial conflict
 
     if phrase_blocks:
         _append_karaoke_v2(
