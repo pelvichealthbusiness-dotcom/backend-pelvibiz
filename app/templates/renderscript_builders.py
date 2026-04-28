@@ -23,12 +23,15 @@ def _base_source(duration: float, width: int = 1080, height: int = 1920) -> dict
 
 def _video_elem(name: str, track: int, source: str, time: float, duration: float,
                 volume: str = "0%", fit: str = "cover",
-                trim_start: Optional[float] = None) -> dict:
+                trim_start: Optional[float] = None,
+                trim_end: Optional[float] = None) -> dict:
     el: dict[str, Any] = {"type": "video", "track": track, "name": name,
                            "source": source, "time": time, "duration": duration,
                            "fit": fit, "volume": volume}
     if trim_start is not None:
         el["trim_start"] = trim_start
+    if trim_end is not None:
+        el["trim_end"] = trim_end
     return el
 
 def _rect_elem(name: str, track: int, time: float, duration: float,
@@ -577,22 +580,25 @@ def build_talking_head(
     phrase_blocks: list[PhraseBlock] | None = None,
 ) -> dict:
     # Use actual video duration from Gemini analysis; fall back to target_duration or 30s
-    if analysis and analysis.duration_seconds:
+    speech_end: float | None = None
+    if phrase_blocks:
+        speech_end = phrase_blocks[-1].end
+        dur = round(speech_end + 0.2, 3)
+    elif analysis and analysis.duration_seconds:
         dur = float(analysis.duration_seconds)
-    elif phrase_blocks:
-        # When using the new TranscriptionService we don't have a separate duration;
-        # derive from the last block end + small tail buffer
-        dur = phrase_blocks[-1].end + 0.5 if phrase_blocks else 30.0
     else:
         dur = _resolve_target_duration(request, 30.0)
 
     source = _base_source(dur)
     els = source["elements"]
 
-    # Video — full duration, audio ON (person is speaking)
+    # Video — trimmed to speech end so no black tail
     url = request.video_urls[0] if request.video_urls else ""
     if url:
-        els.append(_video_elem("Video", 1, url, 0.0, dur, volume="100%"))
+        els.append(_video_elem(
+            "Video", 1, url, 0.0, dur, volume="100%",
+            trim_end=round(speech_end + 0.2, 3) if speech_end is not None else None,
+        ))
 
     # HOOK card — TOP zone (10–20%), white box with dark text, static throughout
     # text_1 is optional; if not provided, no hook card shown
@@ -1117,21 +1123,26 @@ def build_talking_head_v2(
     analysis=None,
     phrase_blocks: list[PhraseBlock] | None = None,
 ) -> dict:
-    # Duration: real video duration from analysis or phrase blocks, else target
-    if analysis and analysis.duration_seconds:
+    # Duration: derived from last spoken word so video ends when speech ends
+    speech_end: float | None = None
+    if phrase_blocks:
+        speech_end = phrase_blocks[-1].end
+        dur = round(speech_end + 0.2, 3)
+    elif analysis and analysis.duration_seconds:
         dur = float(analysis.duration_seconds)
-    elif phrase_blocks:
-        dur = phrase_blocks[-1].end + 0.5 if phrase_blocks else 30.0
     else:
         dur = _resolve_target_duration(request, 30.0)
 
     source = _base_source(dur)
     els = source["elements"]
 
-    # Video — full duration, audio ON (person is speaking)
+    # Video — trimmed to speech end so no black tail
     url = request.video_urls[0] if request.video_urls else ""
     if url:
-        els.append(_video_elem("Video", 1, url, 0.0, dur, volume="100%"))
+        els.append(_video_elem(
+            "Video", 1, url, 0.0, dur, volume="100%",
+            trim_end=round(speech_end + 0.2, 3) if speech_end is not None else None,
+        ))
 
     # TITLE card — pinned to TOP zone, visible the full video, never overlaps captions
     hook = (request.text_1 or "").strip()
