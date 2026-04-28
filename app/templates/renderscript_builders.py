@@ -1228,6 +1228,121 @@ def build_talking_head_v2(
     return source
 
 
+# ── Countdown Stack ───────────────────────────────────────────────────────
+#
+# Layout (per clip):
+#   TOP    → Hook badge in brand primary color (pinned full duration)
+#   CENTER → Giant countdown number (N, N-1 … 1) in brand primary color
+#   LOWER  → Sign / item description in white with dark pill background
+
+def build_countdown_stack(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    _analysis=None,
+    _phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    clip_count = _resolve_clip_count(request, 3, 2)
+    dur = _resolve_target_duration(request, 30.0)
+    clip_dur = dur / clip_count
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    # Video clips with loop so short clips fill the slot
+    videos = request.video_urls or []
+    for i in range(clip_count):
+        url = videos[i] if i < len(videos) else (videos[-1] if videos else "")
+        if url:
+            els.append(_video_elem(f"Video-{i + 1}", i + 1, url,
+                                   round(i * clip_dur, 3), round(clip_dur, 3),
+                                   volume="0%", loop=True))
+
+    # Dark overlay across full video
+    els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="55%"))
+
+    # Hook badge — pinned at top, full duration, brand primary color background
+    hook = (request.text_1 or "").strip()
+    if hook:
+        els.append({
+            "type": "text",
+            "track": 21,
+            "name": "Hook",
+            "text": hook.upper(),
+            "time": 0,
+            "duration": round(dur, 3),
+            "x": "50%", "y": "11%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%",
+            "width": "88%",
+            "font_family": theme.font_family,
+            "font_weight": "800",
+            "font_size": "4.5 vmin",
+            "fill_color": "#FFFFFF",
+            "stroke_color": "#000000",
+            "stroke_width": "0.8 vmin",
+            "background_color": theme.primary_color,
+            "background_x_padding": "6%",
+            "background_y_padding": "3%",
+        })
+
+    signs = [request.text_2, request.text_3, request.text_4,
+             request.text_5, request.text_6]
+    track_base = 30
+
+    for i in range(clip_count):
+        t_start = round(i * clip_dur, 3)
+        slot = round(clip_dur, 3)
+        number = str(clip_count - i)          # N, N-1 … 1
+        sign_text = (signs[i] or "").strip() if i < len(signs) else ""
+
+        # Giant countdown number
+        els.append({
+            "type": "text",
+            "track": track_base + i * 3,
+            "name": f"Number-{i + 1}",
+            "text": number,
+            "time": t_start + 0.1,
+            "duration": slot - 0.1,
+            "x": "50%", "y": "41%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%",
+            "width": "70%",
+            "font_family": theme.font_family,
+            "font_weight": "900",
+            "font_size": "24 vmin",
+            "fill_color": theme.primary_color,
+            "stroke_color": "#000000",
+            "stroke_width": "2.5 vmin",
+        })
+
+        # Sign description below the number
+        if sign_text:
+            els.append({
+                "type": "text",
+                "track": track_base + i * 3 + 1,
+                "name": f"Sign-{i + 1}",
+                "text": sign_text.upper(),
+                "time": t_start + 0.25,
+                "duration": slot - 0.25,
+                "x": "50%", "y": "67%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%",
+                "width": "88%",
+                "font_family": theme.font_family,
+                "font_weight": "800",
+                "font_size": "5.5 vmin",
+                "fill_color": "#FFFFFF",
+                "stroke_color": "#000000",
+                "stroke_width": "1.2 vmin",
+                "background_color": "rgba(0,0,0,0.65)",
+                "background_x_padding": "6%",
+                "background_y_padding": "4%",
+            })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1245,4 +1360,5 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.TALKING_HEAD_V2: build_talking_head_v2,
     VideoTemplate.HOOK_REVEAL: build_hook_reveal,
     VideoTemplate.EDU_STEPS: build_edu_steps,
+    VideoTemplate.COUNTDOWN_STACK: build_countdown_stack,
 }

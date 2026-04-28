@@ -42,6 +42,7 @@ class VideoTemplate(str, Enum):
     TALKING_HEAD_V2 = "talking-head-v2"
     HOOK_REVEAL = "hook-reveal"
     EDU_STEPS = "edu-steps"
+    COUNTDOWN_STACK = "countdown-stack"
 
 
 TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
@@ -179,6 +180,15 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "creatomate_id": "RENDERSCRIPT",
         "required_videos": 2,       # minimum; builder uses all provided URLs
         "required_text_count": 2,   # title + at least one step
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.COUNTDOWN_STACK: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 2,
+        "required_text_count": 2,   # text_1=Hook, text_2..text_6=Signs
         "needs_analysis": False,
         "output_format": "mp4",
         "width": 1080,
