@@ -73,8 +73,8 @@ def _logo_elem(theme: BrandTheme, duration: float, track: int = 10) -> Optional[
         return None
     return {"type": "image", "track": track, "name": "Logo",
             "source": theme.logo_url, "duration": duration,
-            "width": "13%", "height": "7%",
-            "x": "82%", "y": "6%",
+            "width": "13%", "height": "5%",
+            "x": "84%", "y": "2%",
             "x_anchor": "0%", "y_anchor": "0%",
             "fit": "contain"}
 
@@ -118,8 +118,8 @@ def build_big_quote(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
         els.append({
             "type": "image", "track": 10, "name": "Logo",
             "source": theme.logo_url, "duration": dur,
-            "width": "13%", "height": "7%",
-            "x": "80%", "y": "6%", "x_anchor": "0%", "y_anchor": "0%", "fit": "contain",
+            "width": "13%", "height": "5%",
+            "x": "84%", "y": "2%", "x_anchor": "0%", "y_anchor": "0%", "fit": "contain",
         })
     if theme.music_url:
         els.append(_audio_elem(theme, dur))
@@ -192,13 +192,13 @@ def build_myth_buster(request: GenerateVideoRequest, theme: BrandTheme, analysis
         "font_size": "3.2 vmin", "fill_color": "#FFFFFF",
     })
 
-    # Logo — 13% width, top-right corner safe inside canvas
+    # Logo — top-right corner, above all text elements
     if theme.logo_url:
         els.append({
             "type": "image", "track": 11, "name": "Logo",
             "source": theme.logo_url, "duration": dur,
-            "width": "13%", "height": "7%",
-            "x": "82%", "y": "6%",
+            "width": "13%", "height": "5%",
+            "x": "84%", "y": "2%",
             "x_anchor": "0%", "y_anchor": "0%",
             "fit": "contain",
         })
@@ -682,6 +682,7 @@ def build_talking_head(
     if theme.music_url:
         els.append(_audio_elem(theme, dur, track=200))
 
+    els.extend(_add_optional(_logo_elem(theme, dur, track=201)))
     return source
 
 
@@ -1225,6 +1226,7 @@ def build_talking_head_v2(
     if theme.music_url:
         els.append(_audio_elem(theme, dur, track=200))
 
+    els.extend(_add_optional(_logo_elem(theme, dur, track=201)))
     return source
 
 
