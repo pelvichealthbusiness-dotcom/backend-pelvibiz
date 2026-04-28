@@ -42,11 +42,6 @@ class VideoTemplate(str, Enum):
     TALKING_HEAD_V2 = "talking-head-v2"
     HOOK_REVEAL = "hook-reveal"
     EDU_STEPS = "edu-steps"
-    # Viral templates
-    WARNING_SIGNAL = "warning-signal"
-    QUICK_TIP = "quick-tip"
-    BEFORE_AFTER = "before-after"
-    QUESTION_ANSWER = "question-answer"
 
 
 TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
@@ -184,42 +179,6 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "creatomate_id": "RENDERSCRIPT",
         "required_videos": 2,       # minimum; builder uses all provided URLs
         "required_text_count": 2,   # title + at least one step
-        "needs_analysis": False,
-        "output_format": "mp4",
-        "width": 1080,
-        "height": 1920,
-    },
-    VideoTemplate.WARNING_SIGNAL: {
-        "creatomate_id": "RENDERSCRIPT",
-        "required_videos": 1,
-        "required_text_count": 2,   # text_1=Hook, text_2..4=warnings, text_5=CTA
-        "needs_analysis": False,
-        "output_format": "mp4",
-        "width": 1080,
-        "height": 1920,
-    },
-    VideoTemplate.QUICK_TIP: {
-        "creatomate_id": "RENDERSCRIPT",
-        "required_videos": 0,       # optional background; builder falls back to brand color
-        "required_text_count": 1,   # text_1=Tip
-        "needs_analysis": False,
-        "output_format": "mp4",
-        "width": 1080,
-        "height": 1920,
-    },
-    VideoTemplate.BEFORE_AFTER: {
-        "creatomate_id": "RENDERSCRIPT",
-        "required_videos": 2,       # clip 1=before, clip 2=after
-        "required_text_count": 2,   # text_1=before desc, text_2=after desc
-        "needs_analysis": False,
-        "output_format": "mp4",
-        "width": 1080,
-        "height": 1920,
-    },
-    VideoTemplate.QUESTION_ANSWER: {
-        "creatomate_id": "RENDERSCRIPT",
-        "required_videos": 1,
-        "required_text_count": 2,   # text_1=Question, text_2=Answer fallback
         "needs_analysis": False,
         "output_format": "mp4",
         "width": 1080,
