@@ -73,8 +73,8 @@ def _logo_elem(theme: BrandTheme, duration: float, track: int = 10) -> Optional[
         return None
     return {"type": "image", "track": track, "name": "Logo",
             "source": theme.logo_url, "duration": duration,
-            "width": "13%", "height": "5%",
-            "x": "84%", "y": "2%",
+            "width": "13%", "height": "4%",
+            "x": "84%", "y": "1%",
             "x_anchor": "0%", "y_anchor": "0%",
             "fit": "contain"}
 
@@ -118,8 +118,8 @@ def build_big_quote(request: GenerateVideoRequest, theme: BrandTheme, analysis=N
         els.append({
             "type": "image", "track": 10, "name": "Logo",
             "source": theme.logo_url, "duration": dur,
-            "width": "13%", "height": "5%",
-            "x": "84%", "y": "2%", "x_anchor": "0%", "y_anchor": "0%", "fit": "contain",
+            "width": "13%", "height": "4%",
+            "x": "84%", "y": "1%", "x_anchor": "0%", "y_anchor": "0%", "fit": "contain",
         })
     if theme.music_url:
         els.append(_audio_elem(theme, dur))
@@ -197,8 +197,8 @@ def build_myth_buster(request: GenerateVideoRequest, theme: BrandTheme, analysis
         els.append({
             "type": "image", "track": 11, "name": "Logo",
             "source": theme.logo_url, "duration": dur,
-            "width": "13%", "height": "5%",
-            "x": "84%", "y": "2%",
+            "width": "13%", "height": "4%",
+            "x": "84%", "y": "1%",
             "x_anchor": "0%", "y_anchor": "0%",
             "fit": "contain",
         })
