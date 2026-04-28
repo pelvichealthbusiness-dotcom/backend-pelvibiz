@@ -1225,6 +1225,377 @@ def build_talking_head_v2(
     return source
 
 
+# ── Warning Signal ────────────────────────────────────────────────────────
+#
+# Layout:
+#   TOP    → Hook badge (primary color band, full video)
+#   CENTER → 3 warnings appear sequentially: big number + text below
+#   BOTTOM → CTA badge at the end
+
+def build_warning_signal(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    dur = _resolve_target_duration(request, 20.0)
+    source = _base_source(dur)
+    els = source["elements"]
+
+    url = request.video_urls[0] if request.video_urls else ""
+    if url:
+        els.append(_video_elem("Video", 1, url, 0, dur, volume="0%"))
+    else:
+        els.append(_rect_elem("Background", 1, 0, dur, theme.background_color))
+
+    els.append(_rect_elem("Overlay", 2, 0, dur, "#000000", opacity="55%"))
+
+    # Hook — colored top badge, visible throughout
+    hook = (request.text_1 or "").strip()
+    if hook:
+        els.append({
+            "type": "text", "track": 10, "name": "Hook",
+            "text": hook.upper(),
+            "time": 0.0, "duration": dur,
+            "x": "50%", "y": "8%",
+            "x_anchor": "50%", "y_anchor": "0%",
+            "x_alignment": "50%", "width": "88%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "4.5 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "1 vmin",
+            "background_color": theme.primary_color,
+            "background_x_padding": "6%", "background_y_padding": "4%",
+        })
+
+    # 3 warnings — big number + text, one per time slot
+    warnings = [
+        (request.text_2 or "").strip(),
+        (request.text_3 or "").strip(),
+        (request.text_4 or "").strip(),
+    ]
+    active = [w for w in warnings if w]
+
+    if active:
+        content_start = dur * 0.14
+        content_end = dur * 0.82
+        slot = (content_end - content_start) / len(active)
+        for idx, text in enumerate(active):
+            t = round(content_start + idx * slot, 3)
+            d = round(slot - 0.12, 3)
+            els.append({
+                "type": "text", "track": 20 + idx * 2, "name": f"WarnNum-{idx + 1}",
+                "text": f"0{idx + 1}",
+                "time": t, "duration": d,
+                "x": "50%", "y": "44%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "40%",
+                "font_family": theme.font_family, "font_weight": "900",
+                "font_size": "10 vmin", "fill_color": theme.primary_color,
+                "stroke_color": "#000000", "stroke_width": "0.5 vmin",
+            })
+            els.append({
+                "type": "text", "track": 21 + idx * 2, "name": f"WarnText-{idx + 1}",
+                "text": text,
+                "time": t, "duration": d,
+                "x": "50%", "y": "56%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "84%",
+                "font_family": theme.font_family, "font_weight": "700",
+                "font_size": "4.2 vmin", "fill_color": "#FFFFFF",
+                "stroke_color": "#000000", "stroke_width": "0.8 vmin",
+                "background_color": "rgba(0,0,0,0.65)",
+                "background_x_padding": "5%", "background_y_padding": "4%",
+            })
+
+    # CTA — colored bottom badge at end
+    cta = (request.text_5 or "").strip()
+    if cta:
+        t_cta = round(dur * 0.84, 3)
+        els.append({
+            "type": "text", "track": 50, "name": "CTA",
+            "text": cta,
+            "time": t_cta, "duration": round(dur - t_cta - 0.1, 3),
+            "x": "50%", "y": "88%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "84%",
+            "font_family": theme.font_family, "font_weight": "700",
+            "font_size": "3.8 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "0.8 vmin",
+            "background_color": theme.primary_color,
+            "background_x_padding": "6%", "background_y_padding": "3%",
+        })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
+    return source
+
+
+# ── Quick Tip ─────────────────────────────────────────────────────────────
+#
+# Layout:
+#   TOP    → "TIP" eyebrow badge (small, brand color)
+#   CENTER → Main tip text animated in 3-word bursts
+#   Optional video background; falls back to brand color if no URL
+
+def build_quick_tip(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    dur = _resolve_target_duration(request, 15.0)
+    source = _base_source(dur)
+    els = source["elements"]
+
+    url = request.video_urls[0] if request.video_urls else ""
+    if url:
+        els.append(_video_elem("Video", 1, url, 0, dur, volume="0%"))
+        els.append(_rect_elem("Overlay", 2, 0, dur, "#000000", opacity="62%"))
+    else:
+        els.append(_rect_elem("Background", 1, 0, dur, theme.background_color))
+        els.append(_rect_elem("AccentTop", 2, 0, dur, theme.primary_color,
+                              opacity="100%", width="100%", height="1%", x="0%", y="0%"))
+        els.append(_rect_elem("AccentBottom", 3, 0, dur, theme.primary_color,
+                              opacity="100%", width="100%", height="1%", x="0%", y="99%"))
+
+    # "TIP" eyebrow badge — upper zone
+    els.append({
+        "type": "text", "track": 10, "name": "Eyebrow",
+        "text": "TIP",
+        "time": 0.0, "duration": dur,
+        "x": "50%", "y": "32%",
+        "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%", "width": "28%",
+        "font_family": theme.font_family, "font_weight": "700",
+        "font_size": "3.5 vmin", "fill_color": "#FFFFFF",
+        "stroke_color": "#000000", "stroke_width": "0.5 vmin",
+        "background_color": theme.primary_color,
+        "background_x_padding": "8%", "background_y_padding": "4%",
+    })
+
+    # Main tip — center, animated in 3-word bursts
+    tip = (request.text_1 or "").strip()
+    if tip:
+        chunks = _word_chunks(tip, 3)
+        tip_dur = dur - 0.5
+        chunk_dur = tip_dur / len(chunks)
+        for i, chunk in enumerate(chunks):
+            els.append({
+                "type": "text", "track": 20 + i, "name": f"Tip-{i}",
+                "text": chunk.upper(),
+                "time": round(0.25 + i * chunk_dur, 3),
+                "duration": round(chunk_dur - 0.08, 3),
+                "x": "50%", "y": "52%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "84%",
+                "font_family": theme.font_family, "font_weight": "900",
+                "font_size": "7 vmin", "fill_color": "#FFFFFF",
+                "stroke_color": "#000000", "stroke_width": "1.2 vmin",
+                "background_color": "rgba(0,0,0,0.65)",
+                "background_x_padding": "6%", "background_y_padding": "4%",
+            })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
+    return source
+
+
+# ── Before After ──────────────────────────────────────────────────────────
+#
+# Layout:
+#   Clip 1 (first half):  ANTES label (dark pill) + description at bottom
+#   Clip 2 (second half): DESPUÉS label (primary color) + description at bottom
+#   Accent line flash at midpoint
+
+def build_before_after(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    dur = _resolve_target_duration(request, 20.0)
+    half = round(dur / 2, 3)
+    source = _base_source(dur)
+    els = source["elements"]
+
+    videos = request.video_urls or []
+    if len(videos) >= 2:
+        els.append(_video_elem("Before", 1, videos[0], 0, half, volume="0%"))
+        els.append(_video_elem("After", 2, videos[1], half, round(dur - half, 3), volume="0%"))
+    elif videos:
+        els.append(_video_elem("Video", 1, videos[0], 0, dur, volume="0%"))
+
+    els.append(_rect_elem("Overlay", 3, 0, dur, "#000000", opacity="40%"))
+
+    # ANTES label — white on dark, first half
+    els.append({
+        "type": "text", "track": 10, "name": "BeforeLabel",
+        "text": "ANTES",
+        "time": 0.0, "duration": round(half - 0.1, 3),
+        "x": "50%", "y": "13%",
+        "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%", "width": "55%",
+        "font_family": theme.font_family, "font_weight": "900",
+        "font_size": "7 vmin", "fill_color": "#FFFFFF",
+        "stroke_color": "#000000", "stroke_width": "1.5 vmin",
+        "background_color": "rgba(0,0,0,0.82)",
+        "background_x_padding": "8%", "background_y_padding": "4%",
+    })
+
+    before_desc = (request.text_1 or "").strip()
+    if before_desc:
+        els.append({
+            "type": "text", "track": 11, "name": "BeforeDesc",
+            "text": before_desc,
+            "time": 0.0, "duration": round(half - 0.1, 3),
+            "x": "50%", "y": "82%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "84%",
+            "font_family": theme.font_family, "font_weight": "700",
+            "font_size": "4.2 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "0.8 vmin",
+            "background_color": "rgba(0,0,0,0.65)",
+            "background_x_padding": "5%", "background_y_padding": "4%",
+        })
+
+    # DESPUÉS label — primary color, second half
+    els.append({
+        "type": "text", "track": 20, "name": "AfterLabel",
+        "text": "DESPUÉS",
+        "time": half, "duration": round(dur - half - 0.1, 3),
+        "x": "50%", "y": "13%",
+        "x_anchor": "50%", "y_anchor": "50%",
+        "x_alignment": "50%", "width": "70%",
+        "font_family": theme.font_family, "font_weight": "900",
+        "font_size": "7 vmin", "fill_color": "#FFFFFF",
+        "stroke_color": "#000000", "stroke_width": "1.5 vmin",
+        "background_color": theme.primary_color,
+        "background_x_padding": "8%", "background_y_padding": "4%",
+    })
+
+    after_desc = (request.text_2 or "").strip()
+    if after_desc:
+        els.append({
+            "type": "text", "track": 21, "name": "AfterDesc",
+            "text": after_desc,
+            "time": half, "duration": round(dur - half - 0.1, 3),
+            "x": "50%", "y": "82%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "84%",
+            "font_family": theme.font_family, "font_weight": "700",
+            "font_size": "4.2 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "0.8 vmin",
+            "background_color": "rgba(0,0,0,0.65)",
+            "background_x_padding": "5%", "background_y_padding": "4%",
+        })
+
+    # Accent flash at the midpoint transition
+    els.append(_rect_elem("Transition", 30, round(half - 0.05, 3), 0.15,
+                          theme.primary_color, opacity="100%",
+                          width="100%", height="0.8%", x="0%", y="49.6%"))
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=100), _audio_elem(theme, dur, track=101)))
+    return source
+
+
+# ── Question Answer ────────────────────────────────────────────────────────
+#
+# Layout:
+#   TOP    → Question pinned full video (dark pill)
+#   CENTER/BOTTOM → Answer as phrase_blocks captions (Whisper) or animated text_2 chunks
+#   Audio:  video audio ON (person answers on camera)
+
+def build_question_answer(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    analysis=None,
+    phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    speech_end: float | None = None
+    if phrase_blocks:
+        speech_end = phrase_blocks[-1].end
+        dur = round(speech_end + 0.2, 3)
+    else:
+        dur = _resolve_target_duration(request, 20.0)
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    url = request.video_urls[0] if request.video_urls else ""
+    if url:
+        els.append(_video_elem(
+            "Video", 1, url, 0, dur,
+            volume="100%",
+            trim_end=round(speech_end + 0.2, 3) if speech_end is not None else None,
+        ))
+    else:
+        els.append(_rect_elem("Background", 1, 0, dur, theme.background_color))
+
+    els.append(_rect_elem("Overlay", 2, 0, dur, "#000000", opacity="40%"))
+
+    # Question — dark pill, pinned at top throughout
+    question = (request.text_1 or "").strip()
+    if question:
+        els.append(_rect_elem("QuestionLine", 3, 0, dur, theme.primary_color,
+                              opacity="100%", width="100%", height="0.6%", x="0%", y="25%"))
+        els.append({
+            "type": "text", "track": 10, "name": "Question",
+            "text": question,
+            "time": 0.0, "duration": dur,
+            "x": "50%", "y": "12%",
+            "x_anchor": "50%", "y_anchor": "0%",
+            "x_alignment": "50%", "width": "88%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "4.8 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "1 vmin",
+            "background_color": "rgba(0,0,0,0.75)",
+            "background_x_padding": "6%", "background_y_padding": "4%",
+        })
+
+    caption_font = getattr(request, "caption_font", None) or CAPTION_FONT
+    caption_color = getattr(request, "caption_color", None) or DEFAULT_CAPTION_COLOR
+    caption_weight = getattr(request, "caption_weight", None) or "900"
+    caption_stroke = CAPTION_STROKE_MAP.get(
+        getattr(request, "caption_stroke", None) or "", DEFAULT_CAPTION_STROKE
+    )
+
+    if phrase_blocks:
+        _append_captions(
+            els, phrase_blocks,
+            y="72%", base_track=500,
+            font_family=caption_font,
+            fill_color=caption_color,
+            font_weight=caption_weight,
+            stroke_width=caption_stroke,
+        )
+    else:
+        answer = (request.text_2 or "").strip()
+        if answer:
+            answer_start = 0.3
+            answer_dur = max(dur - answer_start - 0.3, 1.0)
+            chunks = _word_chunks(answer, 3)
+            chunk_dur = answer_dur / len(chunks)
+            for i, chunk in enumerate(chunks):
+                els.append({
+                    "type": "text", "track": 20 + i, "name": f"Answer-{i}",
+                    "text": chunk,
+                    "time": round(answer_start + i * chunk_dur, 3),
+                    "duration": round(chunk_dur - 0.08, 3),
+                    "x": "50%", "y": "65%",
+                    "x_anchor": "50%", "y_anchor": "50%",
+                    "x_alignment": "50%", "width": "84%",
+                    "font_family": theme.font_family, "font_weight": "700",
+                    "font_size": "5.2 vmin", "fill_color": "#FFFFFF",
+                    "stroke_color": "#000000", "stroke_width": "1 vmin",
+                    "background_color": "rgba(0,0,0,0.65)",
+                    "background_x_padding": "6%", "background_y_padding": "4%",
+                })
+
+    if theme.music_url:
+        els.append(_audio_elem(theme, dur, track=200))
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=100)))
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1242,4 +1613,8 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.TALKING_HEAD_V2: build_talking_head_v2,
     VideoTemplate.HOOK_REVEAL: build_hook_reveal,
     VideoTemplate.EDU_STEPS: build_edu_steps,
+    VideoTemplate.WARNING_SIGNAL: build_warning_signal,
+    VideoTemplate.QUICK_TIP: build_quick_tip,
+    VideoTemplate.BEFORE_AFTER: build_before_after,
+    VideoTemplate.QUESTION_ANSWER: build_question_answer,
 }
