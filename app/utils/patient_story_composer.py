@@ -229,6 +229,23 @@ def _auto_fit_body(
 
 # ── Main compositor ─────────────────────────────────────────────────────────────
 
+def _make_rounded_paste(
+    canvas: Image.Image,
+    src: Image.Image,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    radius: int,
+) -> None:
+    """Scale src to (w, h) and paste it onto canvas at (x, y) with rounded corners."""
+    src = src.convert("RGBA").resize((w, h), Image.Resampling.LANCZOS)
+    mask = Image.new("L", (w, h), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle([(0, 0), (w - 1, h - 1)], radius=radius, fill=255)
+    canvas.paste(src, (x, y), mask)
+
+
 async def compose(
     logo_bytes: bytes | None,
     section_label: str,
@@ -237,8 +254,13 @@ async def compose(
     result: str,
     brand_color_primary: str,
     brand_color_secondary: str,  # reserved for future accent use
+    screenshot_bytes: bytes | None = None,
 ) -> bytes:
-    """Compose a patient-story card and return PNG bytes."""
+    """Compose a patient-story card and return PNG bytes.
+
+    When screenshot_bytes is provided the card area is replaced by the review
+    screenshot embedded in the branded layout (no text composition).
+    """
 
     font_title1 = await get_montserrat("script",   TITLE_1_SIZE)
     font_client = await get_montserrat("semibold",  CLIENT_SIZE)
@@ -314,65 +336,80 @@ async def compose(
         img = Image.alpha_composite(img, shadow_layer)
         draw = ImageDraw.Draw(img)
 
-        # ── 7. Card body ──────────────────────────────────────────────────
-        draw.rounded_rectangle(
-            [(CARD_X, CARD_Y), (CARD_X + CARD_W, CARD_Y + CARD_H)],
-            radius=CARD_RADIUS,
-            fill=(255, 255, 255, 255),
-        )
-
-        # ── 8. Stars ──────────────────────────────────────────────────────
-        star_top = CARD_Y + CARD_PAD_V
-        star_cy  = star_top + STAR_R_OUTER
-        star_cx  = CARD_X + CARD_PAD_H + STAR_R_OUTER
-        for _ in range(STAR_COUNT):
-            _draw_star(draw, star_cx, star_cy, STAR_R_OUTER, STAR_R_INNER, STAR_COLOR)
-            star_cx += STAR_GAP
-
-        # ── 9. Client name ────────────────────────────────────────────────
-        client_y = star_cy + STAR_R_OUTER + 14
-        if client_name and client_name.strip():
-            draw.text(
-                (CARD_X + CARD_PAD_H, client_y),
-                client_name.strip(),
-                font=font_client,
-                fill=(70, 70, 70, 255),
+        if screenshot_bytes is not None:
+            # ── Screenshot mode: embed the review image in the card area ──
+            try:
+                ss = Image.open(io.BytesIO(screenshot_bytes)).convert("RGBA")
+                # Scale to fill card width, cap at card height
+                scale = min(CARD_W / ss.width, CARD_H / ss.height)
+                new_w = int(ss.width * scale)
+                new_h = int(ss.height * scale)
+                paste_x = CARD_X + (CARD_W - new_w) // 2
+                paste_y = CARD_Y + (CARD_H - new_h) // 2
+                _make_rounded_paste(img, ss, paste_x, paste_y, new_w, new_h, CARD_RADIUS)
+                draw = ImageDraw.Draw(img)
+            except Exception as exc:
+                logger.warning("Could not embed screenshot: %s", exc)
+        else:
+            # ── 7. Card body (text mode) ──────────────────────────────────
+            draw.rounded_rectangle(
+                [(CARD_X, CARD_Y), (CARD_X + CARD_W, CARD_Y + CARD_H)],
+                radius=CARD_RADIUS,
+                fill=(255, 255, 255, 255),
             )
-            cl_bb    = draw.textbbox((0, 0), client_name.strip(), font=font_client)
-            client_y += (cl_bb[3] - cl_bb[1]) + 14
 
-        # thin separator
-        sep_y = client_y + 4
-        draw.line(
-            [(CARD_X + CARD_PAD_H, sep_y), (CARD_X + CARD_W - CARD_PAD_H, sep_y)],
-            fill=(*primary_rgb, 50),
-            width=1,
-        )
+            # ── 8. Stars ──────────────────────────────────────────────────
+            star_top = CARD_Y + CARD_PAD_V
+            star_cy  = star_top + STAR_R_OUTER
+            star_cx  = CARD_X + CARD_PAD_H + STAR_R_OUTER
+            for _ in range(STAR_COUNT):
+                _draw_star(draw, star_cx, star_cy, STAR_R_OUTER, STAR_R_INNER, STAR_COLOR)
+                star_cx += STAR_GAP
 
-        # ── 10. Testimonial body ──────────────────────────────────────────
-        body_x   = CARD_X + CARD_PAD_H
-        body_y   = sep_y + 22
-        body_w   = CARD_W - CARD_PAD_H * 2
-        res_reserve = RESULT_SIZE + 36 if (result and result.strip()) else 0
-        body_max_h = int((CARD_Y + CARD_H - CARD_PAD_V) - body_y - res_reserve)
+            # ── 9. Client name ────────────────────────────────────────────
+            client_y = star_cy + STAR_R_OUTER + 14
+            if client_name and client_name.strip():
+                draw.text(
+                    (CARD_X + CARD_PAD_H, client_y),
+                    client_name.strip(),
+                    font=font_client,
+                    fill=(70, 70, 70, 255),
+                )
+                cl_bb    = draw.textbbox((0, 0), client_name.strip(), font=font_client)
+                client_y += (cl_bb[3] - cl_bb[1]) + 14
 
-        font_body, body_lines = _auto_fit_body(draw, testimonial or "", body_w, body_max_h)
-        ty = body_y
-        for line in body_lines:
-            bb = draw.textbbox((0, 0), line, font=font_body)
-            draw.text((body_x, ty), line, font=font_body, fill=dark_text)
-            ty += (bb[3] - bb[1]) + LINE_GAP
-
-        # ── 11. Result highlight (accent, bottom of card) ─────────────────
-        if result and result.strip():
-            res_y    = CARD_Y + CARD_H - CARD_PAD_V - RESULT_SIZE
-            res_text = f"— {result.strip()}"
-            draw.text(
-                (CARD_X + CARD_PAD_H, res_y),
-                res_text,
-                font=font_result,
-                fill=(*primary_rgb, 230),
+            # thin separator
+            sep_y = client_y + 4
+            draw.line(
+                [(CARD_X + CARD_PAD_H, sep_y), (CARD_X + CARD_W - CARD_PAD_H, sep_y)],
+                fill=(*primary_rgb, 50),
+                width=1,
             )
+
+            # ── 10. Testimonial body ──────────────────────────────────────
+            body_x   = CARD_X + CARD_PAD_H
+            body_y   = sep_y + 22
+            body_w   = CARD_W - CARD_PAD_H * 2
+            res_reserve = RESULT_SIZE + 36 if (result and result.strip()) else 0
+            body_max_h = int((CARD_Y + CARD_H - CARD_PAD_V) - body_y - res_reserve)
+
+            font_body, body_lines = _auto_fit_body(draw, testimonial or "", body_w, body_max_h)
+            ty = body_y
+            for line in body_lines:
+                bb = draw.textbbox((0, 0), line, font=font_body)
+                draw.text((body_x, ty), line, font=font_body, fill=dark_text)
+                ty += (bb[3] - bb[1]) + LINE_GAP
+
+            # ── 11. Result highlight (accent, bottom of card) ─────────────
+            if result and result.strip():
+                res_y    = CARD_Y + CARD_H - CARD_PAD_V - RESULT_SIZE
+                res_text = f"— {result.strip()}"
+                draw.text(
+                    (CARD_X + CARD_PAD_H, res_y),
+                    res_text,
+                    font=font_result,
+                    fill=(*primary_rgb, 230),
+                )
 
         out = io.BytesIO()
         img.convert("RGB").save(out, format="PNG")

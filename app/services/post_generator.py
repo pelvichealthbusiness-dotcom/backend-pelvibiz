@@ -465,9 +465,44 @@ class PostGeneratorService:
 
         Screenshot mode: screenshot_url is used directly as the final image — no composition.
         """
-        # Screenshot passthrough — no image composition needed
+        from app.utils.patient_story_composer import compose as compose_story
+
+        # Screenshot mode — compose the screenshot into the branded patient-story layout
         if request.screenshot_url:
-            image_url = request.screenshot_url
+            screenshot_bytes: bytes | None = None
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(request.screenshot_url)
+                    resp.raise_for_status()
+                    screenshot_bytes = resp.content
+            except Exception as exc:
+                logger.warning("Could not fetch screenshot for composition: %s", exc)
+
+            logo_bytes_ss: bytes | None = None
+            logo_url = request.logo_url or brand.get("logo_url")
+            if logo_url:
+                try:
+                    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                        resp = await client.get(logo_url)
+                        resp.raise_for_status()
+                        logo_bytes_ss = resp.content
+                except Exception as exc:
+                    logger.warning("Could not fetch logo for screenshot composition: %s", exc)
+
+            tf = request.text_fields
+            image_bytes = await compose_story(
+                logo_bytes=logo_bytes_ss,
+                section_label=tf.get("section_label", "patient stories"),
+                testimonial="",
+                client_name="",
+                result="",
+                brand_color_primary=brand.get("brand_color_primary") or "#1A9E8F",
+                brand_color_secondary=brand.get("brand_color_secondary") or "#FFFFFF",
+                screenshot_bytes=screenshot_bytes,
+            )
+
+            upload_b64 = base64.b64encode(image_bytes).decode("utf-8")
+            image_url = await self._storage.upload_image(upload_b64, user_id)
             saved = self._save_to_requests_log(request=request, user_id=user_id, image_url=image_url)
             if saved:
                 try:
@@ -476,7 +511,6 @@ class PostGeneratorService:
                     logger.error("Failed to increment credits for %s: %s", user_id, exc)
             return image_url, request.caption
 
-        from app.utils.patient_story_composer import compose as compose_story
 
         tf = request.text_fields
         brand_color = brand.get("brand_color_primary") or "#1A9E8F"
