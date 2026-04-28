@@ -1431,7 +1431,7 @@ def build_before_after(
     # ANTES label — white on dark, first half
     els.append({
         "type": "text", "track": 10, "name": "BeforeLabel",
-        "text": "ANTES",
+        "text": "BEFORE",
         "time": 0.0, "duration": round(half - 0.1, 3),
         "x": "50%", "y": "13%",
         "x_anchor": "50%", "y_anchor": "50%",
@@ -1462,7 +1462,7 @@ def build_before_after(
     # DESPUÉS label — primary color, second half
     els.append({
         "type": "text", "track": 20, "name": "AfterLabel",
-        "text": "DESPUÉS",
+        "text": "AFTER",
         "time": half, "duration": round(dur - half - 0.1, 3),
         "x": "50%", "y": "13%",
         "x_anchor": "50%", "y_anchor": "50%",
