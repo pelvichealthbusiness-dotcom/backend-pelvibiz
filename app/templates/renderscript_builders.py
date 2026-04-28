@@ -989,9 +989,9 @@ def build_edu_steps(
             "type": "text", "track": 21, "name": "Title",
             "text": title.upper(),
             "time": 0.0, "duration": dur,
-            "x": "50%", "y": "7%",
-            "x_anchor": "50%", "y_anchor": "0%",
-            "x_alignment": "50%", "width": "90%",
+            "x": "50%", "y": "10%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "88%",
             "font_family": _hook_font(request, theme), "font_weight": "800",
             "font_size": "4.5 vmin",
             "fill_color": _hook_color(request),
@@ -1002,8 +1002,8 @@ def build_edu_steps(
 
     # Steps — y positions shift up when captions occupy the bottom zone
     has_captions = bool(phrase_blocks)
-    step_num_y = "25%" if has_captions else "36%"   # number: 36% → 25%
-    step_text_y = "42%" if has_captions else "55%"  # text:   55% → 42%
+    step_num_y = "32%" if has_captions else "40%"
+    step_text_y = "50%" if has_captions else "60%"
 
     steps = [request.text_2, request.text_3, request.text_4, request.text_5, request.text_6]
     step_nums = ["①", "②", "③", "④", "⑤"]
@@ -1025,7 +1025,7 @@ def build_edu_steps(
         })
         els.append({
             "type": "text", "track": 23 + i * 2, "name": f"Step-{i + 1}",
-            "text": step_text,
+            "text": step_text.upper(),
             "time": round(t + 0.15, 3), "duration": round(clip_dur - 0.3, 3),
             "x": "50%", "y": step_text_y,
             "x_anchor": "50%", "y_anchor": "50%",
