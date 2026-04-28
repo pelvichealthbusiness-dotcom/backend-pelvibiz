@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, EmailStr, Field
 
 from app.core.auth import UserContext, require_admin
-from app.core.pagination import PaginationParams, pagination_params
+
 from app.core.responses import success, paginated, error_response
 from app.core.supabase_client import get_service_client
 from app.config import get_settings
@@ -55,24 +55,28 @@ class ChangePasswordRequest(BaseModel):
 
 @router.get("/users")
 async def list_users(
-    pagination: PaginationParams = Depends(pagination_params),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=500),
+    sort_by: str = Query("created_at"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     search: str | None = Query(default=None, description="Search by name or email"),
     admin: UserContext = Depends(require_admin),
 ):
     """List all users (paginated, searchable). Admin only."""
+    offset = (page - 1) * limit
     result = await admin_service.list_users(
-        page=pagination.page,
-        limit=pagination.limit,
-        offset=pagination.offset,
-        sort_by=pagination.sort_by,
-        order=pagination.order,
+        page=page,
+        limit=limit,
+        offset=offset,
+        sort_by=sort_by,
+        order=order,
         search=search,
     )
     return paginated(
         data=result["users"],
         total=result["total"],
-        page=pagination.page,
-        limit=pagination.limit,
+        page=page,
+        limit=limit,
     )
 
 
