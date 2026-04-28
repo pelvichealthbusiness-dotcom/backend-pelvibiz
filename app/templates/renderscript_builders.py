@@ -7,12 +7,12 @@ from app.templates.brand_theme import BrandTheme, CAPTION_FONT
 logger = logging.getLogger(__name__)
 
 # ── Caption defaults ───────────────────────────────────────────────────────
-DEFAULT_CAPTION_COLOR = "#FFE600"
-DEFAULT_CAPTION_STROKE = "1.5 vmin"
+DEFAULT_CAPTION_COLOR = "#FFFFFF"
+DEFAULT_CAPTION_STROKE = "0.8 vmin"
 CAPTION_STROKE_MAP: dict[str, str] = {
-    "thin": "1 vmin",
-    "medium": "1.5 vmin",
-    "thick": "2 vmin",
+    "thin": "0.5 vmin",
+    "medium": "0.8 vmin",
+    "thick": "1.5 vmin",
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -436,9 +436,9 @@ def _caption_elements(
     font_size: str = "8 vmin",
     chunk_size: int = 3,
     font_family: str | None = None,
-    fill_color: str = "#FFE600",
+    fill_color: str = DEFAULT_CAPTION_COLOR,
     font_weight: str = "900",
-    letter_spacing: str = "20%",
+    letter_spacing: str = "0%",
 ) -> list[dict]:
     """Split a caption into timed word-group elements for word-by-word animation."""
     chunks = _word_chunks(text, chunk_size)
@@ -462,10 +462,10 @@ def _caption_elements(
             "letter_spacing": letter_spacing,
             "fill_color": fill_color,
             "stroke_color": "#000000",
-            "stroke_width": "1.5 vmin",
-            "background_color": "rgba(0,0,0,0.75)",
-            "background_x_padding": "5%",
-            "background_y_padding": "3%",
+            "stroke_width": DEFAULT_CAPTION_STROKE,
+            "background_color": "rgba(0,0,0,0.65)",
+            "background_x_padding": "7%",
+            "background_y_padding": "4%",
         })
     return elements
 
@@ -496,12 +496,12 @@ def _caption_elem(
         "font_family": font_family or CAPTION_FONT,
         "font_weight": font_weight,
         "font_size": "9 vmin",
-        "letter_spacing": "20%",
+        "letter_spacing": "0%",
         "fill_color": fill_color,
         "stroke_color": "#000000",
         "stroke_width": stroke_width,
-        "background_color": "rgba(0,0,0,0.80)",
-        "background_x_padding": "6%",
+        "background_color": "rgba(0,0,0,0.65)",
+        "background_x_padding": "7%",
         "background_y_padding": "4%",
     }
 
@@ -1047,15 +1047,15 @@ def _caption_elem_v2(
         "x": "50%", "y": y, "x_anchor": "50%", "y_anchor": "50%",
         "x_alignment": "50%", "width": "88%",
         "font_family": font_family or _V2_CAPTION_FONT,
-        "font_weight": "800",
-        "font_size": "11 vmin",
+        "font_weight": "900",
+        "font_size": "9 vmin",
         "letter_spacing": "0%",
         "fill_color": fill_color,
         "stroke_color": "#000000",
-        "stroke_width": "1.0 vmin",
+        "stroke_width": "0.8 vmin",
         "background_color": "rgba(0,0,0,0.65)",
-        "background_x_padding": "8%",
-        "background_y_padding": "5%",
+        "background_x_padding": "7%",
+        "background_y_padding": "4%",
     }
 
 

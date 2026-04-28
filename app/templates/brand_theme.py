@@ -51,9 +51,9 @@ FONT_MAP: dict[str, str] = {
     "caption": "Anton",
 }
 
-# Default font for OpusClip-style auto-generated captions.
-# Anton is a display condensed font — always bold, no weight needed.
-CAPTION_FONT = "Anton"
+# Default font for auto-generated captions.
+# Montserrat at weight 900 gives a clean, modern look suitable for healthcare content.
+CAPTION_FONT = "Montserrat"
 
 
 @dataclass

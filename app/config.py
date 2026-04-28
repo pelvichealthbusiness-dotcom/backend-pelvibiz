@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     openclaw_url: str = "http://localhost:18789/v1/chat/completions"
     openclaw_token: str = "c172820421a634220f606d737806ef2ee001072549f9fec4"
 
+    # OpenAI Whisper (direct — separate from OpenRouter llm_api_key)
+    whisper_api_key: str = ""
+
     # Blotato
     blotato_api_key: str = ""
     blotato_poll_interval: int = 2
