@@ -1059,6 +1059,9 @@ def _caption_elem_v2(
     }
 
 
+_V2_WORDS_PER_CHUNK = 3
+
+
 def _append_karaoke_v2(
     elements: list,
     phrase_blocks: list[PhraseBlock],
@@ -1068,48 +1071,43 @@ def _append_karaoke_v2(
     fill_color: str = "#FFFFFF",
     title_end: float = 0.0,
 ) -> None:
-    """Append word-by-word karaoke caption elements for Talking Head v2.
+    """Append 3-word karaoke caption elements for Talking Head v2.
 
-    Each phrase block is split into individual words with proportional timing.
-    Blocks that fall within the title intro window are trimmed or skipped.
+    Groups words into chunks of _V2_WORDS_PER_CHUNK for comfortable reading pace.
     """
     track = base_track
     for block in phrase_blocks:
-        # Skip blocks completely inside the title window
         if title_end > 0 and block.end <= title_end:
             continue
 
-        words = block.text.split()
+        words = [w.strip() for w in block.text.split() if w.strip()]
         if not words:
             continue
 
-        # Trim block start if it overlaps the title
         block_start = max(block.start, title_end)
         remaining_dur = max(block.end - block_start, 0)
         if remaining_dur <= 0:
             continue
 
-        word_dur = remaining_dur / len(words)
+        chunks = [words[i : i + _V2_WORDS_PER_CHUNK] for i in range(0, len(words), _V2_WORDS_PER_CHUNK)]
+        chunk_dur = remaining_dur / len(chunks)
         cursor = block_start
 
-        for word in words:
-            word = word.strip()
-            if not word:
-                cursor += word_dur
-                continue
-            actual_dur = min(word_dur, block.end - cursor)
+        for chunk in chunks:
+            text = " ".join(chunk)
+            actual_dur = min(chunk_dur, block.end - cursor)
             if actual_dur <= 0:
                 break
             elements.append(_caption_elem_v2(
                 track=track,
-                text=word,
-                time=cursor,
+                text=text,
+                time=round(cursor, 3),
                 duration=actual_dur,
                 y=y,
                 font_family=font_family,
                 fill_color=fill_color,
             ))
-            cursor += word_dur
+            cursor += chunk_dur
             track += 1
 
 
