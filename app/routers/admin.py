@@ -150,6 +150,7 @@ class AssignBlotatoRequest(BaseModel):
     )
     account_id: str
     page_id: str | None = None
+    playlist_ids: list[str] | None = None
 
 
 @router.get("/blotato/accounts")
@@ -180,6 +181,7 @@ async def assign_blotato_account(
         platform=body.platform,
         account_id=body.account_id,
         page_id=body.page_id,
+        playlist_ids=body.playlist_ids,
     )
     return success(data=updated)
 

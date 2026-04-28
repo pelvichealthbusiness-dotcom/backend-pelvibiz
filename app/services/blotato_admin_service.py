@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
+
+import httpx
 
 from app.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError, DatabaseError
 from app.core.supabase_client import get_service_client
-from app.services.blotato import fetch_blotato_accounts, normalize_blotato_connections
+from app.services.blotato import BLOTATO_BASE_URL, fetch_blotato_accounts
 from app.services.blotato_client import BlotatoClient, BlotatoAPIError, BlotatoScheduleNotFound
 from app.services.blotato_publisher import derive_publish_status
 
@@ -153,6 +154,7 @@ async def assign_account(
     platform: str,
     account_id: str,
     page_id: str | None = None,
+    playlist_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Assign a Blotato social account to a PelviBiz user.
 
@@ -189,10 +191,24 @@ async def assign_account(
     profile = result.data[0]
     connections: dict[str, Any] = dict(profile.get("blotato_connections") or {})
 
+    # For YouTube, auto-fetch playlistIds from Blotato if not provided
+    if platform == "youtube" and not playlist_ids:
+        settings = get_settings()
+        try:
+            async with httpx.AsyncClient(base_url=BLOTATO_BASE_URL, timeout=30.0, headers={"blotato-api-key": settings.blotato_api_key}) as http:
+                resp = await http.get(f"/users/me/accounts/{account_id}/subaccounts")
+                resp.raise_for_status()
+                items = list((resp.json() or {}).get("items") or [])
+                playlist_ids = [str(item.get("id") or "").strip() for item in items if str(item.get("id") or "").strip()]
+        except Exception:
+            logger.warning("assign_account: failed to auto-fetch YouTube playlistIds for account %s", account_id)
+
     # Build the new platform entry
-    entry: dict[str, str] = {"accountId": account_id}
+    entry: dict[str, Any] = {"accountId": account_id}
     if page_id:
         entry["pageId"] = page_id
+    if playlist_ids:
+        entry["playlistIds"] = playlist_ids
 
     connections[platform] = entry
 

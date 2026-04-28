@@ -9,7 +9,7 @@ from typing import TypedDict
 from app.services.blotato_client import BlotatoAPIError, BlotatoClient
 
 
-SUPPORTED_BLOTATO_PLATFORMS = {"instagram", "facebook", "linkedin", "tiktok", "twitter"}
+SUPPORTED_BLOTATO_PLATFORMS = {"instagram", "facebook", "linkedin", "tiktok", "twitter", "youtube"}
 
 
 class PlatformEntry(TypedDict, total=False):
@@ -31,8 +31,12 @@ def to_utc_iso(local_dt_str: str, tz_name: str) -> str:
 
 def media_type_for_platform(platform: str, media_type: str) -> str | None:
     """Return Blotato mediaType string, or None if not applicable."""
-    if media_type.upper() == "REEL" and platform in ("instagram", "facebook"):
-        return "reel"
+    mt = media_type.upper()
+    if mt in ("REEL", "VIDEO"):
+        if platform in ("instagram", "facebook"):
+            return "reel"
+        if platform in ("tiktok", "youtube"):
+            return "video"
     return None
 
 
