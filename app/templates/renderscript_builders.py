@@ -1362,6 +1362,135 @@ def build_countdown_stack(
     return source
 
 
+# ── Myth vs Fact Debunker ─────────────────────────────────────────────────
+#
+# Layout (per pair = one video clip):
+#   First half  → "✗ MYTH" badge (red)  + myth text  CENTER
+#   Second half → "✓ FACT" badge (green) + fact text  CENTER
+#   Full video  → Hook badge at top (brand primary)
+
+def build_myth_debunk(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    _analysis=None,
+    _phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    # Collect non-empty pairs: [(myth, fact), ...]
+    raw_pairs = [
+        (request.text_2 or "", request.text_3 or ""),
+        (request.text_4 or "", request.text_5 or ""),
+        (request.text_6 or "", request.text_7 or ""),
+    ]
+    pairs = [(m.strip(), f.strip()) for m, f in raw_pairs if m.strip() and f.strip()]
+    if not pairs:
+        pairs = [("MYTH", "FACT")]
+
+    pair_count = len(pairs)
+    dur = _resolve_target_duration(request, 30.0)
+    pair_dur = dur / pair_count
+    half = pair_dur / 2.0
+
+    source = _base_source(dur)
+    els = source["elements"]
+
+    videos = request.video_urls or []
+    for i in range(pair_count):
+        url = videos[i] if i < len(videos) else (videos[0] if videos else "")
+        if url:
+            els.append(_video_elem(
+                f"Video-{i + 1}", i + 1, url,
+                round(i * pair_dur, 3), round(pair_dur, 3),
+                volume="0%", loop=True,
+            ))
+
+    els.append(_rect_elem("Overlay", 20, 0, dur, "#000000", opacity="52%"))
+
+    # Hook badge — full video, top
+    hook = (request.text_1 or "").strip()
+    if hook:
+        els.append({
+            "type": "text", "track": 21, "name": "Hook",
+            "text": hook.upper(),
+            "time": 0, "duration": round(dur, 3),
+            "x": "50%", "y": "9%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "88%",
+            "font_family": _hook_font(request, theme), "font_weight": "800",
+            "font_size": "4.5 vmin",
+            "fill_color": _hook_color(request),
+            "stroke_color": "#000000", "stroke_width": "0.8 vmin",
+            "background_color": theme.primary_color,
+            "background_x_padding": "6%", "background_y_padding": "3%",
+        })
+
+    track_base = 30
+    body_font = _body_font(request, theme)
+    body_color = _body_color(request)
+
+    for i, (myth, fact) in enumerate(pairs):
+        t_start = round(i * pair_dur, 3)
+        t_mid   = round(t_start + half, 3)
+        h       = round(half - 0.1, 3)
+        tr      = track_base + i * 6
+
+        # ── MYTH half ──────────────────────────────────────────────────
+        els.append({
+            "type": "text", "track": tr, "name": f"MythBadge-{i + 1}",
+            "text": "✗  MYTH",
+            "time": t_start, "duration": h,
+            "x": "50%", "y": "22%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "60%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "5 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "0.5 vmin",
+            "background_color": "#DC2626",
+            "background_x_padding": "8%", "background_y_padding": "4%",
+        })
+        if myth:
+            els.append({
+                "type": "text", "track": tr + 1, "name": f"Myth-{i + 1}",
+                "text": myth.upper(),
+                "time": t_start, "duration": h,
+                "x": "50%", "y": "53%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "86%",
+                "font_family": body_font, "font_weight": "800",
+                "font_size": "6.5 vmin", "fill_color": body_color,
+                "stroke_color": "#000000", "stroke_width": "1.3 vmin",
+            })
+
+        # ── FACT half ──────────────────────────────────────────────────
+        els.append({
+            "type": "text", "track": tr + 2, "name": f"FactBadge-{i + 1}",
+            "text": "✓  FACT",
+            "time": t_mid, "duration": h,
+            "x": "50%", "y": "22%",
+            "x_anchor": "50%", "y_anchor": "50%",
+            "x_alignment": "50%", "width": "60%",
+            "font_family": theme.font_family, "font_weight": "800",
+            "font_size": "5 vmin", "fill_color": "#FFFFFF",
+            "stroke_color": "#000000", "stroke_width": "0.5 vmin",
+            "background_color": "#16A34A",
+            "background_x_padding": "8%", "background_y_padding": "4%",
+        })
+        if fact:
+            els.append({
+                "type": "text", "track": tr + 3, "name": f"Fact-{i + 1}",
+                "text": fact.upper(),
+                "time": t_mid, "duration": h,
+                "x": "50%", "y": "53%",
+                "x_anchor": "50%", "y_anchor": "50%",
+                "x_alignment": "50%", "width": "86%",
+                "font_family": body_font, "font_weight": "800",
+                "font_size": "6.5 vmin", "fill_color": "#22C55E",
+                "stroke_color": "#000000", "stroke_width": "1.3 vmin",
+            })
+
+    els.extend(_add_optional(_logo_elem(theme, dur, track=200), _audio_elem(theme, dur, track=201)))
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1380,4 +1509,5 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.HOOK_REVEAL: build_hook_reveal,
     VideoTemplate.EDU_STEPS: build_edu_steps,
     VideoTemplate.COUNTDOWN_STACK: build_countdown_stack,
+    VideoTemplate.MYTH_DEBUNK: build_myth_debunk,
 }

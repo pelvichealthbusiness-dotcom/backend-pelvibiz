@@ -43,6 +43,7 @@ class VideoTemplate(str, Enum):
     HOOK_REVEAL = "hook-reveal"
     EDU_STEPS = "edu-steps"
     COUNTDOWN_STACK = "countdown-stack"
+    MYTH_DEBUNK = "myth-debunk"
 
 
 TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
@@ -189,6 +190,15 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "creatomate_id": "RENDERSCRIPT",
         "required_videos": 2,
         "required_text_count": 2,   # text_1=Hook, text_2..text_6=Signs
+        "needs_analysis": False,
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+    },
+    VideoTemplate.MYTH_DEBUNK: {
+        "creatomate_id": "RENDERSCRIPT",
+        "required_videos": 1,
+        "required_text_count": 3,   # text_1=Hook, text_2=Myth1, text_3=Fact1
         "needs_analysis": False,
         "output_format": "mp4",
         "width": 1080,
