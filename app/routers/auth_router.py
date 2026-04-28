@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from supabase import create_client
 
 from app.config import get_settings
-from app.core.auth import UserContext, get_current_user
+from app.core.auth import UserContext, get_current_user, require_admin
 from app.core.supabase_client import get_service_client
 from app.core.responses import success
 from app.core.exceptions import AuthError, NotFoundError, AppError
@@ -188,7 +188,7 @@ async def get_profile(user: UserContext = Depends(get_current_user)):
 
 
 @router.post("/blotato/refresh-connections")
-async def refresh_blotato_connections(user: UserContext = Depends(get_current_user)):
+async def refresh_blotato_connections(user: UserContext = Depends(require_admin)):
     """Import connected Blotato account IDs into the current user's profile."""
     settings = get_settings()
     if not settings.blotato_api_key:

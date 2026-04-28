@@ -19,7 +19,7 @@ from app.core.responses import success, paginated
 from app.core.exceptions import ValidationError, ExternalServiceError
 from app.core.supabase_client import get_service_client
 from app.config import get_settings
-from app.services.blotato import build_blotato_connections, fetch_blotato_connections, agent_type_to_media_type
+from app.services.blotato import build_blotato_connections, agent_type_to_media_type
 from app.services.blotato_client import BlotatoAPIError, BlotatoClient
 from app.services.blotato_publisher import (
     publish_content as blotato_publish,
@@ -35,34 +35,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/content", tags=["content-v2"])
 
 
-async def _load_blotato_connections_for_user(profile: dict, user_id: str, *, force_refresh: bool = False) -> dict | None:
-    """Return the user's Blotato connections, optionally forcing a refresh from Blotato."""
-    current = build_blotato_connections(profile) or {}
-    if current and not force_refresh:
-        return current
+def _load_blotato_connections_for_user(profile: dict) -> dict | None:
+    """Return the user's admin-assigned Blotato connections.
 
-    settings = get_settings()
-    if not settings.blotato_api_key:
-        return None
-
-    try:
-        imported = await fetch_blotato_connections(settings.blotato_api_key)
-    except Exception as exc:
-        logger.warning(
-            "Blotato connections refresh failed for user=%s: %s",
-            user_id,
-            exc,
-        )
-        return current or None
-
-    if not imported:
-        return current or None
-
-    admin = get_service_client()
-    merged = {**current, **imported}
-    admin.table("profiles").update({"blotato_connections": merged}).eq("id", user_id).execute()
-    profile["blotato_connections"] = merged
-    return merged
+    Connections are admin-controlled — never auto-imported from the master
+    Blotato account. Auto-import was removed to prevent accounts from being
+    silently re-attached after admin unassignment.
+    """
+    return build_blotato_connections(profile) or None
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +374,7 @@ async def schedule_content(
     )
     raw_profile = profile_result.data if profile_result else None
     profile: dict = raw_profile if isinstance(raw_profile, dict) else {}
-    blotato_connections = await _load_blotato_connections_for_user(profile, user.user_id)
+    blotato_connections = _load_blotato_connections_for_user(profile)
 
     if not blotato_connections:
         raise ValidationError(
@@ -414,7 +394,7 @@ async def schedule_content(
         valid_connections, stale_platforms = await validate_connections(blotato, blotato_connections)
 
         if not valid_connections:
-            imported = await _load_blotato_connections_for_user(profile, user.user_id, force_refresh=True)
+            imported = _load_blotato_connections_for_user(profile)
             if imported and imported != blotato_connections:
                 valid_connections, stale_platforms = await validate_connections(blotato, imported)
 
@@ -508,7 +488,7 @@ async def republish_content(
     )
     raw_profile = profile_result.data if profile_result else None
     profile: dict = raw_profile if isinstance(raw_profile, dict) else {}
-    blotato_connections = await _load_blotato_connections_for_user(profile, user.user_id)
+    blotato_connections = _load_blotato_connections_for_user(profile)
 
     if not blotato_connections:
         raise ValidationError(
