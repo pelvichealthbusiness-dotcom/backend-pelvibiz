@@ -75,7 +75,7 @@ async def create_user(
     email: str,
     password: str,
     full_name: str | None = None,
-    role: str = "client",
+    role: str = "user",
     brand_name: str | None = None,
     credits_limit: int | None = None,
 ) -> dict[str, Any]:

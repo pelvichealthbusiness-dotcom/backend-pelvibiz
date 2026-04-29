@@ -30,7 +30,7 @@ class CreateUserRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = None
-    role: str = Field(default="client", pattern="^(admin|client|user)$")
+    role: str = Field(default="user", pattern="^(admin|user|deleted)$")
     brand_name: str | None = None
     credits_limit: int | None = Field(default=None, ge=0)
 
@@ -38,7 +38,7 @@ class CreateUserRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     email: EmailStr | None = None
     full_name: str | None = None
-    role: str | None = Field(default=None, pattern="^(admin|client|user)$")
+    role: str | None = Field(default=None, pattern="^(admin|user|deleted)$")
     brand_name: str | None = None
     brand_voice: str | None = None
     target_audience: str | None = None
