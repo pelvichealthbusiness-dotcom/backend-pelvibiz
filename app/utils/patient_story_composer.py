@@ -47,9 +47,9 @@ CANVAS_W, CANVAS_H = 1080, 1350
 # ── Title section ───────────────────────────────────────────────────────────────
 LABEL_Y      = 65
 LABEL_SIZE   = 18
-TITLE_1_Y    = 120
-TITLE_1_SIZE = 138          # GreatVibes — script font, generous size
-TITLE_2_MAX  = 170
+TITLE_1_Y    = 50
+TITLE_1_SIZE = 155          # GreatVibes — script font, generous size
+TITLE_2_MAX  = 195
 TITLE_2_MIN  = 90
 ELLIPSE_PAD_V = 32
 ELLIPSE_PAD_H = 50
@@ -278,9 +278,9 @@ async def compose(
         draw = ImageDraw.Draw(img)
 
         # ── 3. Script title lines ──────────────────────────────────────────
-        words    = (section_label or "patient stories").lower().split()
-        title_l1 = words[0] if words else "patient"
-        title_l2 = (" ".join(words[1:]) if len(words) > 1 else "stories") + "."
+        words    = (section_label or "client success").lower().split()
+        title_l1 = words[0] if words else "client"
+        title_l2 = (" ".join(words[1:]) if len(words) > 1 else "success") + "."
 
         title_max_w = CANVAS_W - 80
 

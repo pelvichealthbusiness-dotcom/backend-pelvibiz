@@ -492,7 +492,7 @@ class PostGeneratorService:
             tf = request.text_fields
             image_bytes = await compose_story(
                 logo_bytes=logo_bytes_ss,
-                section_label=tf.get("section_label", "patient stories"),
+                section_label=tf.get("section_label", "client success"),
                 testimonial="",
                 client_name="",
                 result="",
@@ -530,7 +530,7 @@ class PostGeneratorService:
 
         image_bytes = await compose_story(
             logo_bytes=logo_bytes,
-            section_label=tf.get("section_label", "patient stories"),
+            section_label=tf.get("section_label", "client success"),
             testimonial=tf.get("testimonial", ""),
             client_name=tf.get("client_name", ""),
             result=tf.get("result", ""),
