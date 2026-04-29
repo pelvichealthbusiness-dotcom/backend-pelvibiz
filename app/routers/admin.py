@@ -32,6 +32,7 @@ class CreateUserRequest(BaseModel):
     full_name: str | None = None
     role: str = Field(default="client", pattern="^(admin|client|user)$")
     brand_name: str | None = None
+    credits_limit: int | None = Field(default=None, ge=0)
 
 
 class UpdateUserRequest(BaseModel):
@@ -92,6 +93,7 @@ async def create_user(
         full_name=body.full_name,
         role=body.role,
         brand_name=body.brand_name,
+        credits_limit=body.credits_limit,
     )
     return success(data=user)
 

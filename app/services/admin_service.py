@@ -77,6 +77,7 @@ async def create_user(
     full_name: str | None = None,
     role: str = "client",
     brand_name: str | None = None,
+    credits_limit: int | None = None,
 ) -> dict[str, Any]:
     """Create a new user in Supabase Auth + profiles table."""
     client = get_service_client()
@@ -112,6 +113,8 @@ async def create_user(
         profile_data["full_name"] = full_name
     if brand_name:
         profile_data["brand_name"] = brand_name
+    if credits_limit is not None:
+        profile_data["credits_limit"] = credits_limit
 
     try:
         profile_result = client.table("profiles").insert(profile_data).execute()
