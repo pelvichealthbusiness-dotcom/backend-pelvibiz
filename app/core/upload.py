@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import uuid
 from typing import Any
@@ -20,11 +21,12 @@ MAX_IMAGE_SIZE = 10 * 1024 * 1024    # 10 MB
 MAX_VIDEO_SIZE = 200 * 1024 * 1024   # 200 MB
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+HEIC_TYPES = {"image/heic", "image/heif"}
 ALLOWED_VIDEO_TYPES = {
     "video/mp4", "video/quicktime", "video/webm", "video/x-m4v",
     "video/mpeg", "video/x-msvideo", "video/x-matroska",
 }
-ALLOWED_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_VIDEO_TYPES
+ALLOWED_TYPES = ALLOWED_IMAGE_TYPES | HEIC_TYPES | ALLOWED_VIDEO_TYPES
 
 # Extension → canonical MIME type (used when browser sends application/octet-stream)
 _EXT_TO_MIME: dict[str, str] = {
@@ -40,7 +42,27 @@ _EXT_TO_MIME: dict[str, str] = {
     "jpeg": "image/jpeg",
     "png": "image/png",
     "webp": "image/webp",
+    "heic": "image/heic",
+    "heif": "image/heif",
 }
+
+
+def _convert_heic_to_jpeg(content: bytes) -> bytes:
+    """Convert HEIC/HEIF bytes to JPEG using pillow-heif."""
+    try:
+        import pillow_heif  # type: ignore[import-untyped]
+        from PIL import Image
+        pillow_heif.register_heif_opener()
+        img = Image.open(io.BytesIO(content))
+        max_dim = 1920
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+        img = img.convert("RGB")
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=85, optimize=True)
+        return out.getvalue()
+    except Exception as exc:
+        raise ValueError(f"Could not convert HEIC to JPEG: {exc}") from exc
 
 
 def _resolve_content_type(declared: str | None, filename: str | None) -> str:
@@ -75,13 +97,14 @@ def _get_extension(filename: str | None, content_type: str) -> str:
 async def validate_upload(file: UploadFile) -> tuple[bytes, str]:
     """
     Validate file type and size. Returns (content_bytes, resolved_content_type).
+    HEIC/HEIF files are converted to JPEG automatically.
     Raises ValueError on invalid input.
     """
     content_type = _resolve_content_type(file.content_type, file.filename)
 
     if content_type not in ALLOWED_TYPES:
         raise ValueError(
-            f"Invalid file type: {content_type}. Allowed: {', '.join(sorted(ALLOWED_TYPES))}"
+            f"Invalid file type: {content_type}. Allowed: jpeg, png, webp, heic, heif, and video formats."
         )
 
     content = await file.read()
@@ -91,6 +114,10 @@ async def validate_upload(file: UploadFile) -> tuple[bytes, str]:
         raise ValueError(
             f"File too large: {len(content) / (1024 * 1024):.1f}MB. Max: {max_size // (1024 * 1024)}MB"
         )
+
+    if content_type in HEIC_TYPES:
+        content = _convert_heic_to_jpeg(content)
+        content_type = "image/jpeg"
 
     return content, content_type
 
