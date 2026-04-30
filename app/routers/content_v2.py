@@ -307,10 +307,11 @@ async def _do_schedule_background(
         crud.update_content(content_id, user_id, updates)
         for platform, entry in post_ids.items():
             try:
+                audit_status = "success" if entry["status"] == "scheduled" else "failed"
                 await audit_log_attempt(
                     content_id=content_id, user_id=user_id,
                     action="schedule", platform=platform,
-                    status=entry["status"], error=entry.get("error"),
+                    status=audit_status, error=entry.get("error"),
                     blotato_post_id=entry.get("id"),
                 )
             except Exception:
@@ -439,10 +440,11 @@ async def schedule_content(
 
     for platform, entry in post_ids.items():
         try:
+            audit_status = "success" if entry["status"] == "scheduled" else "failed"
             await audit_log_attempt(
                 content_id=content_id, user_id=str(user.user_id),
                 action="schedule", platform=platform,
-                status=entry["status"], error=entry.get("error"),
+                status=audit_status, error=entry.get("error"),
                 blotato_post_id=entry.get("id"),
             )
         except Exception:
@@ -540,10 +542,11 @@ async def republish_content(
 
     for platform, entry in new_results.items():
         try:
+            audit_status = "success" if entry["status"] == "scheduled" else "failed"
             await audit_log_attempt(
                 content_id=content_id, user_id=user.user_id,
                 action="republish", platform=platform,
-                status=entry["status"], error=entry.get("error"),
+                status=audit_status, error=entry.get("error"),
                 blotato_post_id=entry.get("id"),
             )
         except Exception:

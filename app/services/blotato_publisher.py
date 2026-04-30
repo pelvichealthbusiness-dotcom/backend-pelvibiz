@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import zoneinfo
 from datetime import datetime, timezone as dt_timezone
 from typing import TypedDict
 
 from app.services.blotato_client import BlotatoAPIError, BlotatoClient
 
+logger = logging.getLogger(__name__)
 
 SUPPORTED_BLOTATO_PLATFORMS = {"instagram", "facebook", "linkedin", "tiktok", "twitter", "youtube"}
 
@@ -20,13 +22,15 @@ class PlatformEntry(TypedDict, total=False):
 
 
 def to_utc_iso(local_dt_str: str, tz_name: str) -> str:
-    """Convert a local datetime string + IANA timezone name to UTC ISO 8601."""
+    """Convert a local datetime string + IANA timezone name to UTC ISO 8601 with Z suffix."""
     try:
         tz = zoneinfo.ZoneInfo(tz_name)
     except (zoneinfo.ZoneInfoNotFoundError, Exception):
+        logger.warning("Unknown timezone '%s', falling back to UTC", tz_name)
         tz = dt_timezone.utc
     local_dt = datetime.fromisoformat(local_dt_str).replace(tzinfo=tz)
-    return local_dt.astimezone(dt_timezone.utc).isoformat()
+    utc_dt = local_dt.astimezone(dt_timezone.utc)
+    return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def media_type_for_platform(platform: str, media_type: str) -> str | None:
@@ -76,6 +80,10 @@ async def publish_content(
         raise ValueError("connections cannot be empty")
 
     scheduled_time = to_utc_iso(scheduled_date, timezone)
+    logger.info(
+        "Blotato schedule: local=%s tz=%s → utc=%s",
+        scheduled_date, timezone, scheduled_time,
+    )
     results: dict[str, PlatformEntry] = {}
 
     for platform, conn in connections.items():
