@@ -66,7 +66,6 @@ class BlotatoClient:
             "target": {
                 "targetType": platform,
             },
-            "scheduledTime": scheduled_time,
         }
         if page_id is not None:
             post["target"]["pageId"] = page_id
@@ -75,7 +74,9 @@ class BlotatoClient:
         if media_type is not None:
             post["content"]["mediaType"] = media_type
 
-        resp = await self._post_with_retry("/posts", {"post": post})
+        # scheduledTime goes at the top level of the request body, not inside post
+        body: dict = {"post": post, "scheduledTime": scheduled_time}
+        resp = await self._post_with_retry("/posts", body)
         data = resp.json()
         return str(data.get("id") or data.get("postSubmissionId") or "")
 
