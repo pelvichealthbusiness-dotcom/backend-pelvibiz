@@ -24,6 +24,7 @@ from app.services.exceptions import AgentAPIError
 from app.services.storage import StorageService
 from app.services.transcription_service import TranscriptionService
 from app.services.video_analysis import VideoAnalysisService
+from app.services.video_stitch_service import VideoStitchService
 from app.templates.creatomate_mappings import TEMPLATE_MAPPERS, ANALYSIS_MAPPERS
 import inspect
 import os
@@ -167,6 +168,12 @@ async def generate_video(
 
     # Only transcribe for Talking Head templates — B-roll templates must not caption their own audio
     _is_talking_head = template_enum in (VideoTemplate.TALKING_HEAD, VideoTemplate.TALKING_HEAD_V2)
+
+    # ---- Multi-clip stitch (talking-head only) --------------------------------
+    if _is_talking_head and len(effective_video_urls) > 1:
+        stitched_url = await VideoStitchService().concatenate_clips(effective_video_urls, user_id)
+        effective_video_urls = [stitched_url]
+        request.video_urls = effective_video_urls
     if request.enable_captions and effective_video_urls and _is_talking_head:
         # OpusClip subtitle pipeline: transcribe speech → phrase blocks
         phrase_blocks = await TranscriptionService().transcribe(effective_video_urls[0])
@@ -346,7 +353,6 @@ async def generate_video_stream(
 
             _validate_video_urls(template_enum, request.video_urls)
 
-            # ---- Video URLs already validated; no inline trim step ---------
             effective_video_urls = request.video_urls
 
             # ---- Video analysis (templates with needs_analysis: True) --------
@@ -356,6 +362,14 @@ async def generate_video_stream(
 
             # Only transcribe for Talking Head templates — B-roll templates must not caption their own audio
             _is_talking_head = template_enum in (VideoTemplate.TALKING_HEAD, VideoTemplate.TALKING_HEAD_V2)
+
+            # ---- Multi-clip stitch (talking-head only) ----------------------
+            if _is_talking_head and len(effective_video_urls) > 1:
+                yield f'data: {json.dumps({"type": "progress", "phase": "stitching", "message": "Combining your clips..."})}\n\n'
+                stitched_url = await VideoStitchService().concatenate_clips(effective_video_urls, user_id)
+                effective_video_urls = [stitched_url]
+                request.video_urls = effective_video_urls
+
             if request.enable_captions and effective_video_urls and _is_talking_head:
                 yield f'data: {json.dumps({"type": "progress", "phase": "transcribing", "message": "Transcribing audio for captions..."})}\n\n'
                 # Run transcription concurrently and send SSE keepalives every 8s so

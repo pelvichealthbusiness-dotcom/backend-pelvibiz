@@ -105,6 +105,13 @@ def _add_optional(*elements) -> list[dict]:
     return [el for el in elements if el is not None]
 
 
+def _caption_y_from_position(position: Optional[str]) -> str:
+    """Map text_position to a vertical % for caption elements."""
+    if position == "center":
+        return "50%"
+    return "78%"
+
+
 # ── T5 — Big Quote (simplest — reference implementation) ───────────────────
 
 def build_big_quote(request: GenerateVideoRequest, theme: BrandTheme, analysis=None) -> dict:
@@ -612,8 +619,10 @@ def build_talking_head(
     # Video — trimmed to speech end so no black tail
     url = request.video_urls[0] if request.video_urls else ""
     if url:
+        voice_vol = getattr(request, "voice_volume", None)
+        voice_vol_pct = f"{int(voice_vol)}%" if voice_vol is not None else "85%"
         els.append(_video_elem(
-            "Video", 1, url, 0.0, dur, volume="100%",
+            "Video", 1, url, 0.0, dur, volume=voice_vol_pct,
             trim_end=round(speech_end + 0.2, 3) if speech_end is not None else None,
         ))
 
@@ -638,9 +647,10 @@ def build_talking_head(
             "background_y_padding": "4%",
         })
 
-    # CAPTIONS — bottom safe zone (70–90%), never overlaps hook at top
+    # CAPTIONS — position driven by text_position (bottom=78%, center=50%)
     # Priority: OpusClip phrase_blocks > legacy Gemini segments > manual text_2 fallback
-    caption_y = "78%"   # Fixed for Talking Head — bottom safe zone per spec S3.2
+    # Talking-head default is "bottom" regardless of model-level default
+    caption_y = _caption_y_from_position(getattr(request, "text_position", None) or "bottom")
     caption_font = _body_font(request, theme) if request.body_font else (getattr(request, 'caption_font', None) or CAPTION_FONT)
     caption_color = _body_color(request) if (request.body_color or request.caption_color) else DEFAULT_CAPTION_COLOR
     caption_weight = getattr(request, 'caption_weight', None) or "900"
@@ -652,7 +662,7 @@ def build_talking_head(
         # New pipeline: OpusClip-style phrase blocks from TranscriptionService
         _append_captions(
             els, phrase_blocks,
-            y="75%", base_track=500,
+            y=caption_y, base_track=500,
             font_family=caption_font,
             highlight_color=caption_color,
             fill_color=caption_color,
@@ -1160,8 +1170,10 @@ def build_talking_head_v2(
     # Video — trimmed to speech end so no black tail
     url = request.video_urls[0] if request.video_urls else ""
     if url:
+        voice_vol = getattr(request, "voice_volume", None)
+        voice_vol_pct = f"{int(voice_vol)}%" if voice_vol is not None else "85%"
         els.append(_video_elem(
-            "Video", 1, url, 0.0, dur, volume="100%",
+            "Video", 1, url, 0.0, dur, volume=voice_vol_pct,
             trim_end=round(speech_end + 0.2, 3) if speech_end is not None else None,
         ))
 
@@ -1187,10 +1199,11 @@ def build_talking_head_v2(
             "background_y_padding": "5%",
         })
 
-    # CAPTIONS — centered, word-by-word karaoke, start from second 0
+    # CAPTIONS — position driven by text_position (bottom=78%, center=50%)
+    # Talking-head-v2 default is "bottom" regardless of model-level default
     caption_font = request.body_font or getattr(request, "caption_font", None) or _V2_CAPTION_FONT
     caption_color = request.body_color or getattr(request, "caption_color", None) or "#FFFFFF"
-    caption_y = "50%"
+    caption_y = _caption_y_from_position(getattr(request, "text_position", None) or "bottom")
     title_end = 0.0  # captions start immediately — title is at top, no spatial conflict
 
     if phrase_blocks:

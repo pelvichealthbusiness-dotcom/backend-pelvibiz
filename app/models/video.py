@@ -255,7 +255,7 @@ class GenerateVideoRequest(BaseModel):
     # Clip configuration — set by the wizard's clip_config phase
     clip_count: Optional[int] = Field(None, ge=1, le=10, description="Number of clips selected by the user")
     target_duration: Optional[str] = Field(None, description="Target video duration: 15s | 30s | 60s | 90s")
-    text_position: Optional[str] = Field("center", description="Text vertical position: top | center | bottom")
+    text_position: Optional[str] = Field("center", description="Text vertical position: center | bottom")
 
     # Caption (all templates)
     caption: Optional[str] = Field(None, max_length=2200)
@@ -268,7 +268,8 @@ class GenerateVideoRequest(BaseModel):
 
     # Background music track ID from the curated library (optional)
     music_track: Optional[str] = Field(None, max_length=200)
-    music_volume: Optional[float] = Field(40.0, ge=0, le=100)
+    music_volume: Optional[float] = Field(30.0, ge=0, le=100)
+    voice_volume: Optional[float] = Field(85.0, ge=0, le=100)
     logo_url: Optional[str] = Field(None, description="Public URL of the business logo")
     brand_settings: Optional[dict] = Field(None, description="Dynamic brand settings (colors, fonts, etc.)")
 
