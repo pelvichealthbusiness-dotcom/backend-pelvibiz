@@ -388,6 +388,12 @@ async def schedule_content(
     caption = body.caption or content.get("reply", "")
     timezone = profile.get("timezone") or body.timezone or "UTC"
 
+    from app.services.blotato_publisher import to_utc_iso
+    _scheduled_utc_str = to_utc_iso(body.scheduled_date, timezone)
+    _scheduled_utc = datetime.fromisoformat(_scheduled_utc_str.replace("Z", "+00:00"))
+    if _scheduled_utc <= datetime.now(dt_timezone.utc):
+        raise ValidationError("The selected time has already passed. Please choose a future date and time.")
+
     blotato = BlotatoClient(
         api_key=settings.blotato_api_key,
         max_retries=settings.blotato_max_retries,
@@ -589,6 +595,12 @@ async def reschedule_content(
     raw_profile = profile_result.data if profile_result else None
     _tz_raw = (raw_profile if isinstance(raw_profile, dict) else {}).get("timezone")
     profile_tz: str = str(_tz_raw) if _tz_raw else (body.timezone or "UTC")
+
+    from app.services.blotato_publisher import to_utc_iso
+    _scheduled_utc_str = to_utc_iso(body.scheduled_date, profile_tz)
+    _scheduled_utc = datetime.fromisoformat(_scheduled_utc_str.replace("Z", "+00:00"))
+    if _scheduled_utc <= datetime.now(dt_timezone.utc):
+        raise ValidationError("The selected time has already passed. Please choose a future date and time.")
 
     blotato_post_ids: dict = content.get("blotato_post_ids") or {}
     reschedule_results: dict[str, str | None] = {}
