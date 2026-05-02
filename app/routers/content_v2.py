@@ -75,6 +75,7 @@ class ScheduleContentRequest(BaseModel):
 
 class RescheduleRequest(BaseModel):
     scheduled_date: str = Field(..., description="New ISO datetime string")
+    timezone: Optional[str] = Field(None, description="User's IANA timezone (e.g. America/Los_Angeles)")
 
 
 # ---------------------------------------------------------------------------
@@ -587,7 +588,7 @@ async def reschedule_content(
     )
     raw_profile = profile_result.data if profile_result else None
     _tz_raw = (raw_profile if isinstance(raw_profile, dict) else {}).get("timezone")
-    profile_tz: str = str(_tz_raw) if _tz_raw else "UTC"
+    profile_tz: str = str(_tz_raw) if _tz_raw else (body.timezone or "UTC")
 
     blotato_post_ids: dict = content.get("blotato_post_ids") or {}
     reschedule_results: dict[str, str | None] = {}
