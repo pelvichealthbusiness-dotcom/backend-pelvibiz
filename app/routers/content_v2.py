@@ -387,10 +387,6 @@ async def schedule_content(
     media_type = agent_type_to_media_type(content_agent_type)
     caption = body.caption or content.get("reply", "")
     timezone = profile.get("timezone") or body.timezone or "UTC"
-    logger.warning(
-        "SCHEDULE DEBUG content=%s profile_tz=%r body_tz=%r resolved_tz=%r scheduled_date=%r",
-        content_id, profile.get("timezone"), body.timezone, timezone, body.scheduled_date,
-    )
 
     blotato = BlotatoClient(
         api_key=settings.blotato_api_key,
@@ -593,10 +589,6 @@ async def reschedule_content(
     raw_profile = profile_result.data if profile_result else None
     _tz_raw = (raw_profile if isinstance(raw_profile, dict) else {}).get("timezone")
     profile_tz: str = str(_tz_raw) if _tz_raw else (body.timezone or "UTC")
-    logger.warning(
-        "RESCHEDULE DEBUG content=%s profile_tz=%r body_tz=%r resolved_tz=%r scheduled_date=%r",
-        content_id, _tz_raw, body.timezone, profile_tz, body.scheduled_date,
-    )
 
     blotato_post_ids: dict = content.get("blotato_post_ids") or {}
     reschedule_results: dict[str, str | None] = {}
