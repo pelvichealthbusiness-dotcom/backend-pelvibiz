@@ -1516,7 +1516,7 @@ def build_patient_review(
 ) -> dict:
     dur = 6.0
     screenshot_url = request.video_urls[0] if request.video_urls else None
-    headline = (request.text_1 or "What our patients are saying...").upper()
+    headline = request.text_1 or "What our patients are saying..."
 
     hook_font = request.hook_font or theme.font_family
     hook_color = _hook_color(request, "#FFFFFF")
@@ -1524,57 +1524,64 @@ def build_patient_review(
 
     els: list[dict] = []
 
-    # Full-frame dark background
+    # Full brand-color background
     els.append({
-        "type": "rectangle",
+        "type": "shape",
         "track": 1,
+        "name": "Background",
+        "fill_color": brand_primary,
         "width": "100%",
         "height": "100%",
-        "fill_color": "#0A0A0A",
         "x": "50%", "x_anchor": "50%",
         "y": "50%", "y_anchor": "50%",
     })
 
-    # Brand-color strip — top 32%
+    # Oval halo border — frames the headline
     els.append({
-        "type": "rectangle",
+        "type": "shape",
         "track": 2,
-        "width": "100%",
-        "height": "32%",
-        "fill_color": brand_primary,
+        "name": "Oval Halo",
+        "border_radius": "50%",
+        "fill_color": "rgba(0,0,0,0)",
+        "stroke_color": "rgba(255,255,255,0.65)",
+        "stroke_width": "0.7%",
+        "width": "84%",
+        "height": "22%",
         "x": "50%", "x_anchor": "50%",
-        "y": "0%", "y_anchor": "0%",
+        "y": "18%", "y_anchor": "50%",
     })
 
-    # Headline text centered in brand strip
+    # Headline centered inside the oval
     els.append({
         "type": "text",
         "track": 3,
+        "name": "Headline",
         "text": headline,
         "font_family": hook_font,
-        "font_size": "7.5vmin",
-        "font_weight": "900",
+        "font_size": "7vmin",
+        "font_weight": "700",
         "fill_color": hook_color,
-        "width": "86%",
+        "width": "70%",
         "x": "50%", "x_anchor": "50%",
-        "y": "16%", "y_anchor": "50%",
+        "y": "18%", "y_anchor": "50%",
         "x_alignment": "center",
         "text_wrap": True,
-        "line_height": "110%",
+        "line_height": "115%",
     })
 
-    # Review screenshot card
+    # Review screenshot card — tight below the oval
     if screenshot_url:
         els.append({
             "type": "image",
             "track": 4,
+            "name": "Review Card",
             "source": screenshot_url,
             "width": "90%",
             "height": "56%",
             "x": "50%", "x_anchor": "50%",
             "y": "62%", "y_anchor": "50%",
             "fill_mode": "contain",
-            "border_radius": "3vmin",
+            "border_radius": "4vmin",
         })
 
     # Logo
@@ -1583,10 +1590,10 @@ def build_patient_review(
             "type": "image",
             "track": 5,
             "source": request.logo_url,
-            "width": "28%",
+            "width": "25%",
             "height": "5%",
             "x": "50%", "x_anchor": "50%",
-            "y": "94%", "y_anchor": "50%",
+            "y": "95%", "y_anchor": "50%",
             "fill_mode": "contain",
         })
 
