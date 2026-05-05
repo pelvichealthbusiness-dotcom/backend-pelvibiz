@@ -43,7 +43,9 @@ class _FakeClient:
         self.status_calls: list[str] = []
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None,
+                          tiktok_privacy_level=None, disable_comment=False,
+                          disable_duet=False, disable_stitch=False):
         self.calls.append({
             "platform": platform,
             "account_id": account_id,
@@ -53,6 +55,10 @@ class _FakeClient:
             "page_id": page_id,
             "playlist_ids": playlist_ids,
             "media_type": media_type,
+            "tiktok_privacy_level": tiktok_privacy_level,
+            "disable_comment": disable_comment,
+            "disable_duet": disable_duet,
+            "disable_stitch": disable_stitch,
         })
         if self._by_platform is not None:
             r = self._by_platform.get(platform, "sub-default")
@@ -742,7 +748,8 @@ async def test_publish_content_treats_failed_blotato_status_as_platform_error():
     )
 
     assert result["instagram"]["status"] == "failed"
-    assert result["instagram"]["id"] is None
+    # Phase 1: post_id is preserved even when verify fails (was None before)
+    assert result["instagram"]["id"] == "sub-ig-1"
     assert "failed" in result["instagram"]["error"].lower()
     assert result["facebook"]["status"] == "scheduled"
 
@@ -787,3 +794,73 @@ async def test_publish_content_polling_retries_until_scheduled():
 
     assert result["instagram"]["status"] == "scheduled"
     assert len(client.status_calls) == 3
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 — Preserve post_id on verify failure
+# ---------------------------------------------------------------------------
+
+async def test_publish_content_preserves_post_id_on_verify_failure():
+    """When verify fails, the post_id from create_post must be preserved in the failed entry."""
+    client = _FakeClient(
+        {"instagram": "sub-ig-1", "facebook": "sub-fb-1"},
+        status_responses=["failed", "scheduled"],
+    )
+    connections = {
+        "instagram": {"accountId": "ig-001"},
+        "facebook": {"accountId": "fb-001"},
+    }
+    result = await publish_content(
+        client=client,
+        media_urls=["https://example.com/img.jpg"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="IMAGE",
+        _poll_interval=0,
+        _poll_timeout=999,
+    )
+    # instagram verify failed — but sub_id must be preserved
+    assert result["instagram"]["id"] == "sub-ig-1"
+    assert result["instagram"]["status"] == "failed"
+    # facebook succeeded normally
+    assert result["facebook"]["status"] == "scheduled"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — TikTok Required Fields (publisher side)
+# ---------------------------------------------------------------------------
+
+async def test_publish_content_passes_tiktok_privacy_level():
+    client = _FakeClient({"tiktok": "sub-tk-1"})
+    connections = {"tiktok": {"accountId": "tk-001", "tiktokPrivacyLevel": "SELF_ONLY"}}
+    await publish_content(
+        client=client,
+        media_urls=["https://example.com/video.mp4"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="VIDEO",
+        _poll_interval=0, _poll_timeout=999,
+    )
+    call = client.calls[0]
+    assert call["tiktok_privacy_level"] == "SELF_ONLY"
+
+
+async def test_publish_content_tiktok_default_privacy_when_not_set():
+    client = _FakeClient({"tiktok": "sub-tk-1"})
+    connections = {"tiktok": {"accountId": "tk-001"}}
+    await publish_content(
+        client=client,
+        media_urls=["https://example.com/video.mp4"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="VIDEO",
+        _poll_interval=0, _poll_timeout=999,
+    )
+    call = client.calls[0]
+    assert call["tiktok_privacy_level"] is None  # publisher passes None; client defaults it

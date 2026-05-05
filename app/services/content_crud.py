@@ -236,6 +236,57 @@ class ContentCRUD:
     # Usage stats
     # ------------------------------------------------------------------
 
+    def get_unacked_failures(self, user_id: str) -> list[dict]:
+        """Return content with publish_status=failed/partial and no ack yet."""
+        try:
+            result = (
+                self.client.table("requests_log")
+                .select("*")
+                .eq("user_id", user_id)
+                .in_("publish_status", ["failed", "partial"])
+                .is_("failure_notified_at", "null")
+                .order("created_at", desc=True)
+                .limit(50)
+                .execute()
+            )
+            return result.data or []
+        except Exception as exc:
+            logger.error("Failed to get unacked failures: %s", exc)
+            raise DatabaseError(f"Failed to get unacked failures: {exc}")
+
+    def ack_failure(self, content_id: str, user_id: str) -> None:
+        """Mark a failure alert as acknowledged."""
+        try:
+            self.client.table("requests_log").update(
+                {"failure_notified_at": datetime.now(timezone.utc).isoformat()}
+            ).eq("id", content_id).eq("user_id", user_id).execute()
+        except Exception as exc:
+            logger.error("Failed to ack failure %s: %s", content_id, exc)
+            raise DatabaseError(f"Failed to ack failure: {exc}")
+
+    def get_scheduled_content_since(self, since_iso: str) -> list[dict]:
+        """Return content with publish_status=scheduled, scheduled after since_iso."""
+        try:
+            result = (
+                self.client.table("requests_log")
+                .select("id, blotato_post_ids, publish_status")
+                .eq("published", True)
+                .eq("publish_status", "scheduled")
+                .gte("scheduled_date", since_iso)
+                .execute()
+            )
+            return result.data or []
+        except Exception as exc:
+            logger.error("Failed to get scheduled content: %s", exc)
+            raise DatabaseError(f"Failed to get scheduled content: {exc}")
+
+    def admin_update_content(self, content_id: str, updates: dict) -> None:
+        """Admin-only update — bypasses ownership check."""
+        try:
+            self.client.table("requests_log").update(updates).eq("id", content_id).execute()
+        except Exception as exc:
+            raise DatabaseError(f"Failed to admin update content: {exc}")
+
     def get_usage(self, user_id: str) -> dict:
         """User usage stats: total generated, by agent type, credits used."""
         try:

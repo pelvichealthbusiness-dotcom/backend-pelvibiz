@@ -17,6 +17,13 @@ class BlotatoScheduleNotFound(BlotatoAPIError):
     """404 from GET /schedules/{id} — post already published or expired."""
 
 
+class BlotatoRateLimitError(BlotatoAPIError):
+    """Blotato returned 429 too many times — rate limit exceeded."""
+
+
+_MAX_RATE_LIMIT_RETRIES = 3
+
+
 class BlotatoClient:
     """Async HTTP client for the Blotato v2 REST API.
 
@@ -40,6 +47,14 @@ class BlotatoClient:
             transport=transport,
         )
 
+    async def _handle_rate_limit(self, resp: httpx.Response, rate_limit_count: int) -> int:
+        """Sleep Retry-After seconds. Raises BlotatoRateLimitError after _MAX_RATE_LIMIT_RETRIES."""
+        if rate_limit_count >= _MAX_RATE_LIMIT_RETRIES:
+            raise BlotatoRateLimitError(f"Rate limited {rate_limit_count + 1} times consecutively")
+        retry_after = int(resp.headers.get("retry-after", "60"))
+        await asyncio.sleep(retry_after)
+        return rate_limit_count + 1
+
     async def create_post(
         self,
         *,
@@ -51,6 +66,10 @@ class BlotatoClient:
         page_id: str | None = None,
         playlist_ids: list[str] | None = None,
         media_type: str | None = None,
+        tiktok_privacy_level: str | None = None,
+        disable_comment: bool = False,
+        disable_duet: bool = False,
+        disable_stitch: bool = False,
     ) -> str:
         """Schedule a post on Blotato. Returns the post submission ID.
 
@@ -73,6 +92,14 @@ class BlotatoClient:
             post["target"]["playlistIds"] = playlist_ids
         if media_type is not None:
             post["target"]["mediaType"] = media_type
+        if platform == "tiktok":
+            post["target"]["privacyLevel"] = tiktok_privacy_level or "PUBLIC_TO_EVERYONE"
+            if disable_comment:
+                post["target"]["disableComment"] = True
+            if disable_duet:
+                post["target"]["disableDuet"] = True
+            if disable_stitch:
+                post["target"]["disableStitch"] = True
 
         # scheduledTime goes at the top level of the request body, not inside post
         body: dict = {"post": post, "scheduledTime": scheduled_time}
@@ -96,15 +123,22 @@ class BlotatoClient:
 
     async def _post_with_retry(self, path: str, payload: dict) -> httpx.Response:
         last_error: BlotatoAPIError | None = None
+        rate_limit_count: int = 0
+        attempt: int = 0
 
-        for attempt in range(self._max_retries):
+        while attempt < self._max_retries:
             try:
                 resp = await self._http.post(path, json=payload)
             except httpx.TransportError as exc:
                 last_error = BlotatoAPIError(f"Transport error: {exc}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
+
+            if resp.status_code == 429:
+                rate_limit_count = await self._handle_rate_limit(resp, rate_limit_count)
+                continue  # does NOT increment attempt
 
             if resp.status_code >= 400 and resp.status_code < 500:
                 raise BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
@@ -113,6 +147,7 @@ class BlotatoClient:
                 last_error = BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
 
             return resp
@@ -121,15 +156,22 @@ class BlotatoClient:
 
     async def _patch_with_retry(self, path: str, payload: dict) -> httpx.Response:
         last_error: BlotatoAPIError | None = None
+        rate_limit_count: int = 0
+        attempt: int = 0
 
-        for attempt in range(self._max_retries):
+        while attempt < self._max_retries:
             try:
                 resp = await self._http.patch(path, json=payload)
             except httpx.TransportError as exc:
                 last_error = BlotatoAPIError(f"Transport error: {exc}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
+
+            if resp.status_code == 429:
+                rate_limit_count = await self._handle_rate_limit(resp, rate_limit_count)
+                continue  # does NOT increment attempt
 
             if resp.status_code >= 400 and resp.status_code < 500:
                 raise BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
@@ -138,6 +180,7 @@ class BlotatoClient:
                 last_error = BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
 
             return resp
@@ -146,18 +189,25 @@ class BlotatoClient:
 
     async def _delete_with_retry(self, path: str) -> None:
         last_error: BlotatoAPIError | None = None
+        rate_limit_count: int = 0
+        attempt: int = 0
 
-        for attempt in range(self._max_retries):
+        while attempt < self._max_retries:
             try:
                 resp = await self._http.delete(path)
             except httpx.TransportError as exc:
                 last_error = BlotatoAPIError(f"Transport error: {exc}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
 
             if resp.status_code == 404:
                 return
+
+            if resp.status_code == 429:
+                rate_limit_count = await self._handle_rate_limit(resp, rate_limit_count)
+                continue  # does NOT increment attempt
 
             if resp.status_code >= 400 and resp.status_code < 500:
                 raise BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
@@ -166,6 +216,7 @@ class BlotatoClient:
                 last_error = BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
 
             return
@@ -207,18 +258,25 @@ class BlotatoClient:
 
     async def _get_with_retry(self, path: str) -> httpx.Response:
         last_error: BlotatoAPIError | None = None
+        rate_limit_count: int = 0
+        attempt: int = 0
 
-        for attempt in range(self._max_retries):
+        while attempt < self._max_retries:
             try:
                 resp = await self._http.get(path)
             except httpx.TransportError as exc:
                 last_error = BlotatoAPIError(f"Transport error: {exc}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
 
             if resp.status_code == 404:
                 raise BlotatoScheduleNotFound(f"HTTP 404: {resp.text[:300]}")
+
+            if resp.status_code == 429:
+                rate_limit_count = await self._handle_rate_limit(resp, rate_limit_count)
+                continue  # does NOT increment attempt
 
             if resp.status_code >= 400 and resp.status_code < 500:
                 raise BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
@@ -227,6 +285,7 @@ class BlotatoClient:
                 last_error = BlotatoAPIError(f"HTTP {resp.status_code}: {resp.text[:300]}")
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
+                attempt += 1
                 continue
 
             return resp

@@ -124,6 +124,7 @@ async def publish_content(
         if not account_id:
             continue
 
+        sub_id: str | None = None
         try:
             sub_id = await client.create_post(
                 platform=platform,
@@ -134,11 +135,15 @@ async def publish_content(
                 page_id=conn.get("pageId") or None,
                 playlist_ids=conn.get("playlistIds") or None,
                 media_type=media_type_for_platform(platform, media_type),
+                tiktok_privacy_level=conn.get("tiktokPrivacyLevel") if platform == "tiktok" else None,
+                disable_comment=bool(conn.get("disableComment")) if platform == "tiktok" else False,
+                disable_duet=bool(conn.get("disableDuet")) if platform == "tiktok" else False,
+                disable_stitch=bool(conn.get("disableStitch")) if platform == "tiktok" else False,
             )
             await _verify_post_scheduled(client, sub_id, poll_interval=_poll_interval, timeout=_poll_timeout)
             results[platform] = {"id": sub_id, "status": "scheduled", "error": None}
         except BlotatoAPIError as exc:
-            results[platform] = {"id": None, "status": "failed", "error": str(exc)}
+            results[platform] = {"id": sub_id, "status": "failed", "error": str(exc)}
 
     if results and all(v["status"] == "failed" for v in results.values()):
         errors = "; ".join(f"{p}: {v['error']}" for p, v in results.items())

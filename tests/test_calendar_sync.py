@@ -51,7 +51,9 @@ class _FakeBlotatoClient:
         self.closed = False
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None,
+                          tiktok_privacy_level=None, disable_comment=False,
+                          disable_duet=False, disable_stitch=False):
         return self._post_ids.get(platform, f"sub-{platform}-default")
 
     async def reschedule_post(self, schedule_id: str, new_scheduled_time: str) -> None:

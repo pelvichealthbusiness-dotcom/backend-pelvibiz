@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -17,7 +17,8 @@ from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.services import admin_service
 from app.services import blotato_admin_service
 from app.services.blotato_client import BlotatoAPIError, BlotatoClient
-from app.services.blotato_publisher import cancel_all_platforms
+from app.services.blotato_publisher import cancel_all_platforms, derive_publish_status
+from app.services.content_crud import ContentCRUD
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -380,3 +381,59 @@ async def retry_pending_cancellations(
         await blotato.aclose()
 
     return success({"retried": len(items), "succeeded": succeeded, "failed": failed})
+
+
+# ---------------------------------------------------------------------------
+# Background status sync — reconcile scheduled posts against Blotato
+# ---------------------------------------------------------------------------
+
+@router.post("/sync-post-status")
+async def sync_post_status(admin: UserContext = Depends(require_admin)):
+    """Reconcile blotato_post_ids against actual Blotato status for recently scheduled content.
+
+    Checks all content with publish_status=scheduled in the last 48 hours.
+    Updates any platform entry that has transitioned to 'failed' in Blotato.
+    Admin only.
+    """
+    settings = get_settings()
+    if not settings.blotato_api_key:
+        raise ExternalServiceError("blotato", "BLOTATO_API_KEY not configured")
+
+    client = BlotatoClient(api_key=settings.blotato_api_key)
+    cutoff = (datetime.now(dt_timezone.utc) - timedelta(hours=48)).isoformat()
+    crud = ContentCRUD()
+    rows = crud.get_scheduled_content_since(since_iso=cutoff)
+    synced = 0
+    updated = 0
+    try:
+        for row in rows:
+            synced += 1
+            post_ids: dict = row.get("blotato_post_ids") or {}
+            changed = False
+            for platform, entry in post_ids.items():
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("status") != "scheduled":
+                    continue
+                pid = entry.get("id")
+                if not pid:
+                    continue
+                try:
+                    status = await client.get_post_status(pid)
+                    if status == "failed":
+                        post_ids[platform]["status"] = "failed"
+                        changed = True
+                except BlotatoAPIError:
+                    pass
+            if changed:
+                new_status = derive_publish_status(post_ids)
+                crud.admin_update_content(row["id"], {
+                    "blotato_post_ids": post_ids,
+                    "publish_status": new_status,
+                    "failure_notified_at": None,
+                })
+                updated += 1
+    finally:
+        await client.aclose()
+
+    return success({"synced": synced, "updated": updated})

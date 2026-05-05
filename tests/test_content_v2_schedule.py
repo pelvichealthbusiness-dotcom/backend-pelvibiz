@@ -27,7 +27,9 @@ class _FakeBlotatoClient:
         self.closed = False
 
     async def create_post(self, *, platform, account_id, text, media_urls,
-                          scheduled_time, page_id=None, playlist_ids=None, media_type=None):
+                          scheduled_time, page_id=None, playlist_ids=None, media_type=None,
+                          tiktok_privacy_level=None, disable_comment=False,
+                          disable_duet=False, disable_stitch=False):
         self.create_calls.append({"platform": platform})
         return f"sub-{platform}-new"
 

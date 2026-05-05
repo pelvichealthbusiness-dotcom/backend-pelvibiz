@@ -605,3 +605,106 @@ async def test_get_post_status_retries_on_5xx_then_returns():
 
     assert status == "scheduled"
     assert len(transport.requests) == 2
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — 429 Rate Limit Handling
+# ---------------------------------------------------------------------------
+
+async def test_create_post_retries_on_429_with_retry_after_header():
+    client, transport = _make_client(
+        2,
+        httpx.Response(429, headers={"retry-after": "0"}, json={"error": "rate limited"}),
+        _response(200, {"id": "sub-after-ratelimit"}),
+    )
+    post_id = await client.create_post(
+        platform="instagram", account_id="ig-001", text="Test",
+        media_urls=["https://example.com/img.jpg"],
+        scheduled_time="2026-05-01T20:00:00Z",
+    )
+    assert post_id == "sub-after-ratelimit"
+    assert len(transport.requests) == 2
+
+
+async def test_create_post_raises_rate_limit_error_after_max_retries():
+    from app.services.blotato_client import BlotatoRateLimitError
+    client, transport = _make_client(
+        2,
+        httpx.Response(429, headers={"retry-after": "0"}, json={}),
+        httpx.Response(429, headers={"retry-after": "0"}, json={}),
+        httpx.Response(429, headers={"retry-after": "0"}, json={}),
+        httpx.Response(429, headers={"retry-after": "0"}, json={}),
+    )
+    with pytest.raises(BlotatoRateLimitError):
+        await client.create_post(
+            platform="instagram", account_id="ig-001", text="Test",
+            media_urls=["https://example.com/img.jpg"],
+            scheduled_time="2026-05-01T20:00:00Z",
+        )
+
+
+async def test_create_post_429_does_not_consume_max_retries_budget():
+    """After a 429, 5xx retries should still be available."""
+    client, transport = _make_client(
+        2,
+        httpx.Response(429, headers={"retry-after": "0"}, json={}),
+        _response(503, {"error": "server error"}),
+        _response(200, {"id": "sub-ok"}),
+    )
+    post_id = await client.create_post(
+        platform="instagram", account_id="ig-001", text="Test",
+        media_urls=["https://example.com/img.jpg"],
+        scheduled_time="2026-05-01T20:00:00Z",
+    )
+    assert post_id == "sub-ok"
+    assert len(transport.requests) == 3
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — TikTok Required Fields
+# ---------------------------------------------------------------------------
+
+async def test_create_post_tiktok_adds_default_privacy_level():
+    client, transport = _make_client(1, _response(200, {"id": "sub-tk"}))
+    await client.create_post(
+        platform="tiktok", account_id="tk-001", text="TikTok post",
+        media_urls=["https://example.com/video.mp4"],
+        scheduled_time="2026-05-01T20:00:00Z",
+    )
+    sent = transport.requests[0]["body"]
+    assert sent["post"]["target"]["privacyLevel"] == "PUBLIC_TO_EVERYONE"
+
+
+async def test_create_post_tiktok_custom_privacy_level():
+    client, transport = _make_client(1, _response(200, {"id": "sub-tk"}))
+    await client.create_post(
+        platform="tiktok", account_id="tk-001", text="TikTok post",
+        media_urls=["https://example.com/video.mp4"],
+        scheduled_time="2026-05-01T20:00:00Z",
+        tiktok_privacy_level="SELF_ONLY",
+    )
+    sent = transport.requests[0]["body"]
+    assert sent["post"]["target"]["privacyLevel"] == "SELF_ONLY"
+
+
+async def test_create_post_tiktok_disable_comment():
+    client, transport = _make_client(1, _response(200, {"id": "sub-tk"}))
+    await client.create_post(
+        platform="tiktok", account_id="tk-001", text="TikTok post",
+        media_urls=["https://example.com/video.mp4"],
+        scheduled_time="2026-05-01T20:00:00Z",
+        disable_comment=True,
+    )
+    sent = transport.requests[0]["body"]
+    assert sent["post"]["target"]["disableComment"] is True
+
+
+async def test_create_post_instagram_has_no_privacy_level():
+    client, transport = _make_client(1, _response(200, {"id": "sub-ig"}))
+    await client.create_post(
+        platform="instagram", account_id="ig-001", text="IG post",
+        media_urls=["https://example.com/img.jpg"],
+        scheduled_time="2026-05-01T20:00:00Z",
+    )
+    sent = transport.requests[0]["body"]
+    assert "privacyLevel" not in sent["post"]["target"]
