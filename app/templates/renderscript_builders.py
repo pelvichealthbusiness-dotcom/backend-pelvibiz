@@ -1544,7 +1544,7 @@ def build_patient_review(
         "border_radius": "50%",
         "fill_color": "rgba(0,0,0,0)",
         "stroke_color": "rgba(255,255,255,0.65)",
-        "stroke_width": "0.7%",
+        "stroke_width": "0.7 vmin",
         "width": "84%",
         "height": "22%",
         "x": "50%", "x_anchor": "50%",
