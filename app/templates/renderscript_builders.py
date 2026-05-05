@@ -1632,7 +1632,7 @@ def build_photo_steps_reel(
 ) -> dict:
     screenshots = list(request.video_urls or [])
     clip_count = min(7, max(1, len(screenshots)))
-    clip_dur = 1.5
+    clip_dur = 4.0
     total_dur = round(clip_count * clip_dur, 3)
 
     source = _base_source(total_dur)

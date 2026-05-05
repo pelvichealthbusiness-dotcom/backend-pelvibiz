@@ -34,17 +34,17 @@ def _clips(elements):
     return [e for e in elements if "Clip" in e.get("name", "")]
 
 
-def test_four_clips_total_duration_6s():
+def test_four_clips_total_duration_16s():
     req = _make_request(["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"])
     result = build_photo_steps_reel(req, _make_theme())
-    assert pytest.approx(result["duration"], abs=1e-4) == 6.0
+    assert pytest.approx(result["duration"], abs=1e-4) == 16.0
 
 
-def test_seven_clips_total_duration_10_5s():
+def test_seven_clips_total_duration_28s():
     urls = [f"http://img{i}.jpg" for i in range(7)]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    assert pytest.approx(result["duration"], abs=1e-4) == 10.5
+    assert pytest.approx(result["duration"], abs=1e-4) == 28.0
 
 
 def test_clips_capped_at_7():
@@ -95,8 +95,8 @@ def test_clip_time_offsets():
     result = build_photo_steps_reel(req, _make_theme())
     clips = sorted(_clips(result["elements"]), key=lambda e: e["time"])
     assert clips[0]["time"] == pytest.approx(0.0, abs=1e-4)
-    assert clips[1]["time"] == pytest.approx(1.5, abs=1e-4)
-    assert clips[2]["time"] == pytest.approx(3.0, abs=1e-4)
+    assert clips[1]["time"] == pytest.approx(4.0, abs=1e-4)
+    assert clips[2]["time"] == pytest.approx(8.0, abs=1e-4)
 
 
 def test_caption_uses_primary_color_background():
@@ -113,7 +113,7 @@ def test_caption_text_appears_at_correct_time():
     result = build_photo_steps_reel(req, _make_theme())
     text_el = next(e for e in result["elements"] if e.get("type") == "text")
     assert text_el["time"] == pytest.approx(0.0, abs=1e-4)
-    assert text_el["duration"] == pytest.approx(1.5, abs=1e-4)
+    assert text_el["duration"] == pytest.approx(4.0, abs=1e-4)
 
 
 def test_no_caption_element_when_text_missing():
