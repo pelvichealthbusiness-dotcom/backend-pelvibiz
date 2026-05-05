@@ -1609,6 +1609,87 @@ def build_photo_caption_reel(
     }
 
 
+# ── Photo Steps Reel ──────────────────────────────────────────────────────
+#
+# Layout (per clip):
+#   Full-frame photo (fit: cover)
+#   Dark overlay
+#   Caption at y=82% with brand primary color background band
+
+def build_photo_steps_reel(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    _analysis=None,
+    _phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    screenshots = list(request.video_urls or [])
+    clip_count = min(7, max(1, len(screenshots)))
+    clip_dur = 1.5
+    total_dur = round(clip_count * clip_dur, 3)
+
+    source = _base_source(total_dur)
+    els = source["elements"]
+
+    # Dark background (letterbox fallback)
+    els.append(_rect_elem("Background", 1, 0.0, total_dur, theme.background_color or "#0F0F0F"))
+
+    for i in range(clip_count):
+        t = round(i * clip_dur, 3)
+        url = screenshots[i]
+        caption = (getattr(request, f"text_{i + 1}", None) or "").strip()
+        base_track = 2 + i * 4
+
+        # Photo — cover fills frame
+        els.append({
+            "type": "image",
+            "track": base_track,
+            "name": f"Photo {i + 1}",
+            "source": url,
+            "time": t,
+            "duration": clip_dur,
+            "width": "100%",
+            "height": "100%",
+            "x": "50%", "x_anchor": "50%",
+            "y": "50%", "y_anchor": "50%",
+            "fit": "cover",
+        })
+
+        # Dark overlay
+        els.append(_rect_elem(f"Overlay {i + 1}", base_track + 1, t, clip_dur, "#000000", opacity="45%"))
+
+        # Caption at bottom with primary color band
+        if caption:
+            els.append({
+                "type": "text",
+                "track": base_track + 2,
+                "name": f"Caption {i + 1}",
+                "text": caption,
+                "time": t,
+                "duration": clip_dur,
+                "x": "50%", "x_anchor": "50%",
+                "y": "82%", "y_anchor": "50%",
+                "x_alignment": "50%",
+                "width": "90%",
+                "font_family": _hook_font(request, theme),
+                "font_weight": "700",
+                "font_size": "3.8 vmin",
+                "fill_color": "#FFFFFF",
+                "background_color": theme.primary_color,
+                "background_x_padding": "6%",
+                "background_y_padding": "3%",
+            })
+
+    logo = _logo_elem(theme, total_dur, track=100)
+    if logo:
+        els.append(logo)
+
+    music = _audio_elem(theme, total_dur, track=101)
+    if music:
+        els.append(music)
+
+    return source
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1629,4 +1710,5 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.COUNTDOWN_STACK: build_countdown_stack,
     VideoTemplate.MYTH_DEBUNK: build_myth_debunk,
     VideoTemplate.PHOTO_CAPTION_REEL: build_photo_caption_reel,
+    VideoTemplate.PHOTO_STEPS_REEL: build_photo_steps_reel,
 }

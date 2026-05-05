@@ -221,6 +221,7 @@ class TestDispatchTable:
             VideoTemplate.HOOK_REVEAL, VideoTemplate.EDU_STEPS,
             VideoTemplate.COUNTDOWN_STACK, VideoTemplate.MYTH_DEBUNK,
             VideoTemplate.PHOTO_CAPTION_REEL,
+            VideoTemplate.PHOTO_STEPS_REEL,
         }
         assert set(RENDERSCRIPT_BUILDERS.keys()) == expected
 
