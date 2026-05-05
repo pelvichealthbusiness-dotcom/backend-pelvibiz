@@ -1639,11 +1639,11 @@ def build_photo_steps_reel(
         caption = (getattr(request, f"text_{i + 1}", None) or "").strip()
         base_track = 2 + i * 4
 
-        # Photo — cover fills frame
+        # Clip — cover fills frame (accepts photo or short video)
         els.append({
-            "type": "image",
+            "type": "video",
             "track": base_track,
-            "name": f"Photo {i + 1}",
+            "name": f"Clip {i + 1}",
             "source": url,
             "time": t,
             "duration": clip_dur,
@@ -1652,6 +1652,7 @@ def build_photo_steps_reel(
             "x": "50%", "x_anchor": "50%",
             "y": "50%", "y_anchor": "50%",
             "fit": "cover",
+            "volume": "0%",
         })
 
         # Dark overlay

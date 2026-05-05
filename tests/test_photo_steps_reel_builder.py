@@ -48,37 +48,45 @@ def test_clips_capped_at_7():
     urls = [f"http://img{i}.jpg" for i in range(10)]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    images = [e for e in result["elements"] if e.get("type") == "image" and "Photo" in e.get("name", "")]
-    assert len(images) == 7
+    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
+    assert len(clips) == 7
 
 
-def test_clips_minimum_4():
-    # With 2 photos, builder uses what it has (frontend enforces min 4 in production)
+def test_clips_minimum_uses_provided_count():
+    # With 2 media files, builder uses what it has (frontend enforces min 4 in production)
     req = _make_request(["http://img1.jpg", "http://img2.jpg"])
     result = build_photo_steps_reel(req, _make_theme())
-    images = [e for e in result["elements"] if e.get("type") == "image" and "Photo" in e.get("name", "")]
-    assert len(images) == 2
+    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
+    assert len(clips) == 2
 
 
-def test_photo_fit_is_cover():
+def test_clip_fit_is_cover():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    images = [e for e in result["elements"] if e.get("type") == "image" and "Photo" in e.get("name", "")]
-    assert all(img.get("fit") == "cover" for img in images)
+    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
+    assert all(c.get("fit") == "cover" for c in clips)
 
 
-def test_photo_time_offsets():
+def test_clip_is_muted():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    images = sorted(
-        [e for e in result["elements"] if e.get("type") == "image" and "Photo" in e.get("name", "")],
+    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
+    assert all(c.get("volume") == "0%" for c in clips)
+
+
+def test_clip_time_offsets():
+    urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
+    req = _make_request(urls)
+    result = build_photo_steps_reel(req, _make_theme())
+    clips = sorted(
+        [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")],
         key=lambda e: e["time"],
     )
-    assert images[0]["time"] == pytest.approx(0.0, abs=1e-4)
-    assert images[1]["time"] == pytest.approx(1.5, abs=1e-4)
-    assert images[2]["time"] == pytest.approx(3.0, abs=1e-4)
+    assert clips[0]["time"] == pytest.approx(0.0, abs=1e-4)
+    assert clips[1]["time"] == pytest.approx(1.5, abs=1e-4)
+    assert clips[2]["time"] == pytest.approx(3.0, abs=1e-4)
 
 
 def test_caption_uses_primary_color_background():
