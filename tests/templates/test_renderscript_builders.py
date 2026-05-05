@@ -216,7 +216,11 @@ class TestDispatchTable:
             VideoTemplate.VIRAL_REACTION, VideoTemplate.TESTIMONIAL_STORY,
             VideoTemplate.BIG_QUOTE, VideoTemplate.DEEP_DIVE,
             VideoTemplate.BRAND_SPOTLIGHT, VideoTemplate.SOCIAL_PROOF_STACK,
-            VideoTemplate.OFFER_DROP,
+            VideoTemplate.OFFER_DROP, VideoTemplate.BULLET_REEL,
+            VideoTemplate.TALKING_HEAD, VideoTemplate.TALKING_HEAD_V2,
+            VideoTemplate.HOOK_REVEAL, VideoTemplate.EDU_STEPS,
+            VideoTemplate.COUNTDOWN_STACK, VideoTemplate.MYTH_DEBUNK,
+            VideoTemplate.PATIENT_REVIEW, VideoTemplate.PHOTO_CAPTION_REEL,
         }
         assert set(RENDERSCRIPT_BUILDERS.keys()) == expected
 

@@ -1606,6 +1606,110 @@ def build_patient_review(
     }
 
 
+# ── Photo Caption Reel ─────────────────────────────────────────────────────
+
+CLIP_DURATION = 1.5  # seconds per photo in photo-caption-reel
+
+
+def build_photo_caption_reel(
+    request: GenerateVideoRequest,
+    theme: BrandTheme,
+    _analysis=None,
+    _phrase_blocks: list[PhraseBlock] | None = None,
+) -> dict:
+    urls = request.video_urls or []
+    clip_count = max(4, min(7, len(urls)))
+    dur = round(clip_count * CLIP_DURATION, 1)
+
+    hook_font = _hook_font(request, theme)
+    hook_color = _hook_color(request, "#FFFFFF")
+
+    els: list[dict] = []
+
+    for i in range(clip_count):
+        url = urls[i]
+        t = round(i * CLIP_DURATION, 1)
+
+        els.append({
+            "type": "image",
+            "track": i + 1,
+            "name": f"Photo-{i + 1}",
+            "source": url,
+            "time": t,
+            "duration": CLIP_DURATION,
+            "fit": "cover",
+            "x": "50%", "x_anchor": "50%",
+            "y": "50%", "y_anchor": "50%",
+            "width": "100%",
+            "height": "100%",
+        })
+
+        caption = getattr(request, f"text_{i + 1}", None) or ""
+        if caption:
+            els.append({
+                "type": "shape",
+                "track": 20 + i,
+                "name": f"CaptionBg-{i + 1}",
+                "fill_color": "rgba(0,0,0,0.55)",
+                "width": "100%",
+                "height": "28%",
+                "x": "50%", "x_anchor": "50%",
+                "y": "100%", "y_anchor": "100%",
+                "time": t,
+                "duration": CLIP_DURATION,
+            })
+            els.append({
+                "type": "text",
+                "track": 40 + i,
+                "name": f"Caption-{i + 1}",
+                "text": caption,
+                "font_family": hook_font,
+                "font_size": "6.5vmin",
+                "font_weight": "700",
+                "fill_color": hook_color,
+                "width": "88%",
+                "x": "50%", "x_anchor": "50%",
+                "y": "84%", "y_anchor": "50%",
+                "x_alignment": "center",
+                "text_wrap": True,
+                "line_height": "115%",
+                "time": t,
+                "duration": CLIP_DURATION,
+            })
+
+    if request.logo_url:
+        els.append({
+            "type": "image",
+            "track": 200,
+            "name": "Logo",
+            "source": request.logo_url,
+            "width": "18%",
+            "height": "4%",
+            "x": "95%", "x_anchor": "100%",
+            "y": "2%", "y_anchor": "0%",
+            "fill_mode": "contain",
+        })
+
+    if theme.music_url:
+        els.append({
+            "type": "audio",
+            "track": 201,
+            "name": "Background Music",
+            "source": theme.music_url,
+            "volume": f"{int(theme.music_volume)}%",
+            "duration": dur,
+            "loop": True,
+        })
+
+    return {
+        "output_format": "mp4",
+        "width": 1080,
+        "height": 1920,
+        "duration": dur,
+        "elements": els,
+    }
+
+
 # ── Dispatch table ────────────────────────────────────────────────────────
 
 RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
@@ -1626,4 +1730,5 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.COUNTDOWN_STACK: build_countdown_stack,
     VideoTemplate.MYTH_DEBUNK: build_myth_debunk,
     VideoTemplate.PATIENT_REVIEW: build_patient_review,
+    VideoTemplate.PHOTO_CAPTION_REEL: build_photo_caption_reel,
 }
