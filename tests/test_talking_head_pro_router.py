@@ -24,7 +24,6 @@ class TestStitchGuardLogic:
         VideoTemplate.BULLET_SEQUENCE,
         VideoTemplate.DEEP_DIVE,
         VideoTemplate.BIG_QUOTE,
-        VideoTemplate.PATIENT_REVIEW,
     }
 
     def _is_talking_head(self, template_enum: VideoTemplate) -> bool:

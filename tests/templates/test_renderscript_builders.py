@@ -220,7 +220,7 @@ class TestDispatchTable:
             VideoTemplate.TALKING_HEAD, VideoTemplate.TALKING_HEAD_V2,
             VideoTemplate.HOOK_REVEAL, VideoTemplate.EDU_STEPS,
             VideoTemplate.COUNTDOWN_STACK, VideoTemplate.MYTH_DEBUNK,
-            VideoTemplate.PATIENT_REVIEW, VideoTemplate.PHOTO_CAPTION_REEL,
+            VideoTemplate.PHOTO_CAPTION_REEL,
         }
         assert set(RENDERSCRIPT_BUILDERS.keys()) == expected
 

@@ -1504,88 +1504,6 @@ def build_myth_debunk(
     return source
 
 
-# ── Patient Review ────────────────────────────────────────────────────────
-#   Accepts a screenshot image URL (via video_urls[0]) instead of a video.
-#   Layout: brand-color top strip → headline text → screenshot card → logo.
-
-def build_patient_review(
-    request: GenerateVideoRequest,
-    theme: BrandTheme,
-    _analysis=None,
-    _phrase_blocks: list[PhraseBlock] | None = None,
-) -> dict:
-    """Real Video style: image fills frame, headline band at top, no decorative shapes."""
-    screenshots = list(request.video_urls or [])
-    clip_count = max(1, min(7, len(screenshots)))
-    clip_dur = 6.0
-    total_dur = clip_count * clip_dur
-
-    source = _base_source(total_dur)
-    els = source["elements"]
-
-    # Shared dark background (visible as letterbox bars behind contain-fit images)
-    els.append(_rect_elem("Background", 1, 0.0, total_dur,
-                          theme.background_color or "#0F0F0F"))
-
-    for i in range(clip_count):
-        t = round(i * clip_dur, 3)
-        url = screenshots[i]
-        headline = (getattr(request, f"text_{i + 1}", None) or "").strip()
-        base_track = 2 + i * 5
-
-        # Review screenshot — contain so full screenshot is always visible
-        els.append({
-            "type": "image",
-            "track": base_track,
-            "name": f"Review {i + 1}",
-            "source": url,
-            "time": t,
-            "duration": clip_dur,
-            "width": "100%",
-            "height": "100%",
-            "x": "50%", "x_anchor": "50%",
-            "y": "50%", "y_anchor": "50%",
-            "fit": "contain",
-        })
-
-        # Subtle dark overlay — keeps headline readable
-        els.append(_rect_elem(f"Overlay {i + 1}", base_track + 1,
-                              t, clip_dur, "#000000", opacity="30%"))
-
-        # Headline — top of frame, brand primary background, bold white text
-        if headline:
-            els.append({
-                "type": "text",
-                "track": base_track + 2,
-                "name": f"Headline {i + 1}",
-                "text": headline.upper(),
-                "time": t,
-                "duration": clip_dur,
-                "x": "50%", "x_anchor": "50%",
-                "y": "10%", "y_anchor": "50%",
-                "x_alignment": "50%",
-                "width": "88%",
-                "font_family": _hook_font(request, theme),
-                "font_weight": "800",
-                "font_size": "4.5 vmin",
-                "fill_color": _hook_color(request),
-                "stroke_color": "#000000",
-                "stroke_width": "1 vmin",
-                "background_color": theme.primary_color,
-                "background_x_padding": "8%",
-                "background_y_padding": "4%",
-            })
-
-    logo = _logo_elem(theme, total_dur, track=100)
-    if logo:
-        els.append(logo)
-
-    music = _audio_elem(theme, total_dur, track=101)
-    if music:
-        els.append(music)
-
-    return source
-
 
 # ── Photo Caption Reel ─────────────────────────────────────────────────────
 
@@ -1710,6 +1628,5 @@ RENDERSCRIPT_BUILDERS: dict[VideoTemplate, Any] = {
     VideoTemplate.EDU_STEPS: build_edu_steps,
     VideoTemplate.COUNTDOWN_STACK: build_countdown_stack,
     VideoTemplate.MYTH_DEBUNK: build_myth_debunk,
-    VideoTemplate.PATIENT_REVIEW: build_patient_review,
     VideoTemplate.PHOTO_CAPTION_REEL: build_photo_caption_reel,
 }
