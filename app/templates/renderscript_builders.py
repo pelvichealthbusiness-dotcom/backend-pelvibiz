@@ -1514,134 +1514,77 @@ def build_patient_review(
     _analysis=None,
     _phrase_blocks: list[PhraseBlock] | None = None,
 ) -> dict:
+    """Real Video style: image fills frame, headline band at top, no decorative shapes."""
     screenshots = list(request.video_urls or [])
-    clip_count = max(1, min(5, len(screenshots)))
+    clip_count = max(1, min(7, len(screenshots)))
     clip_dur = 6.0
     total_dur = clip_count * clip_dur
 
-    hook_font = getattr(request, "hook_font", None) or "Anton"
-    hook_color = getattr(request, "hook_color", None) or "#FFFFFF"
-    primary = getattr(theme, "primary_color", None) or "#7C3AED"
-    bg_color = getattr(theme, "background_color", None) or "#0F0F0F"
-    logo_url = getattr(request, "logo_url", None)
+    source = _base_source(total_dur)
+    els = source["elements"]
 
-    els: list[dict] = []
-
-    # Shared full-duration background
-    els.append({
-        "type": "shape",
-        "track": 1,
-        "name": "Background",
-        "shape": "rectangle",
-        "fill_color": bg_color,
-        "width": "100%", "height": "100%",
-        "x": "50%", "x_anchor": "50%",
-        "y": "50%", "y_anchor": "50%",
-        "time": 0.0,
-        "duration": total_dur,
-    })
+    # Shared dark background (visible as letterbox bars behind contain-fit images)
+    els.append(_rect_elem("Background", 1, 0.0, total_dur,
+                          theme.background_color or "#0F0F0F"))
 
     for i in range(clip_count):
         t = round(i * clip_dur, 3)
         url = screenshots[i]
-        headline = getattr(request, f"text_{i + 1}", None) or ""
+        headline = (getattr(request, f"text_{i + 1}", None) or "").strip()
+        base_track = 2 + i * 5
 
-        base_track = 2 + i * 10  # Reserve 10 tracks per clip
-
-        # Brand color header band
+        # Review screenshot — contain so full screenshot is always visible
         els.append({
-            "type": "shape",
+            "type": "image",
             "track": base_track,
-            "name": f"Header Band {i + 1}",
-            "shape": "rectangle",
-            "fill_color": primary,
-            "width": "100%",
-            "height": "28%",
-            "x": "50%", "x_anchor": "50%",
-            "y": "0%", "y_anchor": "0%",
-            "time": t,
-            "duration": clip_dur,
-        })
-
-        # Oval Halo inside the band
-        els.append({
-            "type": "shape",
-            "track": base_track + 1,
-            "name": f"Oval Halo {i + 1}",
-            "shape": "ellipse",
-            "border_radius": "50%",
-            "fill_color": "rgba(0,0,0,0)",
-            "stroke_color": "rgba(255,255,255,0.65)",
-            "stroke_width": "0.7 vmin",
-            "width": "84%",
-            "height": "22%",
-            "x": "50%", "x_anchor": "50%",
-            "y": "18%", "y_anchor": "50%",
-            "time": t,
-            "duration": clip_dur,
-        })
-
-        # Headline text inside oval
-        els.append({
-            "type": "text",
-            "track": base_track + 2,
-            "name": f"Headline {i + 1}",
-            "text": headline.upper() if headline else "",
-            "font_family": hook_font,
-            "font_size": "4.8 vmin",
-            "fill_color": hook_color,
-            "font_weight": "900",
-            "letter_spacing": "2%",
-            "text_transform": "uppercase",
-            "x": "50%", "x_anchor": "50%",
-            "y": "18%", "y_anchor": "50%",
-            "width": "78%",
-            "height": "20%",
-            "x_alignment": "50%",
-            "y_alignment": "50%",
-            "time": t,
-            "duration": clip_dur,
-        })
-
-        # Review screenshot card
-        els.append({
-            "type": "image",
-            "track": base_track + 3,
-            "name": f"Review Screenshot {i + 1}",
+            "name": f"Review {i + 1}",
             "source": url,
-            "x": "50%", "x_anchor": "50%",
-            "y": "62%", "y_anchor": "50%",
-            "width": "88%",
-            "height": "64%",
-            "fit": "contain",
-            "border_radius": "3%",
             "time": t,
             "duration": clip_dur,
-        })
-
-    # Shared logo overlay (full duration)
-    if logo_url:
-        els.append({
-            "type": "image",
-            "track": 100,
-            "name": "Logo",
-            "source": logo_url,
-            "x": "8%", "x_anchor": "0%",
-            "y": "4%", "y_anchor": "0%",
-            "width": "18%",
-            "height": "6%",
+            "width": "100%",
+            "height": "100%",
+            "x": "50%", "x_anchor": "50%",
+            "y": "50%", "y_anchor": "50%",
             "fit": "contain",
-            "time": 0.0,
-            "duration": total_dur,
         })
 
-    return {
-        "output_format": "mp4",
-        "width": 1080,
-        "height": 1920,
-        "duration": total_dur,
-        "elements": els,
-    }
+        # Subtle dark overlay — keeps headline readable
+        els.append(_rect_elem(f"Overlay {i + 1}", base_track + 1,
+                              t, clip_dur, "#000000", opacity="30%"))
+
+        # Headline — top of frame, brand primary background, bold white text
+        if headline:
+            els.append({
+                "type": "text",
+                "track": base_track + 2,
+                "name": f"Headline {i + 1}",
+                "text": headline.upper(),
+                "time": t,
+                "duration": clip_dur,
+                "x": "50%", "x_anchor": "50%",
+                "y": "10%", "y_anchor": "50%",
+                "x_alignment": "50%",
+                "width": "88%",
+                "font_family": _hook_font(request, theme),
+                "font_weight": "800",
+                "font_size": "4.5 vmin",
+                "fill_color": _hook_color(request),
+                "stroke_color": "#000000",
+                "stroke_width": "1 vmin",
+                "background_color": theme.primary_color,
+                "background_x_padding": "8%",
+                "background_y_padding": "4%",
+            })
+
+    logo = _logo_elem(theme, total_dur, track=100)
+    if logo:
+        els.append(logo)
+
+    music = _audio_elem(theme, total_dur, track=101)
+    if music:
+        els.append(music)
+
+    return source
 
 
 # ── Photo Caption Reel ─────────────────────────────────────────────────────
