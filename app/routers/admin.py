@@ -208,12 +208,70 @@ async def unassign_blotato_account(
 
 
 # ---------------------------------------------------------------------------
+# Publish logs — helpers
+# ---------------------------------------------------------------------------
+
+def _apply_status_filter(query: Any, count_query: Any, status: str | None) -> tuple[Any, Any]:
+    """Dispatch status filter onto both the data query and the count query.
+
+    - None / 'all' → no predicate (all rows returned)
+    - 'scheduled'  → .eq('publish_status', 'scheduled')
+    - 'published'  → .not_.is_('published_at', 'null')
+    - 'partial'    → .eq('publish_status', 'partial')
+    - 'failed'     → .eq('publish_status', 'failed')
+    """
+    if not status or status == "all":
+        return query, count_query
+
+    if status == "published":
+        query = query.not_.is_("published_at", "null")
+        count_query = count_query.not_.is_("published_at", "null")
+    else:
+        query = query.eq("publish_status", status)
+        count_query = count_query.eq("publish_status", status)
+
+    return query, count_query
+
+
+def _attach_user_info(rows: list[dict], db: Any) -> list[dict]:
+    """Merge display_name (from profiles.full_name) onto each row.
+
+    Fetches profiles in a single IN query. Users with no profile row get
+    display_name=None. Email is not available from the service-role client
+    without auth.admin.listUsers() (which is slow); it is set to None.
+    """
+    if not rows:
+        return rows
+
+    user_ids = list({r["user_id"] for r in rows})
+    profiles_res = (
+        db.table("profiles")
+        .select("id, full_name")
+        .in_("id", user_ids)
+        .execute()
+    )
+    profiles_map: dict[str, str | None] = {
+        p["id"]: p.get("full_name") for p in (profiles_res.data or [])
+    }
+
+    for row in rows:
+        row["display_name"] = profiles_map.get(row["user_id"])
+        row["email"] = None  # auth.admin.listUsers() not called — too slow for large orgs
+
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Publish logs
 # ---------------------------------------------------------------------------
 
 @router.get("/publish-logs")
 async def list_publish_logs(
-    status: str | None = Query(None, pattern="^(scheduled|failed)$", description="Filter by publish_status"),
+    status: str | None = Query(
+        None,
+        pattern=r"^(all|scheduled|published|partial|failed)$",
+        description="Filter by publish status (all|scheduled|published|partial|failed)",
+    ),
     user_id: str | None = Query(None, description="Filter by user"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -221,8 +279,8 @@ async def list_publish_logs(
 ):
     """List content publish attempts with status, error, and user info. Admin only.
 
-    Returns items from requests_log that have a publish_status set, joined with
-    the user email from profiles. Ordered by published_at DESC (most recent first).
+    Returns all items from requests_log (no base filter), joined with user
+    full_name from profiles. Ordered by published_at DESC (most recent first).
     """
     db = get_service_client()
 
@@ -231,34 +289,31 @@ async def list_publish_logs(
         .select(
             "id, user_id, agent_type, title, caption, media_urls, "
             "scheduled_date, publish_status, publish_error, published_at, "
-            "blotato_post_ids, created_at"
+            "blotato_post_ids, failure_notified_at, created_at"
         )
-        .not_.is_("publish_status", "null")
         .order("published_at", desc=True)
         .limit(limit)
         .offset(offset)
     )
 
-    if status:
-        query = query.eq("publish_status", status)
-    if user_id:
-        query = query.eq("user_id", user_id)
-
-    result = query.execute()
-    rows: list = result.data if result else []
-
     count_query = (
         db.table("requests_log")
         .select("id", count="exact")  # type: ignore[call-arg]
-        .not_.is_("publish_status", "null")
     )
-    if status:
-        count_query = count_query.eq("publish_status", status)
+
+    query, count_query = _apply_status_filter(query, count_query, status)
+
     if user_id:
+        query = query.eq("user_id", user_id)
         count_query = count_query.eq("user_id", user_id)
+
+    result = query.execute()
+    rows: list[dict] = result.data if result else []
 
     count_result = count_query.execute()
     total: int = count_result.count if count_result and count_result.count is not None else len(rows)
+
+    rows = _attach_user_info(rows, db)
 
     page = (offset // limit) + 1
     return paginated(data=rows, total=total, page=page, limit=limit)
