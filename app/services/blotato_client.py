@@ -72,7 +72,7 @@ class BlotatoClient:
         if playlist_ids:
             post["target"]["playlistIds"] = playlist_ids
         if media_type is not None:
-            post["content"]["mediaType"] = media_type
+            post["target"]["mediaType"] = media_type
 
         # scheduledTime goes at the top level of the request body, not inside post
         body: dict = {"post": post, "scheduledTime": scheduled_time}
@@ -85,7 +85,7 @@ class BlotatoClient:
 
         PATCH /schedules/{schedule_id} — retries on 5xx, raises BlotatoAPIError on 4xx.
         """
-        await self._patch_with_retry(f"/schedules/{schedule_id}", {"scheduledTime": new_scheduled_time})
+        await self._patch_with_retry(f"/schedules/{schedule_id}", {"patch": {"scheduledTime": new_scheduled_time}})
 
     async def cancel_post(self, schedule_id: str) -> None:
         """Cancel a scheduled Blotato post.
@@ -171,6 +171,16 @@ class BlotatoClient:
             return
 
         raise last_error or BlotatoAPIError("Max retries exceeded")
+
+    async def get_post_status(self, post_id: str) -> str:
+        """GET /posts/{post_id}. Returns status string: 'in-progress' | 'scheduled' | 'failed'.
+
+        Used for post-schedule verification after create_post().
+        Retries on 5xx; raises BlotatoAPIError on 4xx.
+        """
+        resp = await self._get_with_retry(f"/posts/{post_id}")
+        data = resp.json()
+        return str(data.get("status", "in-progress"))
 
     async def get_schedule(self, schedule_id: str) -> dict:
         """GET /schedules/{schedule_id}. Returns parsed JSON dict.

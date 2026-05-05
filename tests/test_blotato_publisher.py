@@ -25,9 +25,13 @@ class _FakeClient:
     - _FakeClient("sub-1", "sub-2")          — sequential IDs (legacy)
     - _FakeClient({"instagram": "sub-1", "facebook": BlotatoAPIError("boom")})
       — per-platform responses; Exception values are raised
+
+    Optional keyword arg:
+    - status_responses: list of strings returned sequentially by get_post_status().
+      Defaults to "scheduled" when the list is exhausted.
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, status_responses=None):
         if len(args) == 1 and isinstance(args[0], dict):
             self._by_platform = args[0]
             self._sequential = None
@@ -35,6 +39,8 @@ class _FakeClient:
             self._by_platform = None
             self._sequential = list(args)
         self.calls: list[dict] = []
+        self._status_iter = iter(status_responses or [])
+        self.status_calls: list[str] = []
 
     async def create_post(self, *, platform, account_id, text, media_urls,
                           scheduled_time, page_id=None, playlist_ids=None, media_type=None):
@@ -55,6 +61,13 @@ class _FakeClient:
             return r
         return self._sequential.pop(0) if self._sequential else "sub-default"
 
+    async def get_post_status(self, post_id: str) -> str:
+        self.status_calls.append(post_id)
+        try:
+            return next(self._status_iter)
+        except StopIteration:
+            return "scheduled"
+
 
 # ---------------------------------------------------------------------------
 # to_utc_iso — timezone conversion
@@ -62,17 +75,17 @@ class _FakeClient:
 
 def test_to_utc_iso_converts_eastern_to_utc():
     result = to_utc_iso("2026-05-01T15:00:00", "America/New_York")
-    assert result == "2026-05-01T19:00:00+00:00"
+    assert result == "2026-05-01T19:00:00Z"
 
 
 def test_to_utc_iso_converts_los_angeles_to_utc():
     result = to_utc_iso("2026-05-01T15:00:00", "America/Los_Angeles")
-    assert result == "2026-05-01T22:00:00+00:00"
+    assert result == "2026-05-01T22:00:00Z"
 
 
 def test_to_utc_iso_falls_back_to_utc_on_unknown_timezone():
     result = to_utc_iso("2026-05-01T12:00:00", "Invalid/Timezone")
-    assert result == "2026-05-01T12:00:00+00:00"
+    assert result == "2026-05-01T12:00:00Z"
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +138,7 @@ async def test_publish_content_skips_unsupported_platforms():
     client = _FakeClient("sub-ig-1")
     connections = {
         "instagram": {"accountId": "ig-001"},
-        "youtube": {"accountId": "yt-001", "playlistIds": ["pl-1"]},
+        "snapchat": {"accountId": "snap-001"},  # not in SUPPORTED_BLOTATO_PLATFORMS
     }
 
     ids = await publish_content(
@@ -139,7 +152,7 @@ async def test_publish_content_skips_unsupported_platforms():
     )
 
     assert "instagram" in ids
-    assert "youtube" not in ids
+    assert "snapchat" not in ids
     assert len(client.calls) == 1
 
 
@@ -194,7 +207,7 @@ async def test_publish_content_converts_timezone_in_scheduled_time():
     )
 
     # 15:00 ET = 19:00 UTC
-    assert client.calls[0]["scheduled_time"] == "2026-05-01T19:00:00+00:00"
+    assert client.calls[0]["scheduled_time"] == "2026-05-01T19:00:00Z"
 
 
 async def test_publish_content_raises_on_empty_media_urls():
@@ -334,7 +347,7 @@ async def test_reschedule_all_platforms_converts_timezone():
     )
 
     # 15:00 ET = 19:00 UTC
-    assert client.reschedule_calls[0]["new_scheduled_time"] == "2026-06-01T19:00:00+00:00"
+    assert client.reschedule_calls[0]["new_scheduled_time"] == "2026-06-01T19:00:00Z"
 
 
 async def test_reschedule_all_platforms_skips_empty_ids():
@@ -675,3 +688,102 @@ async def test_validate_api_error_returns_all_connections_best_effort():
 
     assert valid == connections
     assert stale == []
+
+
+# ---------------------------------------------------------------------------
+# Bug 3 fix — publish_content polls get_post_status after create_post
+# ---------------------------------------------------------------------------
+
+async def test_publish_content_calls_get_post_status_after_create():
+    """Bug 3: After create_post, publisher must verify schedule via GET /posts/:id."""
+    client = _FakeClient("sub-ig-1", status_responses=["scheduled"])
+    connections = {"instagram": {"accountId": "ig-001"}}
+
+    result = await publish_content(
+        client=client,
+        media_urls=["https://example.com/img.jpg"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="IMAGE",
+        _poll_interval=0,
+        _poll_timeout=999,
+    )
+
+    assert result["instagram"]["status"] == "scheduled"
+    assert "sub-ig-1" in client.status_calls
+
+
+async def test_publish_content_treats_failed_blotato_status_as_platform_error():
+    """Bug 3: A 'failed' status from GET /posts/:id must propagate as per-platform error.
+
+    Uses two platforms so instagram's verify-failure is a partial failure (no raise).
+    """
+    client = _FakeClient(
+        {"instagram": "sub-ig-1", "facebook": "sub-fb-1"},
+        status_responses=["failed", "scheduled"],
+    )
+    connections = {
+        "instagram": {"accountId": "ig-001"},
+        "facebook": {"accountId": "fb-001"},
+    }
+
+    result = await publish_content(
+        client=client,
+        media_urls=["https://example.com/img.jpg"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="IMAGE",
+        _poll_interval=0,
+        _poll_timeout=999,
+    )
+
+    assert result["instagram"]["status"] == "failed"
+    assert result["instagram"]["id"] is None
+    assert "failed" in result["instagram"]["error"].lower()
+    assert result["facebook"]["status"] == "scheduled"
+
+
+async def test_publish_content_polling_timeout_is_optimistic_success():
+    """Bug 3: If Blotato keeps returning 'in-progress' past timeout, treat as success."""
+    client = _FakeClient("sub-ig-1", status_responses=["in-progress", "in-progress", "in-progress"])
+    connections = {"instagram": {"accountId": "ig-001"}}
+
+    result = await publish_content(
+        client=client,
+        media_urls=["https://example.com/img.jpg"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="IMAGE",
+        _poll_interval=0,
+        _poll_timeout=0,
+    )
+
+    assert result["instagram"]["status"] == "scheduled"
+    assert result["instagram"]["id"] == "sub-ig-1"
+
+
+async def test_publish_content_polling_retries_until_scheduled():
+    """Bug 3: Publisher polls until status exits 'in-progress'."""
+    client = _FakeClient("sub-ig-1", status_responses=["in-progress", "in-progress", "scheduled"])
+    connections = {"instagram": {"accountId": "ig-001"}}
+
+    result = await publish_content(
+        client=client,
+        media_urls=["https://example.com/img.jpg"],
+        caption="Caption",
+        connections=connections,
+        scheduled_date="2026-05-01T15:00:00",
+        timezone="UTC",
+        media_type="IMAGE",
+        _poll_interval=0,
+        _poll_timeout=999,
+    )
+
+    assert result["instagram"]["status"] == "scheduled"
+    assert len(client.status_calls) == 3

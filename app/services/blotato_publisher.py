@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 import zoneinfo
 from datetime import datetime, timezone as dt_timezone
 from typing import TypedDict
@@ -59,6 +61,33 @@ def derive_publish_status(results: dict[str, PlatformEntry]) -> str:
     return "partial"
 
 
+async def _verify_post_scheduled(
+    client: BlotatoClient,
+    post_id: str,
+    poll_interval: float = 2.0,
+    timeout: float = 15.0,
+) -> None:
+    """Poll GET /posts/:id until status exits 'in-progress'.
+
+    Treats 'failed' as BlotatoAPIError. Treats timeout as optimistic success —
+    a background sync can verify later.
+    """
+    if not post_id:
+        return
+    deadline = time.monotonic() + timeout
+    while True:
+        status = await client.get_post_status(post_id)
+        if status == "scheduled":
+            return
+        if status == "failed":
+            raise BlotatoAPIError(f"Post {post_id} failed to schedule in Blotato")
+        # in-progress — check timeout before sleeping
+        if time.monotonic() >= deadline:
+            logger.warning("Blotato post %s still in-progress after %.0fs — treating as scheduled", post_id, timeout)
+            return
+        await asyncio.sleep(poll_interval)
+
+
 async def publish_content(
     client: BlotatoClient,
     media_urls: list[str],
@@ -67,6 +96,8 @@ async def publish_content(
     scheduled_date: str,
     timezone: str,
     media_type: str = "IMAGE",
+    _poll_interval: float = 2.0,
+    _poll_timeout: float = 15.0,
 ) -> dict[str, PlatformEntry]:
     """Schedule content to all platforms in connections.
 
@@ -104,6 +135,7 @@ async def publish_content(
                 playlist_ids=conn.get("playlistIds") or None,
                 media_type=media_type_for_platform(platform, media_type),
             )
+            await _verify_post_scheduled(client, sub_id, poll_interval=_poll_interval, timeout=_poll_timeout)
             results[platform] = {"id": sub_id, "status": "scheduled", "error": None}
         except BlotatoAPIError as exc:
             results[platform] = {"id": None, "status": "failed", "error": str(exc)}

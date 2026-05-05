@@ -83,8 +83,8 @@ async def test_create_post_sends_correct_payload():
     assert sent["post"]["content"]["platform"] == "instagram"
     assert sent["post"]["content"]["text"] == "Caption here"
     assert sent["post"]["content"]["mediaUrls"] == ["https://cdn.example.com/a.jpg", "https://cdn.example.com/b.jpg"]
-    assert sent["post"]["scheduledTime"] == "2026-05-01T20:00:00Z"
-    assert sent["post"]["content"]["mediaType"] == "reel"
+    assert sent["scheduledTime"] == "2026-05-01T20:00:00Z"
+    assert sent["post"]["target"]["mediaType"] == "reel"
     assert sent["post"]["target"]["targetType"] == "instagram"
 
 
@@ -244,7 +244,7 @@ async def test_reschedule_post_sends_patch_request():
     req = transport.requests[0]
     assert req["method"] == "PATCH"
     assert req["url"].endswith("/schedules/sched-123")
-    assert req["body"] == {"scheduledTime": "2026-06-01T10:00:00Z"}
+    assert req["body"] == {"patch": {"scheduledTime": "2026-06-01T10:00:00Z"}}
 
 
 async def test_reschedule_post_sends_api_key_header():
@@ -492,3 +492,116 @@ async def test_list_accounts_raises_on_401():
 
     # 4xx should not retry
     assert len(transport.requests) == 1
+
+
+# ---------------------------------------------------------------------------
+# Bug 1 fix — mediaType must be in target, not content (publish-reliability)
+# ---------------------------------------------------------------------------
+
+async def test_create_post_puts_media_type_in_target_not_content():
+    """Bug 1: Blotato v2 spec puts mediaType inside target, not content."""
+    client, transport = _make_client(
+        1,
+        _response(200, {"id": "sub-reel-1"}),
+    )
+
+    await client.create_post(
+        platform="instagram",
+        account_id="ig-001",
+        text="Reel post",
+        media_urls=["https://example.com/video.mp4"],
+        scheduled_time="2026-05-01T20:00:00Z",
+        media_type="reel",
+    )
+
+    sent = transport.requests[0]["body"]
+    # mediaType MUST be in target
+    assert sent["post"]["target"]["mediaType"] == "reel"
+    # mediaType MUST NOT be in content
+    assert "mediaType" not in sent["post"]["content"]
+
+
+# ---------------------------------------------------------------------------
+# Bug 2 fix — reschedule PATCH body must be wrapped in {"patch": {...}}
+# ---------------------------------------------------------------------------
+
+async def test_reschedule_post_wraps_body_in_patch_key():
+    """Bug 2: Blotato v2 PATCH /schedules/:id requires {"patch": {"scheduledTime": "..."}}."""
+    client, transport = _make_client(
+        1,
+        _response(200, {}),
+    )
+
+    await client.reschedule_post("sched-123", "2026-06-01T10:00:00Z")
+
+    sent = transport.requests[0]["body"]
+    assert "patch" in sent
+    assert sent["patch"] == {"scheduledTime": "2026-06-01T10:00:00Z"}
+    # must NOT have scheduledTime at root level
+    assert "scheduledTime" not in sent
+
+
+# ---------------------------------------------------------------------------
+# Bug 3 fix — get_post_status() via GET /posts/:id
+# ---------------------------------------------------------------------------
+
+async def test_get_post_status_returns_status_string():
+    """Bug 3: GET /posts/:id returns status for post-schedule verification."""
+    client, transport = _make_client(
+        1,
+        _response(200, {"id": "post-abc", "status": "scheduled"}),
+    )
+
+    status = await client.get_post_status("post-abc")
+
+    assert status == "scheduled"
+    req = transport.requests[0]
+    assert req["method"] == "GET"
+    assert req["url"].endswith("/posts/post-abc")
+
+
+async def test_get_post_status_returns_in_progress():
+    client, transport = _make_client(
+        1,
+        _response(200, {"id": "post-abc", "status": "in-progress"}),
+    )
+
+    status = await client.get_post_status("post-abc")
+
+    assert status == "in-progress"
+
+
+async def test_get_post_status_returns_failed():
+    client, transport = _make_client(
+        1,
+        _response(200, {"id": "post-abc", "status": "failed"}),
+    )
+
+    status = await client.get_post_status("post-abc")
+
+    assert status == "failed"
+
+
+async def test_get_post_status_raises_on_4xx():
+    client, transport = _make_client(
+        1,
+        _response(404, {"error": "not found"}),
+    )
+
+    with pytest.raises(BlotatoAPIError):
+        await client.get_post_status("post-gone")
+
+    assert len(transport.requests) == 1
+
+
+async def test_get_post_status_retries_on_5xx_then_returns():
+    client, transport = _make_client(
+        3,
+        _response(500, {"error": "server error"}),
+        _response(200, {"id": "post-abc", "status": "scheduled"}),
+    )
+
+    status = await client.get_post_status("post-abc")
+
+    assert status == "scheduled"
+    assert len(transport.requests) == 2
