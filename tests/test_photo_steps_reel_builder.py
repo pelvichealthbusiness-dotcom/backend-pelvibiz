@@ -30,6 +30,9 @@ def _make_theme(primary="#7C3AED", bg="#0F0F0F"):
         music_url=None,
     )
 
+def _clips(elements):
+    return [e for e in elements if "Clip" in e.get("name", "")]
+
 
 def test_four_clips_total_duration_6s():
     req = _make_request(["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"])
@@ -48,42 +51,49 @@ def test_clips_capped_at_7():
     urls = [f"http://img{i}.jpg" for i in range(10)]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
-    assert len(clips) == 7
+    assert len(_clips(result["elements"])) == 7
 
 
 def test_clips_minimum_uses_provided_count():
-    # With 2 media files, builder uses what it has (frontend enforces min 4 in production)
     req = _make_request(["http://img1.jpg", "http://img2.jpg"])
     result = build_photo_steps_reel(req, _make_theme())
-    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
-    assert len(clips) == 2
+    assert len(_clips(result["elements"])) == 2
 
 
-def test_clip_fit_is_cover():
+def test_clip_fit_is_contain():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
-    assert all(c.get("fit") == "cover" for c in clips)
+    assert all(c.get("fit") == "contain" for c in _clips(result["elements"]))
 
 
-def test_clip_is_muted():
-    urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
-    req = _make_request(urls)
+def test_image_url_uses_image_type():
+    req = _make_request(["http://cdn.example.com/photo.jpg"])
     result = build_photo_steps_reel(req, _make_theme())
-    clips = [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")]
-    assert all(c.get("volume") == "0%" for c in clips)
+    clip = _clips(result["elements"])[0]
+    assert clip["type"] == "image"
+
+
+def test_video_url_uses_video_type_and_is_muted():
+    req = _make_request(["http://cdn.example.com/clip.mp4"])
+    result = build_photo_steps_reel(req, _make_theme())
+    clip = _clips(result["elements"])[0]
+    assert clip["type"] == "video"
+    assert clip.get("volume") == "0%"
+
+
+def test_image_url_has_no_volume_field():
+    req = _make_request(["http://cdn.example.com/photo.png"])
+    result = build_photo_steps_reel(req, _make_theme())
+    clip = _clips(result["elements"])[0]
+    assert "volume" not in clip
 
 
 def test_clip_time_offsets():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls)
     result = build_photo_steps_reel(req, _make_theme())
-    clips = sorted(
-        [e for e in result["elements"] if e.get("type") == "video" and "Clip" in e.get("name", "")],
-        key=lambda e: e["time"],
-    )
+    clips = sorted(_clips(result["elements"]), key=lambda e: e["time"])
     assert clips[0]["time"] == pytest.approx(0.0, abs=1e-4)
     assert clips[1]["time"] == pytest.approx(1.5, abs=1e-4)
     assert clips[2]["time"] == pytest.approx(3.0, abs=1e-4)

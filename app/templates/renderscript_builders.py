@@ -104,6 +104,14 @@ def _add_optional(*elements) -> list[dict]:
     """Filter out None values from optional elements."""
     return [el for el in elements if el is not None]
 
+_VIDEO_EXTENSIONS = {'.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v'}
+
+def _media_type_from_url(url: str) -> str:
+    """Return 'video' or 'image' based on URL file extension."""
+    clean = url.lower().split('?')[0].split('#')[0]
+    ext = '.' + clean.rsplit('.', 1)[-1] if '.' in clean else ''
+    return 'video' if ext in _VIDEO_EXTENSIONS else 'image'
+
 
 def _caption_y_from_position(position: Optional[str]) -> str:
     """Map text_position to a vertical % for caption elements."""
@@ -1639,9 +1647,10 @@ def build_photo_steps_reel(
         caption = (getattr(request, f"text_{i + 1}", None) or "").strip()
         base_track = 2 + i * 4
 
-        # Clip — cover fills frame (accepts photo or short video)
-        els.append({
-            "type": "video",
+        # Clip — contain shows full image/video without cropping
+        media_type = _media_type_from_url(url)
+        clip_el: dict = {
+            "type": media_type,
             "track": base_track,
             "name": f"Clip {i + 1}",
             "source": url,
@@ -1651,9 +1660,11 @@ def build_photo_steps_reel(
             "height": "100%",
             "x": "50%", "x_anchor": "50%",
             "y": "50%", "y_anchor": "50%",
-            "fit": "cover",
-            "volume": "0%",
-        })
+            "fit": "contain",
+        }
+        if media_type == "video":
+            clip_el["volume"] = "0%"
+        els.append(clip_el)
 
         # Dark overlay
         els.append(_rect_elem(f"Overlay {i + 1}", base_track + 1, t, clip_dur, "#000000", opacity="45%"))
