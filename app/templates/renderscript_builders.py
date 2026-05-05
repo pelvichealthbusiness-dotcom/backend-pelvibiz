@@ -1514,94 +1514,132 @@ def build_patient_review(
     _analysis=None,
     _phrase_blocks: list[PhraseBlock] | None = None,
 ) -> dict:
-    dur = 6.0
-    screenshot_url = request.video_urls[0] if request.video_urls else None
-    headline = request.text_1 or "What our patients are saying..."
+    screenshots = list(request.video_urls or [])
+    clip_count = max(1, min(5, len(screenshots)))
+    clip_dur = 6.0
+    total_dur = clip_count * clip_dur
 
-    hook_font = request.hook_font or theme.font_family
-    hook_color = _hook_color(request, "#FFFFFF")
-    brand_primary = theme.primary_color or "#7C3AED"
+    hook_font = getattr(request, "hook_font", None) or "Anton"
+    hook_color = getattr(request, "hook_color", None) or "#FFFFFF"
+    primary = getattr(theme, "primary_color", None) or "#7C3AED"
+    bg_color = getattr(theme, "background_color", None) or "#0F0F0F"
+    logo_url = getattr(request, "logo_url", None)
 
     els: list[dict] = []
 
-    # Full brand-color background
+    # Shared full-duration background
     els.append({
         "type": "shape",
         "track": 1,
         "name": "Background",
-        "fill_color": brand_primary,
-        "width": "100%",
-        "height": "100%",
+        "shape": "rectangle",
+        "fill_color": bg_color,
+        "width": "100%", "height": "100%",
         "x": "50%", "x_anchor": "50%",
         "y": "50%", "y_anchor": "50%",
+        "time": 0.0,
+        "duration": total_dur,
     })
 
-    # Oval halo border — frames the headline
-    els.append({
-        "type": "shape",
-        "track": 2,
-        "name": "Oval Halo",
-        "border_radius": "50%",
-        "fill_color": "rgba(0,0,0,0)",
-        "stroke_color": "rgba(255,255,255,0.65)",
-        "stroke_width": "0.7 vmin",
-        "width": "84%",
-        "height": "22%",
-        "x": "50%", "x_anchor": "50%",
-        "y": "18%", "y_anchor": "50%",
-    })
+    for i in range(clip_count):
+        t = round(i * clip_dur, 3)
+        url = screenshots[i]
+        headline = getattr(request, f"text_{i + 1}", None) or ""
 
-    # Headline centered inside the oval
-    els.append({
-        "type": "text",
-        "track": 3,
-        "name": "Headline",
-        "text": headline,
-        "font_family": hook_font,
-        "font_size": "7vmin",
-        "font_weight": "700",
-        "fill_color": hook_color,
-        "width": "70%",
-        "x": "50%", "x_anchor": "50%",
-        "y": "18%", "y_anchor": "50%",
-        "x_alignment": "center",
-        "text_wrap": True,
-        "line_height": "115%",
-    })
+        base_track = 2 + i * 10  # Reserve 10 tracks per clip
 
-    # Review screenshot card — tight below the oval
-    if screenshot_url:
+        # Brand color header band
         els.append({
-            "type": "image",
-            "track": 4,
-            "name": "Review Card",
-            "source": screenshot_url,
-            "width": "90%",
-            "height": "56%",
+            "type": "shape",
+            "track": base_track,
+            "name": f"Header Band {i + 1}",
+            "shape": "rectangle",
+            "fill_color": primary,
+            "width": "100%",
+            "height": "28%",
             "x": "50%", "x_anchor": "50%",
-            "y": "62%", "y_anchor": "50%",
-            "fill_mode": "contain",
-            "border_radius": "4vmin",
+            "y": "0%", "y_anchor": "0%",
+            "time": t,
+            "duration": clip_dur,
         })
 
-    # Logo
-    if request.logo_url:
+        # Oval Halo inside the band
+        els.append({
+            "type": "shape",
+            "track": base_track + 1,
+            "name": f"Oval Halo {i + 1}",
+            "shape": "ellipse",
+            "border_radius": "50%",
+            "fill_color": "rgba(0,0,0,0)",
+            "stroke_color": "rgba(255,255,255,0.65)",
+            "stroke_width": "0.7 vmin",
+            "width": "84%",
+            "height": "22%",
+            "x": "50%", "x_anchor": "50%",
+            "y": "18%", "y_anchor": "50%",
+            "time": t,
+            "duration": clip_dur,
+        })
+
+        # Headline text inside oval
+        els.append({
+            "type": "text",
+            "track": base_track + 2,
+            "name": f"Headline {i + 1}",
+            "text": headline.upper() if headline else "",
+            "font_family": hook_font,
+            "font_size": "4.8 vmin",
+            "fill_color": hook_color,
+            "font_weight": "900",
+            "letter_spacing": "2%",
+            "text_transform": "uppercase",
+            "x": "50%", "x_anchor": "50%",
+            "y": "18%", "y_anchor": "50%",
+            "width": "78%",
+            "height": "20%",
+            "x_alignment": "50%",
+            "y_alignment": "50%",
+            "time": t,
+            "duration": clip_dur,
+        })
+
+        # Review screenshot card
         els.append({
             "type": "image",
-            "track": 5,
-            "source": request.logo_url,
-            "width": "25%",
-            "height": "5%",
+            "track": base_track + 3,
+            "name": f"Review Screenshot {i + 1}",
+            "source": url,
             "x": "50%", "x_anchor": "50%",
-            "y": "95%", "y_anchor": "50%",
-            "fill_mode": "contain",
+            "y": "62%", "y_anchor": "50%",
+            "width": "88%",
+            "height": "64%",
+            "fit": "contain",
+            "border_radius": "3%",
+            "time": t,
+            "duration": clip_dur,
+        })
+
+    # Shared logo overlay (full duration)
+    if logo_url:
+        els.append({
+            "type": "image",
+            "track": 100,
+            "name": "Logo",
+            "source": logo_url,
+            "x": "8%", "x_anchor": "0%",
+            "y": "4%", "y_anchor": "0%",
+            "width": "18%",
+            "height": "6%",
+            "fit": "contain",
+            "time": 0.0,
+            "duration": total_dur,
         })
 
     return {
         "output_format": "mp4",
         "width": 1080,
         "height": 1920,
-        "duration": dur,
+        "duration": total_dur,
         "elements": els,
     }
 
