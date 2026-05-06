@@ -113,6 +113,19 @@ def _media_type_from_url(url: str) -> str:
     return 'video' if ext in _VIDEO_EXTENSIONS else 'image'
 
 
+def _contrasting_text_color(hex_color: str) -> str:
+    """Return '#FFFFFF' or '#000000' whichever contrasts better with hex_color."""
+    try:
+        c = hex_color.lstrip('#')
+        if len(c) == 3:
+            c = ''.join(x * 2 for x in c)
+        r, g, b = int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return '#000000' if luminance > 0.5 else '#FFFFFF'
+    except (ValueError, IndexError):
+        return '#FFFFFF'
+
+
 def _caption_y_from_position(position: Optional[str]) -> str:
     """Map text_position to a vertical % for caption elements."""
     if position == "center":
@@ -1685,7 +1698,7 @@ def build_photo_steps_reel(
                 "font_family": _hook_font(request, theme),
                 "font_weight": "700",
                 "font_size": "3.8 vmin",
-                "fill_color": "#FFFFFF",
+                "fill_color": _contrasting_text_color(theme.primary_color or "#7C3AED"),
                 "background_color": theme.primary_color,
                 "background_x_padding": "6%",
                 "background_y_padding": "3%",

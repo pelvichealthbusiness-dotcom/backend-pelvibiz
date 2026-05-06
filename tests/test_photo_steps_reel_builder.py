@@ -124,6 +124,22 @@ def test_no_caption_element_when_text_missing():
     assert len(texts) == 0
 
 
+def test_caption_fill_color_contrasts_with_light_primary():
+    urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
+    req = _make_request(urls, texts=["Step one", None, None, None])
+    result = build_photo_steps_reel(req, _make_theme(primary="#FFFFFF"))
+    texts = [e for e in result["elements"] if e.get("type") == "text"]
+    assert texts[0].get("fill_color") == "#000000"
+
+
+def test_caption_fill_color_is_white_on_dark_primary():
+    urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
+    req = _make_request(urls, texts=["Step one", None, None, None])
+    result = build_photo_steps_reel(req, _make_theme(primary="#1a1a1a"))
+    texts = [e for e in result["elements"] if e.get("type") == "text"]
+    assert texts[0].get("fill_color") == "#FFFFFF"
+
+
 def test_output_dimensions_are_portrait():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls)
