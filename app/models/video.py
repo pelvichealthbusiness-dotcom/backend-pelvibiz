@@ -44,7 +44,6 @@ class VideoTemplate(str, Enum):
     EDU_STEPS = "edu-steps"
     COUNTDOWN_STACK = "countdown-stack"
     MYTH_DEBUNK = "myth-debunk"
-    PHOTO_CAPTION_REEL = "photo-caption-reel"
     PHOTO_STEPS_REEL = "photo-steps-reel"
 
 
@@ -205,16 +204,6 @@ TEMPLATE_CONFIG: dict[VideoTemplate, dict] = {
         "output_format": "mp4",
         "width": 1080,
         "height": 1920,
-    },
-    VideoTemplate.PHOTO_CAPTION_REEL: {
-        "creatomate_id": "RENDERSCRIPT",
-        "required_videos": 0,
-        "required_text_count": 0,
-        "needs_analysis": False,
-        "output_format": "mp4",
-        "width": 1080,
-        "height": 1920,
-        "duration": 0,
     },
     VideoTemplate.PHOTO_STEPS_REEL: {
         "creatomate_id": "RENDERSCRIPT",

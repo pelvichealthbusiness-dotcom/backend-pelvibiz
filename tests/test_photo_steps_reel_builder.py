@@ -99,12 +99,21 @@ def test_clip_time_offsets():
     assert clips[2]["time"] == pytest.approx(8.0, abs=1e-4)
 
 
-def test_caption_uses_primary_color_background():
+def test_caption_uses_dark_pill_background():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls, texts=["Step one", None, None, None])
     result = build_photo_steps_reel(req, _make_theme(primary="#FF0000"))
     texts = [e for e in result["elements"] if e.get("type") == "text"]
-    assert texts[0].get("background_color") == "#FF0000"
+    assert texts[0].get("background_color") == "rgba(0,0,0,0.65)"
+
+
+def test_caption_has_black_stroke():
+    urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
+    req = _make_request(urls, texts=["Step one", None, None, None])
+    result = build_photo_steps_reel(req, _make_theme())
+    texts = [e for e in result["elements"] if e.get("type") == "text"]
+    assert texts[0].get("stroke_color") == "#000000"
+    assert texts[0].get("stroke_width") is not None
 
 
 def test_caption_text_appears_at_correct_time():
@@ -124,20 +133,13 @@ def test_no_caption_element_when_text_missing():
     assert len(texts) == 0
 
 
-def test_caption_fill_color_contrasts_with_light_primary():
+def test_caption_fill_color_is_always_white():
     urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
     req = _make_request(urls, texts=["Step one", None, None, None])
-    result = build_photo_steps_reel(req, _make_theme(primary="#FFFFFF"))
-    texts = [e for e in result["elements"] if e.get("type") == "text"]
-    assert texts[0].get("fill_color") == "#000000"
-
-
-def test_caption_fill_color_is_white_on_dark_primary():
-    urls = ["http://img1.jpg", "http://img2.jpg", "http://img3.jpg", "http://img4.jpg"]
-    req = _make_request(urls, texts=["Step one", None, None, None])
-    result = build_photo_steps_reel(req, _make_theme(primary="#1a1a1a"))
-    texts = [e for e in result["elements"] if e.get("type") == "text"]
-    assert texts[0].get("fill_color") == "#FFFFFF"
+    for primary in ("#FFFFFF", "#000000", "#FF0000", "#7C3AED"):
+        result = build_photo_steps_reel(req, _make_theme(primary=primary))
+        texts = [e for e in result["elements"] if e.get("type") == "text"]
+        assert texts[0].get("fill_color") == "#FFFFFF", f"Expected white text on primary {primary}"
 
 
 def test_output_dimensions_are_portrait():
